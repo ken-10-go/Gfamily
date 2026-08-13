@@ -9,19 +9,16 @@ function person(id: string, overrides: Partial<Person> = {}): Person {
   counter += 1;
   return {
     id,
-    tree_id: 'tree',
-    family_name: '山田',
-    given_name: id,
-    maiden_name: null,
+    familyName: '山田',
+    givenName: id,
+    maidenName: null,
     gender: 'unknown',
-    birth_date: `19${String(counter).padStart(2, '0')}-01-01`,
-    death_date: null,
-    birth_place: null,
+    birthDate: `19${String(counter).padStart(2, '0')}-01-01`,
+    deathDate: null,
+    birthPlace: null,
     note: null,
-    is_living: true,
-    deleted_at: null,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
+    isLiving: true,
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -29,11 +26,10 @@ function person(id: string, overrides: Partial<Person> = {}): Person {
 function link(parentId: string, childId: string, overrides: Partial<ParentChild> = {}): ParentChild {
   return {
     id: `${parentId}->${childId}`,
-    tree_id: 'tree',
-    parent_id: parentId,
-    child_id: childId,
+    parentId: parentId,
+    childId: childId,
     kind: 'biological',
-    deleted_at: null,
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -41,13 +37,12 @@ function link(parentId: string, childId: string, overrides: Partial<ParentChild>
 function union(a: string, b: string, overrides: Partial<Union> = {}): Union {
   return {
     id: `${a}+${b}`,
-    tree_id: 'tree',
-    partner1_id: a,
-    partner2_id: b,
+    partner1Id: a,
+    partner2Id: b,
     status: 'married',
-    start_date: null,
-    end_date: null,
-    deleted_at: null,
+    startDate: null,
+    endDate: null,
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -178,9 +173,9 @@ describe('computeLayout', () => {
     const layout = computeLayout(
       graph({
         persons: [
-          person('parent', { birth_date: '1950-01-01' }),
-          person('younger', { birth_date: '1985-01-01' }),
-          person('older', { birth_date: '1980-01-01' }),
+          person('parent', { birthDate: '1950-01-01' }),
+          person('younger', { birthDate: '1985-01-01' }),
+          person('older', { birthDate: '1980-01-01' }),
         ],
         parentChild: [link('parent', 'younger'), link('parent', 'older')],
       }),
@@ -251,7 +246,7 @@ describe('computeLayout', () => {
   it('削除済みの人物と、それを指す関係を除外する', () => {
     const layout = computeLayout(
       graph({
-        persons: [person('alive'), person('removed', { deleted_at: '2026-01-01T00:00:00Z' })],
+        persons: [person('alive'), person('removed', { deletedAt: '2026-01-01T00:00:00Z' })],
         parentChild: [link('alive', 'removed')],
         unions: [union('alive', 'removed')],
       }),
@@ -265,7 +260,7 @@ describe('computeLayout', () => {
     const layout = computeLayout(
       graph({
         persons: [person('a'), person('b')],
-        parentChild: [link('a', 'b', { deleted_at: '2026-01-01T00:00:00Z' })],
+        parentChild: [link('a', 'b', { deletedAt: '2026-01-01T00:00:00Z' })],
       }),
     );
 

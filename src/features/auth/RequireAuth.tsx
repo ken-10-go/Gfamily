@@ -5,14 +5,14 @@ import { useAuth } from '@/features/auth/useAuth';
 
 /** 未ログインならログイン画面へ送る。元のURLは state に持たせて復帰できるようにする。 */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { session, loading } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
     return <p className="page__status">読み込み中…</p>;
   }
 
-  if (!session) {
+  if (!user) {
     return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
   }
 

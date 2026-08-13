@@ -5,7 +5,7 @@
 
 要件の詳細は [要件定義書.md](要件定義書.md) を参照してください。
 
-> **現在の状態**: フェーズ1（MVP）実装済み。認証、人物・関係のCRUD、ツリービュー、招待、RLSによる権限制御が動きます。
+> **現在の状態**: フェーズ1（MVP）実装済み。認証、人物・関係のCRUD、ツリービュー、招待、権限制御が動きます。
 > ファンチャート／タイムライン、写真添付、GEDCOM入出力はフェーズ2以降です。
 
 ## 技術構成
@@ -14,11 +14,12 @@
 |---|---|
 | フロントエンド | React 19 + TypeScript + Vite |
 | ルーティング | React Router |
-| バックエンド / 認証 / DB | Supabase（PostgreSQL + Auth + Row Level Security） |
+| 認証 / DB | Firebase Authentication + Cloud Firestore |
+| サーバー処理 | Cloud Functions（招待の発行・受諾、変更履歴の記録） |
 | 家系図描画 | 自前のレイアウト計算 + SVG |
-| ホスティング | GitHub Pages（GitHub Actions で自動デプロイ） |
+| ホスティング | Firebase Hosting（GitHub Actions で自動デプロイ） |
 | Lint / Format | ESLint（flat config）+ Prettier |
-| テスト | Vitest + Testing Library + PGlite |
+| テスト | Vitest + Testing Library + Firestore エミュレータ |
 
 家系図の描画は D3.js / React Flow を使わず、自前のレイアウト計算（[layout.ts](src/features/tree-view/layout.ts)）と
 SVG で実装しています。家系図は「親子＋婚姻」の有向グラフで厳密な木ではなく、複数婚や養子縁組を含むため
@@ -35,58 +36,55 @@ SVG で実装しています。家系図は「親子＋婚姻」の有向グラ�
 
 ## セルフホスト手順
 
-### 1. Supabase プロジェクトを用意する
+### 1. Firebase プロジェクトを用意する
 
-1. [Supabase](https://supabase.com/) で無料プロジェクトを作成
-2. Project Settings > API から **Project URL** と **anon public key** を控える
-3. `service_role` key はサーバー専用の秘密鍵です。フロントエンドやリポジトリには絶対に置かないでください
+1. [Firebase コンソール](https://console.firebase.google.com/) でプロジェクトを作成
+2. **Firestore Database** を作成（本番モードでよい。ルールは後で上書きします）
+3. **Authentication** を有効化し、**メール/パスワード** と **メールリンク** を有効にする
+4. ウェブアプリ（`</>`）を登録し、表示される設定値を控える
 
-### 2. スキーマを適用する
+**Cloud Functions を使うため Blaze（従量課金）プランが必要です。** 無料枠は大きいので
+家族規模の利用で課金される可能性は低いですが、コンソールで予算アラートを設定しておくと安心です。
 
-SQL Editor で [supabase/migrations/0001_initial_schema.sql](supabase/migrations/0001_initial_schema.sql) を実行します。
-テーブル、RLSポリシー、権限判定関数、招待用RPC、監査ログのトリガーがまとめて作成されます。
+### 2. 認証を招待制にする
 
-動作確認用のダミーデータが必要な場合は、ユーザーを1人作った後に
-[supabase/seed.sql](supabase/seed.sql) を実行してください（架空の人物のみが入ります）。
+要件どおり「一般公開の新規登録は行わない」ため、自己サインアップを止めます。
 
-### 3. 認証を招待制にする
-
-要件どおり「一般公開の新規登録は行わない」ため、Supabase 側で自己サインアップを止めます。
-
-1. Authentication > Providers > Email で **Enable Sign Ups** を **オフ**にする
-2. 利用者は Authentication > Users の **Invite user** から管理者が追加する
-
-アプリのログインリンクは `shouldCreateUser: false` で要求するため、
-未登録のメールアドレスにリンクが送られてアカウントが作られることはありません。
+1. **Authentication → Settings → User actions** で **Enable create (sign-up)** を **オフ**にする
+2. 利用者は **Authentication → Users → Add user** から管理者が追加する
 
 家系図への招待（アプリ内の招待リンク）は、この認証アカウントを持つ人に対して
 「どの家系図に、どの権限で参加できるか」を与えるものです。両者は別の段階です。
 
-### 4. 環境変数を設定する
+### 3. 環境変数を設定する
 
 ```bash
 cp .env.example .env
 ```
 
-`.env` に控えた値を記入します。`.env` は `.gitignore` 済みです。
+Firebase コンソールで控えた値を記入します。`.env` は `.gitignore` 済みです。
 
-| 変数名 | 必須 | 説明 |
-|---|---|---|
-| `VITE_SUPABASE_URL` | ○ | Supabase の Project URL |
-| `VITE_SUPABASE_ANON_KEY` | ○ | Supabase の anon public key |
-| `VITE_BASE_PATH` | | 配信先のベースパス。既定は `/`。GitHub Pages のサブパス配信では `/<リポジトリ名>/` |
+ここに入る値は**公開前提のクライアント設定**です（アプリのバンドルに埋め込まれます）。
+秘密鍵ではありませんが、**アクセス制御は [firestore.rules](firestore.rules) が担っている**ため、
+ルールを適用せずに公開しないでください。
+
+### 4. ルールと Functions を反映する
+
+```bash
+npx firebase-tools deploy --only firestore,functions --project <プロジェクトID>
+```
 
 ### 5. 起動する
 
 ```bash
-npm install
+npm install && npm ci --prefix functions
 ```
 
 ```bash
 npm run dev
 ```
 
-Supabase を設定しなくてもツリービューの描画だけは確認できます。開発サーバー起動後に
+Firebase を設定しなくてもツリービューの描画だけは確認できます。開発サーバー起動後に
 `/demo` を開いてください（架空データ。本番ビルドには含まれません）。
 
 ## npm scripts
@@ -94,49 +92,61 @@ Supabase を設定しなくてもツリービューの描画だけは確認で�
 | コマンド | 内容 |
 |---|---|
 | `npm run dev` | 開発サーバーを起動 |
+| `npm run emulators` | Firebase エミュレータ一式を起動（`VITE_USE_FIREBASE_EMULATORS=true` と併用） |
 | `npm run build` | 型チェック + 本番ビルド（`dist/`） |
-| `npm run preview` | ビルド結果をローカル配信 |
 | `npm run typecheck` | 型チェックのみ |
 | `npm run lint` | ESLint |
-| `npm test` | Vitest（1回実行） |
+| `npm test` | 単体テスト |
+| `npm run test:rules` | セキュリティルールのテスト（エミュレータを自動起動） |
+| `npm run test:all` | 上記テストをまとめて実行 |
 | `npm run format` | Prettier で整形 |
 
 ## テスト
 
-RLSポリシーは、実際の PostgreSQL（WASM版の [PGlite](https://pglite.dev/)）にマイグレーションを適用して検証しています。
-Docker も Supabase CLI も不要で、`npm test` だけで以下が確認されます。
+セキュリティルールは、実際の Firestore エミュレータにルールを適用して検証しています。
+`npm run test:rules` で以下が確認されます（38件）。
 
-- 非メンバーは他人の家系図を読めない / 書けない
-- 閲覧者は読めるが書けない、編集者は書けるが物理削除・招待発行はできない
-- 招待トークンは平文で保存されず、期限切れ・取り消し済み・使用済み・宛先違いは受諾できない
-- 監査ログはクライアントから改ざん・削除できない
-- 家系図から最後のオーナーが居なくなる操作は拒否される
+- 非メンバーは他人の家系図を読めない / 書けない / 自分をメンバーに追加できない
+- 閲覧者は読めるが書けない、編集者は書けるが物理削除・招待操作はできない
+- 実行者（`updatedBy`）を詐称できず、省略もできない
+- 監査ログはオーナーでも書き込み・改ざん・削除ができない
+- 家系図から最後のオーナーが居なくなる更新は拒否される
+- `roles` と `memberIds` が食い違う更新は拒否される
+- ルールに定義していないパスは一切読み書きできない
+
+エミュレータの実行には Java が必要です（`brew install openjdk`）。
 
 家系図のレイアウト計算は純粋関数なので、世代の決定・きょうだいの導出・複数婚・
-データの循環といったケースを単体テストで押さえています。
+データの循環といったケースを単体テストで押さえています（15件）。
 
-## デプロイ（GitHub Pages）
+## デプロイ
 
-`main` への push で `.github/workflows/deploy.yml` が動きます。事前に以下を設定してください。
+`main` への push で [deploy.yml](.github/workflows/deploy.yml) が Hosting・ルール・
+インデックス・Functions をまとめて反映します。事前に以下を登録してください。
 
-1. リポジトリの Settings > Pages > Source を **GitHub Actions** にする
-2. Settings > Secrets and variables > Actions に以下を登録する
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+**Settings → Secrets and variables → Actions → Variables**（公開前提の値）
 
-anon key はフロントエンドのバンドルに埋め込まれる前提の公開鍵です。
-**実際のアクセス制御は Supabase 側の Row Level Security で行う**ため、RLS ポリシーを設定せずに公開しないでください。
+`VITE_FIREBASE_API_KEY` / `VITE_FIREBASE_AUTH_DOMAIN` / `VITE_FIREBASE_PROJECT_ID` /
+`VITE_FIREBASE_STORAGE_BUCKET` / `VITE_FIREBASE_MESSAGING_SENDER_ID` / `VITE_FIREBASE_APP_ID`
+
+**Settings → Secrets and variables → Actions → Secrets**（秘密）
+
+- `FIREBASE_SERVICE_ACCOUNT` … Firebase コンソール → プロジェクトの設定 → サービスアカウント
+  → 「新しい秘密鍵の生成」で得た JSON の中身をそのまま貼る
+
+デプロイ後、**Authentication → Settings → 承認済みドメイン**に公開URLのドメインを追加してください。
+ログインリンクが機能しなくなります。
 
 ## セキュリティ方針
 
 - 一般公開の新規登録は行わず、招待されたメンバーのみが利用できる
 - 家系図（ツリー）単位でアクセス制御し、オーナー / 編集者 / 閲覧者の3ロールを持つ
-- DB は RLS で「自分が所属するツリーのデータのみ」に限定する
-- パスワードは自前保存せず Supabase Auth に委譲する
+- Firestore セキュリティルールで「自分が所属するツリーのデータのみ」に限定する
+- パスワードは自前保存せず Firebase Authentication に委譲する
 - 招待トークンは SHA-256 ハッシュのみを保存し、平文は発行時に1度だけ表示する
-- 監査ログはトリガーでのみ書き込み、クライアントには読み取り権限しか与えない
-- 秘匿情報は環境変数（ローカルは `.env`、CI は GitHub Secrets）で管理し、リポジトリに含めない
-- 依存パッケージの脆弱性は Dependabot で監視する
+- 招待の発行・受諾は Cloud Functions だけが行い、クライアントからは書き込めない
+- 監査ログは Cloud Functions のトリガーだけが書き込み、クライアントは読み取りのみ
+- サービスアカウント鍵はリポジトリに含めず GitHub Secrets で管理する
 
 個人情報は要件定義書 2.3 に従い必要最小限に絞っており、住所・電話番号・メールアドレスは
 人物データとして保持しません。メンバー一覧でも他人のメールアドレスは表示されません。
@@ -146,6 +156,6 @@ anon key はフロントエンドのバンドルに埋め込まれる前提の�
 このリポジトリは**コードのみ**を公開します。以下は含めません。
 
 - 実際の家族データ（人物情報、写真、GEDCOM ファイル）
-- Supabase の接続情報・APIキー・DB ダンプ
+- サービスアカウント鍵、`.env`
 
 動作確認用のサンプルは、実在の家族と混同しないよう明確なダミーデータとして用意します。

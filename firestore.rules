@@ -1,0 +1,119 @@
+rules_version = '2';
+
+// ============================================================================
+// 家系図共有アプリ セキュリティルール
+//
+// 設計方針:
+//   * 権限はツリー文書の roles マップ（uid -> 'owner'|'editor'|'viewer'）で持つ
+//   * 人物や関係はツリーのサブコレクションに置き、親ツリーの roles で判定する
+//   * 招待と監査ログはクライアントから書けない。Cloud Functions（Admin SDK）だけが書く
+//   * 明示的に許可した操作以外はすべて拒否される
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function treeRoles(treeId) {
+      return get(/databases/$(database)/documents/trees/$(treeId)).data.roles;
+    }
+
+    function isMember(treeId) {
+      return isSignedIn() && request.auth.uid in treeRoles(treeId);
+    }
+
+    function canEdit(treeId) {
+      return isMember(treeId) && treeRoles(treeId)[request.auth.uid] in ['owner', 'editor'];
+    }
+
+    function isOwner(treeId) {
+      return isMember(treeId) && treeRoles(treeId)[request.auth.uid] == 'owner';
+    }
+
+    // roles と memberIds が食い違うと、一覧クエリと権限判定がずれて事故になる。
+    // memberIds は array-contains で「自分が参加しているツリー」を引くためだけに存在する。
+    function membersAreConsistent(data) {
+      return data.memberIds.toSet() == data.roles.keys().toSet();
+    }
+
+    // ツリーからオーナーが居なくなる更新を防ぐ
+    function hasAnyOwner(data) {
+      return data.roles.values().hasAny(['owner']);
+    }
+
+    // Firestore のトリガーは Postgres のトリガーと違い「誰が実行したか」を受け取れない。
+    // そこで実行者を updatedBy として書かせ、詐称できないことをここで担保する。
+    // これにより監査ログの「誰が」を信頼できる（記録自体はトリガーが必ず行う）。
+    function actorIsSelf() {
+      return request.resource.data.updatedBy == request.auth.uid;
+    }
+
+    match /trees/{treeId} {
+      allow get: if isSignedIn() && request.auth.uid in resource.data.roles;
+
+      // 一覧は必ず memberIds の array-contains で絞る前提。
+      // 他人のツリーを含むクエリはこのルールに阻まれて丸ごと失敗する。
+      //
+      // ここで roles マップを見ないのは、list の評価では resource.data のマップ項目を
+      // 参照できず「Property roles is undefined」になるため。memberIds は roles と
+      // 同じ内容を持つ配列で、整合性は membersAreConsistent() で強制している。
+      allow list: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+
+      // 作成時は自分だけがオーナーの状態しか認めない
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.roles.keys().hasOnly([request.auth.uid])
+        && request.resource.data.roles[request.auth.uid] == 'owner'
+        && membersAreConsistent(request.resource.data);
+
+      // 権限の変更・メンバーの削除はオーナーのみ。ただし最後のオーナーは残す。
+      allow update: if isOwner(treeId)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && membersAreConsistent(request.resource.data)
+        && hasAnyOwner(request.resource.data);
+
+      allow delete: if isOwner(treeId);
+
+      match /persons/{personId} {
+        allow read: if isMember(treeId);
+        // 削除はソフト削除（deletedAt）で行うため、update で足りる
+        allow create, update: if canEdit(treeId) && actorIsSelf();
+        allow delete: if isOwner(treeId);
+      }
+
+      match /parentChild/{linkId} {
+        allow read: if isMember(treeId);
+        allow create, update: if canEdit(treeId) && actorIsSelf();
+        allow delete: if isOwner(treeId);
+      }
+
+      match /unions/{unionId} {
+        allow read: if isMember(treeId);
+        allow create, update: if canEdit(treeId) && actorIsSelf();
+        allow delete: if isOwner(treeId);
+      }
+
+      // 招待はオーナーだけが見られる。発行・受諾・取り消しは Cloud Functions 経由。
+      // クライアントに書き込みを許すと、自分で自分をオーナーに招待できてしまう。
+      match /invitations/{invitationId} {
+        allow read: if isOwner(treeId);
+        allow write: if false;
+      }
+
+      // 監査ログは読み取り専用。書き込みを一切許さないことで、
+      // 「記録せずに編集する」「記録を消す」ができないようにする。
+      match /auditLogs/{logId} {
+        allow read: if isMember(treeId);
+        allow write: if false;
+      }
+    }
+
+    // 上記に当てはまらないパスはすべて拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

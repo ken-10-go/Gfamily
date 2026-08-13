@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy to Firebase
 
 on:
   push:
@@ -7,16 +7,13 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# 実行中のデプロイはキャンセルせず、キューに1件だけ保持する
 concurrency:
-  group: pages
+  group: firebase-deploy
   cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,33 +24,34 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm ci --prefix functions
 
       - name: Build
         env:
-          # Supabase の接続情報はリポジトリに含めず、GitHub Secrets から注入する
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          # サブパス配信のため /<リポジトリ名>/ を base に設定する
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          # Firebase のクライアント設定は公開前提の値だが、プロジェクトごとに異なるため
+          # リポジトリ変数（Secrets ではなく Variables）で持つ
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
         run: npm run build
 
-      # SPA のクライアントサイドルーティング対策:
-      # GitHub Pages は未知のパスで 404.html を返すため、index.html を複製しておく
-      - name: Add SPA fallback
-        run: cp dist/index.html dist/404.html
+      # サービスアカウントの鍵はファイルに書き出して firebase-tools に渡す。
+      # ジョブ終了とともに破棄される一時ディレクトリに置く。
+      - name: Authenticate to Firebase
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-key.json" >> "$GITHUB_ENV"
 
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # Hosting・セキュリティルール・インデックス・Functions をまとめて反映する。
+      # Functions のデプロイには Blaze プランが必要。
+      - name: Deploy
+        run: >
+          npx firebase-tools deploy
+          --only hosting,firestore,functions
+          --project "${{ vars.VITE_FIREBASE_PROJECT_ID }}"
+          --non-interactive

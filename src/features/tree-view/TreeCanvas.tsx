@@ -144,9 +144,9 @@ function PersonCard({
       <text x={NODE_WIDTH / 2} y={26} textAnchor="middle" className="person-card__name">
         {displayName(person)}
       </text>
-      {person.maiden_name ? (
+      {person.maidenName ? (
         <text x={NODE_WIDTH / 2} y={44} textAnchor="middle" className="person-card__meta">
-          （旧姓 {person.maiden_name}）
+          （旧姓 {person.maidenName}）
         </text>
       ) : (
         lifespan && (

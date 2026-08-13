@@ -21,6 +21,9 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
+      // ルールのテストは Firestore エミュレータが要るので、通常の run からは外す。
+      // 実行は npm run test:rules（エミュレータを起動してから走らせる）。
+      exclude: ['node_modules/**', 'dist/**', 'functions/**', 'src/test/rules/**'],
     },
   };
 });

@@ -3,12 +3,13 @@ import { Link, useParams } from 'react-router-dom';
 
 import { useAuth } from '@/features/auth/useAuth';
 import * as api from '@/lib/api';
-import { ROLE_LABELS, type Invitation, type TreeMember, type TreeRole } from '@/types/models';
+import type { MemberEntry } from '@/lib/api';
+import { ROLE_LABELS, type Invitation, type TreeRole } from '@/types/models';
 
 export function MembersPage() {
   const { treeId = '' } = useParams();
   const { user } = useAuth();
-  const [members, setMembers] = useState<TreeMember[]>([]);
+  const [members, setMembers] = useState<MemberEntry[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [role, setRole] = useState<TreeRole | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,7 +66,7 @@ export function MembersPage() {
   }
 
   async function handleRemove(userId: string) {
-    const isSelf = userId === user?.id;
+    const isSelf = userId === user?.uid;
     const message = isSelf
       ? 'この家系図から脱退しますか？'
       : 'このメンバーを削除しますか？';
@@ -104,17 +105,17 @@ export function MembersPage() {
           </thead>
           <tbody>
             {members.map((member) => (
-              <tr key={member.user_id}>
+              <tr key={member.userId}>
                 <td>
-                  <code>{member.user_id.slice(0, 8)}…</code>
-                  {member.user_id === user?.id && <span className="badge">自分</span>}
+                  <code>{member.userId.slice(0, 8)}…</code>
+                  {member.userId === user?.uid && <span className="badge">自分</span>}
                 </td>
                 <td>
-                  {isOwner && member.user_id !== user?.id ? (
+                  {isOwner && member.userId !== user?.uid ? (
                     <select
                       value={member.role}
                       onChange={(event) =>
-                        handleRoleChange(member.user_id, event.target.value as TreeRole)
+                        handleRoleChange(member.userId, event.target.value as TreeRole)
                       }
                       aria-label="権限"
                     >
@@ -129,13 +130,13 @@ export function MembersPage() {
                   )}
                 </td>
                 <td>
-                  {(isOwner || member.user_id === user?.id) && (
+                  {(isOwner || member.userId === user?.uid) && (
                     <button
                       type="button"
                       className="button button--danger"
-                      onClick={() => handleRemove(member.user_id)}
+                      onClick={() => handleRemove(member.userId)}
                     >
-                      {member.user_id === user?.id ? '脱退' : '削除'}
+                      {member.userId === user?.uid ? '脱退' : '削除'}
                     </button>
                   )}
                 </td>
@@ -226,12 +227,12 @@ export function MembersPage() {
                     <td>{invitation.email ?? '（リンクを知っている人）'}</td>
                     <td>{invitationStatus(invitation)}</td>
                     <td>
-                      {!invitation.accepted_at && !invitation.revoked_at && (
+                      {!invitation.acceptedAt && !invitation.revokedAt && (
                         <button
                           type="button"
                           className="button"
                           onClick={async () => {
-                            await api.revokeInvitation(invitation.id);
+                            await api.revokeInvitation(treeId, invitation.id);
                             await reload();
                           }}
                         >
@@ -251,8 +252,10 @@ export function MembersPage() {
 }
 
 function invitationStatus(invitation: Invitation): string {
-  if (invitation.revoked_at) return '取り消し済み';
-  if (invitation.accepted_at) return '受諾済み';
-  if (new Date(invitation.expires_at) < new Date()) return '期限切れ';
-  return `有効（${new Date(invitation.expires_at).toLocaleDateString('ja-JP')}まで）`;
+  if (invitation.revokedAt) return '取り消し済み';
+  if (invitation.acceptedAt) return '受諾済み';
+  if (!invitation.expiresAt) return '—';
+  const expiresAt = new Date(invitation.expiresAt);
+  if (expiresAt < new Date()) return '期限切れ';
+  return `有効（${expiresAt.toLocaleDateString('ja-JP')}まで）`;
 }

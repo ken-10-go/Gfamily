@@ -1,8 +1,7 @@
 import { createContext } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
+import type { User } from 'firebase/auth';
 
 export interface AuthState {
-  session: Session | null;
   user: User | null;
   /** 初回のセッション復元が終わるまで true。ルート保護の判断を待たせるために使う。 */
   loading: boolean;

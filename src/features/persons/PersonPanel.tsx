@@ -50,7 +50,7 @@ export function PersonPanel({
   const relations = useRelations(graph, person.id);
 
   async function handleUpdate(input: PersonInput) {
-    await api.updatePerson(person.id, input);
+    await api.updatePerson(treeId, person.id, input);
     await onChanged();
     setMode('view');
   }
@@ -82,7 +82,7 @@ export function PersonPanel({
     }
 
     try {
-      await api.softDeletePerson(person.id);
+      await api.softDeletePerson(treeId, person.id);
       await onChanged();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '削除に失敗しました');
@@ -121,16 +121,16 @@ export function PersonPanel({
   return (
     <aside className="panel">
       <h2>{displayName(person)}</h2>
-      {person.maiden_name && <p className="panel__subtitle">旧姓: {person.maiden_name}</p>}
+      {person.maidenName && <p className="panel__subtitle">旧姓: {person.maidenName}</p>}
 
       {error && <p className="alert alert--error">{error}</p>}
 
       <dl className="detail-list">
         <Detail label="性別" value={GENDER_LABELS[person.gender]} />
         <Detail label="生没" value={lifespanLabel(person) || '不明'} />
-        <Detail label="生年月日" value={person.birth_date} />
-        {!person.is_living && <Detail label="没年月日" value={person.death_date} />}
-        <Detail label="出生地" value={person.birth_place} />
+        <Detail label="生年月日" value={person.birthDate} />
+        {!person.isLiving && <Detail label="没年月日" value={person.deathDate} />}
+        <Detail label="出生地" value={person.birthPlace} />
         <Detail label="メモ" value={person.note} />
       </dl>
 
@@ -222,22 +222,22 @@ function RelationList({
 function useRelations(graph: TreeGraph, personId: string) {
   return useMemo(() => {
     const personById = new Map(graph.persons.map((p) => [p.id, p]));
-    const parentChild = graph.parentChild.filter((pc) => !pc.deleted_at);
-    const unions = graph.unions.filter((u) => !u.deleted_at);
+    const parentChild = graph.parentChild.filter((pc) => !pc.deletedAt);
+    const unions = graph.unions.filter((u) => !u.deletedAt);
 
-    const parentIds = parentChild.filter((pc) => pc.child_id === personId).map((pc) => pc.parent_id);
-    const childIds = parentChild.filter((pc) => pc.parent_id === personId).map((pc) => pc.child_id);
+    const parentIds = parentChild.filter((pc) => pc.childId === personId).map((pc) => pc.parentId);
+    const childIds = parentChild.filter((pc) => pc.parentId === personId).map((pc) => pc.childId);
 
     const siblingIds = new Set(
       parentChild
-        .filter((pc) => parentIds.includes(pc.parent_id) && pc.child_id !== personId)
-        .map((pc) => pc.child_id),
+        .filter((pc) => parentIds.includes(pc.parentId) && pc.childId !== personId)
+        .map((pc) => pc.childId),
     );
 
     const spouses = unions
-      .filter((u) => u.partner1_id === personId || u.partner2_id === personId)
+      .filter((u) => u.partner1Id === personId || u.partner2Id === personId)
       .map((u): SpouseEntry | null => {
-        const otherId = u.partner1_id === personId ? u.partner2_id : u.partner1_id;
+        const otherId = u.partner1Id === personId ? u.partner2Id : u.partner1Id;
         const other = personById.get(otherId);
         return other ? { person: other, status: u.status } : null;
       })

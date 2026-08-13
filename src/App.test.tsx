@@ -5,17 +5,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '@/App';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 
-const getSession = vi.fn();
-const onAuthStateChange = vi.fn();
+vi.mock('@/lib/firebase', () => ({
+  isFirebaseConfigured: true,
+  getFirebaseAuth: () => ({}),
+  getDb: () => ({}),
+  getFns: () => ({}),
+}));
 
-vi.mock('@/lib/supabase', () => ({
-  isSupabaseConfigured: true,
-  getSupabaseClient: () => ({
-    auth: {
-      getSession,
-      onAuthStateChange,
-    },
-  }),
+const { onAuthStateChanged, isSignInWithEmailLink } = vi.hoisted(() => ({
+  onAuthStateChanged: vi.fn(),
+  isSignInWithEmailLink: vi.fn(),
+}));
+
+vi.mock('firebase/auth', () => ({
+  onAuthStateChanged,
+  isSignInWithEmailLink,
+  signInWithEmailLink: vi.fn(),
+  signInWithEmailAndPassword: vi.fn(),
+  sendSignInLinkToEmail: vi.fn(),
+  signOut: vi.fn(),
 }));
 
 function renderAt(path: string) {
@@ -30,8 +38,12 @@ function renderAt(path: string) {
 
 describe('App', () => {
   beforeEach(() => {
-    getSession.mockResolvedValue({ data: { session: null } });
-    onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
+    isSignInWithEmailLink.mockReturnValue(false);
+    // 未ログイン状態を通知して購読解除関数を返す
+    onAuthStateChanged.mockImplementation((_auth: unknown, callback: (user: null) => void) => {
+      callback(null);
+      return vi.fn();
+    });
   });
 
   it('未ログインでトップを開くとログイン画面へ送られる', async () => {

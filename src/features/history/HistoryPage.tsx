@@ -6,10 +6,15 @@ import { displayName, type AuditLog, type Person } from '@/types/models';
 
 const ENTITY_LABELS: Record<string, string> = {
   persons: '人物',
-  parent_child: '親子関係',
+  parentChild: '親子関係',
   unions: '婚姻関係',
-  tree_members: 'メンバー',
+  members: 'メンバー',
 };
+
+/** サーバー側で採番中の createdAt は一時的に null になりうる。 */
+function formatDateTime(value: string | null): string {
+  return value ? new Date(value).toLocaleString('ja-JP') : '—';
+}
 
 const ACTION_LABELS: Record<AuditLog['action'], string> = {
   insert: '追加',
@@ -47,7 +52,7 @@ export function HistoryPage() {
 
   async function handleRestore(personId: string) {
     try {
-      await api.restorePerson(personId);
+      await api.restorePerson(treeId, personId);
       await reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '復元に失敗しました');
@@ -100,11 +105,11 @@ export function HistoryPage() {
             <tbody>
               {logs.map((log) => (
                 <tr key={log.id}>
-                  <td>{new Date(log.created_at).toLocaleString('ja-JP')}</td>
+                  <td>{formatDateTime(log.createdAt)}</td>
                   <td>{ENTITY_LABELS[log.entity] ?? log.entity}</td>
                   <td>{ACTION_LABELS[log.action]}</td>
                   <td>
-                    <code>{log.actor_id ? `${log.actor_id.slice(0, 8)}…` : '不明'}</code>
+                    <code>{log.actorId ? `${log.actorId.slice(0, 8)}…` : '不明'}</code>
                   </td>
                 </tr>
               ))}

@@ -58,16 +58,16 @@ export default function App() {
 }
 
 function AppHeader() {
-  const { session, signOut } = useAuth();
+  const { user, signOut } = useAuth();
 
   return (
     <header className="app__header">
       <Link to="/" className="app__brand">
         家系図
       </Link>
-      {session && (
+      {user && (
         <div className="app__account">
-          <span className="app__email">{session.user.email}</span>
+          <span className="app__email">{user.email}</span>
           <button type="button" className="button" onClick={() => void signOut()}>
             ログアウト
           </button>

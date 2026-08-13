@@ -6,7 +6,7 @@ import { displayName, type ParentChild, type Person, type TreeGraph, type Union 
 /**
  * 開発用のツリービュー確認画面（本番ビルドには含まれない）。
  *
- * Supabase を設定しなくても描画とパン・ズームを確認できるようにするためのもの。
+ * Firebase を設定しなくても描画とパン・ズームを確認できるようにするためのもの。
  * ここに出てくる人物はすべて架空で、実在の家族データとは無関係。
  */
 export function DemoPage() {
@@ -32,9 +32,9 @@ export function DemoPage() {
           {selected && (
             <dl className="detail-list">
               <dt>生年月日</dt>
-              <dd>{selected.birth_date ?? '不明'}</dd>
+              <dd>{selected.birthDate ?? '不明'}</dd>
               <dt>出生地</dt>
-              <dd>{selected.birth_place ?? '不明'}</dd>
+              <dd>{selected.birthPlace ?? '不明'}</dd>
             </dl>
           )}
         </aside>
@@ -53,43 +53,38 @@ function person(
 ): Person {
   return {
     id,
-    tree_id: 'demo',
-    family_name: familyName,
-    given_name: givenName,
-    maiden_name: null,
+    familyName: familyName,
+    givenName: givenName,
+    maidenName: null,
     gender,
-    birth_date: birth,
-    death_date: death ?? null,
-    birth_place: '架空県 見本市',
+    birthDate: birth,
+    deathDate: death ?? null,
+    birthPlace: '架空県 見本市',
     note: null,
-    is_living: !death,
-    deleted_at: null,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
+    isLiving: !death,
+    deletedAt: null,
   };
 }
 
 function pc(parentId: string, childId: string): ParentChild {
   return {
     id: `${parentId}-${childId}`,
-    tree_id: 'demo',
-    parent_id: parentId,
-    child_id: childId,
+    parentId: parentId,
+    childId: childId,
     kind: 'biological',
-    deleted_at: null,
+    deletedAt: null,
   };
 }
 
 function marriage(a: string, b: string, status: Union['status'] = 'married'): Union {
   return {
     id: `${a}-${b}`,
-    tree_id: 'demo',
-    partner1_id: a,
-    partner2_id: b,
+    partner1Id: a,
+    partner2Id: b,
     status,
-    start_date: null,
-    end_date: null,
-    deleted_at: null,
+    startDate: null,
+    endDate: null,
+    deletedAt: null,
   };
 }
 

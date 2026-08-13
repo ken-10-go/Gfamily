@@ -7,96 +7,85 @@ export interface Tree {
   id: string;
   name: string;
   description: string | null;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TreeMember {
-  tree_id: string;
-  user_id: string;
-  role: TreeRole;
-  created_at: string;
+  createdBy: string;
+  /** uid -> 権限。セキュリティルールの判定もこのマップを見る。 */
+  roles: Record<string, TreeRole>;
+  /** roles のキーと同じ内容。「自分が参加しているツリー」を1クエリで引くために持つ。 */
+  memberIds: string[];
 }
 
 export interface Person {
   id: string;
-  tree_id: string;
-  family_name: string | null;
-  given_name: string | null;
-  maiden_name: string | null;
+  familyName: string | null;
+  givenName: string | null;
+  maidenName: string | null;
   gender: Gender;
-  birth_date: string | null;
-  death_date: string | null;
-  birth_place: string | null;
+  /** YYYY-MM-DD 形式。日付の一部だけ分かる場合に備えて文字列で持つ。 */
+  birthDate: string | null;
+  deathDate: string | null;
+  birthPlace: string | null;
   note: string | null;
-  is_living: boolean;
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
+  isLiving: boolean;
+  /** ソフト削除の時刻（ISO文字列）。null なら生存レコード。 */
+  deletedAt: string | null;
 }
 
 /** 人物の新規作成・更新で編集できる項目。 */
 export type PersonInput = Pick<
   Person,
-  | 'family_name'
-  | 'given_name'
-  | 'maiden_name'
+  | 'familyName'
+  | 'givenName'
+  | 'maidenName'
   | 'gender'
-  | 'birth_date'
-  | 'death_date'
-  | 'birth_place'
+  | 'birthDate'
+  | 'deathDate'
+  | 'birthPlace'
   | 'note'
-  | 'is_living'
+  | 'isLiving'
 >;
 
 export interface ParentChild {
   id: string;
-  tree_id: string;
-  parent_id: string;
-  child_id: string;
+  parentId: string;
+  childId: string;
   kind: ParentKind;
-  deleted_at: string | null;
+  deletedAt: string | null;
 }
 
 export interface Union {
   id: string;
-  tree_id: string;
-  partner1_id: string;
-  partner2_id: string;
+  partner1Id: string;
+  partner2Id: string;
   status: UnionStatus;
-  start_date: string | null;
-  end_date: string | null;
-  deleted_at: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  deletedAt: string | null;
 }
 
 export interface Invitation {
   id: string;
-  tree_id: string;
   email: string | null;
   role: TreeRole;
-  expires_at: string;
-  revoked_at: string | null;
-  accepted_at: string | null;
-  accepted_by: string | null;
-  created_at: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  acceptedAt: string | null;
+  acceptedBy: string | null;
+  createdAt: string | null;
 }
 
 export interface InvitationPreview {
-  tree_name: string;
+  treeName: string;
   role: TreeRole;
-  requires_email: string | null;
+  requiresEmail: string | null;
 }
 
 export interface AuditLog {
-  id: number;
-  tree_id: string;
-  actor_id: string | null;
+  id: string;
+  actorId: string | null;
   entity: string;
-  entity_id: string | null;
+  entityId: string | null;
   action: 'insert' | 'update' | 'delete' | 'restore';
-  changes: Record<string, unknown> | null;
-  created_at: string;
+  createdAt: string | null;
 }
 
 /** ツリー1件分のデータをまとめて保持する。ビューはこれを入力にする。 */
@@ -134,17 +123,19 @@ export const UNION_STATUS_LABELS: Record<UnionStatus, string> = {
 };
 
 /** 表示用の氏名。姓と名のどちらかが欠けていても破綻しないようにする。 */
-export function displayName(person: Pick<Person, 'family_name' | 'given_name'>): string {
-  const name = [person.family_name, person.given_name].filter(Boolean).join(' ');
+export function displayName(person: Pick<Person, 'familyName' | 'givenName'>): string {
+  const name = [person.familyName, person.givenName].filter(Boolean).join(' ');
   return name || '(名前未設定)';
 }
 
 /** 「1958–」「1930–2005」のような生没年表記。 */
-export function lifespanLabel(person: Pick<Person, 'birth_date' | 'death_date' | 'is_living'>): string {
-  const birth = person.birth_date?.slice(0, 4) ?? '';
-  const death = person.death_date?.slice(0, 4) ?? '';
+export function lifespanLabel(
+  person: Pick<Person, 'birthDate' | 'deathDate' | 'isLiving'>,
+): string {
+  const birth = person.birthDate?.slice(0, 4) ?? '';
+  const death = person.deathDate?.slice(0, 4) ?? '';
 
   if (!birth && !death) return '';
-  if (person.is_living) return birth ? `${birth}–` : '';
+  if (person.isLiving) return birth ? `${birth}–` : '';
   return `${birth}–${death}`;
 }

@@ -3,15 +3,15 @@ import { useState, type FormEvent } from 'react';
 import { GENDER_LABELS, type Gender, type Person, type PersonInput } from '@/types/models';
 
 const EMPTY: PersonInput = {
-  family_name: '',
-  given_name: '',
-  maiden_name: '',
+  familyName: '',
+  givenName: '',
+  maidenName: '',
   gender: 'unknown',
-  birth_date: '',
-  death_date: '',
-  birth_place: '',
+  birthDate: '',
+  deathDate: '',
+  birthPlace: '',
   note: '',
-  is_living: true,
+  isLiving: true,
 };
 
 interface PersonFormProps {
@@ -25,15 +25,15 @@ export function PersonForm({ initial, submitLabel, onSubmit, onCancel }: PersonF
   const [input, setInput] = useState<PersonInput>(() =>
     initial
       ? {
-          family_name: initial.family_name ?? '',
-          given_name: initial.given_name ?? '',
-          maiden_name: initial.maiden_name ?? '',
+          familyName: initial.familyName ?? '',
+          givenName: initial.givenName ?? '',
+          maidenName: initial.maidenName ?? '',
           gender: initial.gender,
-          birth_date: initial.birth_date ?? '',
-          death_date: initial.death_date ?? '',
-          birth_place: initial.birth_place ?? '',
+          birthDate: initial.birthDate ?? '',
+          deathDate: initial.deathDate ?? '',
+          birthPlace: initial.birthPlace ?? '',
           note: initial.note ?? '',
-          is_living: initial.is_living,
+          isLiving: initial.isLiving,
         }
       : EMPTY,
   );
@@ -47,7 +47,7 @@ export function PersonForm({ initial, submitLabel, onSubmit, onCancel }: PersonF
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    if (!input.family_name?.trim() && !input.given_name?.trim()) {
+    if (!input.familyName?.trim() && !input.givenName?.trim()) {
       setError('姓か名のどちらかは入力してください');
       return;
     }
@@ -70,8 +70,8 @@ export function PersonForm({ initial, submitLabel, onSubmit, onCancel }: PersonF
           <span className="field__label">姓</span>
           <input
             type="text"
-            value={input.family_name ?? ''}
-            onChange={(event) => update('family_name', event.target.value)}
+            value={input.familyName ?? ''}
+            onChange={(event) => update('familyName', event.target.value)}
             maxLength={100}
           />
         </label>
@@ -79,8 +79,8 @@ export function PersonForm({ initial, submitLabel, onSubmit, onCancel }: PersonF
           <span className="field__label">名</span>
           <input
             type="text"
-            value={input.given_name ?? ''}
-            onChange={(event) => update('given_name', event.target.value)}
+            value={input.givenName ?? ''}
+            onChange={(event) => update('givenName', event.target.value)}
             maxLength={100}
           />
         </label>
@@ -91,8 +91,8 @@ export function PersonForm({ initial, submitLabel, onSubmit, onCancel }: PersonF
           <span className="field__label">旧姓</span>
           <input
             type="text"
-            value={input.maiden_name ?? ''}
-            onChange={(event) => update('maiden_name', event.target.value)}
+            value={input.maidenName ?? ''}
+            onChange={(event) => update('maidenName', event.target.value)}
             maxLength={100}
           />
         </label>
@@ -114,8 +114,8 @@ export function PersonForm({ initial, submitLabel, onSubmit, onCancel }: PersonF
       <label className="field field--checkbox">
         <input
           type="checkbox"
-          checked={input.is_living}
-          onChange={(event) => update('is_living', event.target.checked)}
+          checked={input.isLiving}
+          onChange={(event) => update('isLiving', event.target.checked)}
         />
         <span>存命</span>
       </label>
@@ -125,17 +125,17 @@ export function PersonForm({ initial, submitLabel, onSubmit, onCancel }: PersonF
           <span className="field__label">生年月日</span>
           <input
             type="date"
-            value={input.birth_date ?? ''}
-            onChange={(event) => update('birth_date', event.target.value)}
+            value={input.birthDate ?? ''}
+            onChange={(event) => update('birthDate', event.target.value)}
           />
         </label>
-        {!input.is_living && (
+        {!input.isLiving && (
           <label className="field">
             <span className="field__label">没年月日</span>
             <input
               type="date"
-              value={input.death_date ?? ''}
-              onChange={(event) => update('death_date', event.target.value)}
+              value={input.deathDate ?? ''}
+              onChange={(event) => update('deathDate', event.target.value)}
             />
           </label>
         )}
@@ -145,8 +145,8 @@ export function PersonForm({ initial, submitLabel, onSubmit, onCancel }: PersonF
         <span className="field__label">出生地</span>
         <input
           type="text"
-          value={input.birth_place ?? ''}
-          onChange={(event) => update('birth_place', event.target.value)}
+          value={input.birthPlace ?? ''}
+          onChange={(event) => update('birthPlace', event.target.value)}
           maxLength={200}
         />
       </label>

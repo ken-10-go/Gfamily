@@ -16,6 +16,16 @@ coverage/
 /data/
 *.ged
 
+# Firebase
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+functions/lib/
+# サービスアカウント鍵。絶対にコミットしない
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+
 # editor / OS
 .DS_Store
 .vscode/*

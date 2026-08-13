@@ -1,0 +1,17 @@
+{
+  "indexes": [
+    {
+      "//": "招待の受諾時に、トークンのハッシュから全ツリー横断で招待を探すため",
+      "collectionGroup": "invitations",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [{ "fieldPath": "tokenHash", "order": "ASCENDING" }]
+    },
+    {
+      "//": "変更履歴を新しい順に表示するため",
+      "collectionGroup": "auditLogs",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
+    }
+  ],
+  "fieldOverrides": []
+}

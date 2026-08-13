@@ -52,15 +52,15 @@ export interface TreeLayout {
  * 同世代では「次に空いているX座標」を単調増加で消費するため、カードが重なることはない。
  */
 export function computeLayout(graph: TreeGraph): TreeLayout {
-  const persons = graph.persons.filter((p) => !p.deleted_at);
+  const persons = graph.persons.filter((p) => !p.deletedAt);
   const personById = new Map(persons.map((p) => [p.id, p]));
 
   // 削除済みの人物を指す関係は無視する
   const parentChild = graph.parentChild.filter(
-    (pc) => !pc.deleted_at && personById.has(pc.parent_id) && personById.has(pc.child_id),
+    (pc) => !pc.deletedAt && personById.has(pc.parentId) && personById.has(pc.childId),
   );
   const unions = graph.unions.filter(
-    (u) => !u.deleted_at && personById.has(u.partner1_id) && personById.has(u.partner2_id),
+    (u) => !u.deletedAt && personById.has(u.partner1Id) && personById.has(u.partner2Id),
   );
 
   if (persons.length === 0) {
@@ -181,8 +181,8 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
     families,
     couples: unions.map((u) => ({
       id: u.id,
-      partner1Id: u.partner1_id,
-      partner2Id: u.partner2_id,
+      partner1Id: u.partner1Id,
+      partner2Id: u.partner2Id,
       status: u.status,
     })),
     width,
@@ -206,19 +206,19 @@ function computeGenerations(
     let changed = false;
 
     for (const pc of parentChild) {
-      const want = (generations.get(pc.parent_id) ?? 0) + 1;
-      if (want > (generations.get(pc.child_id) ?? 0)) {
-        generations.set(pc.child_id, want);
+      const want = (generations.get(pc.parentId) ?? 0) + 1;
+      if (want > (generations.get(pc.childId) ?? 0)) {
+        generations.set(pc.childId, want);
         changed = true;
       }
     }
 
     for (const union of unions) {
       const level = Math.max(
-        generations.get(union.partner1_id) ?? 0,
-        generations.get(union.partner2_id) ?? 0,
+        generations.get(union.partner1Id) ?? 0,
+        generations.get(union.partner2Id) ?? 0,
       );
-      for (const id of [union.partner1_id, union.partner2_id]) {
+      for (const id of [union.partner1Id, union.partner2Id]) {
         if ((generations.get(id) ?? 0) < level) {
           generations.set(id, level);
           changed = true;
@@ -244,9 +244,9 @@ function buildFamilyUnits(
 ): FamilyUnit[] {
   const parentsByChild = new Map<string, string[]>();
   for (const pc of parentChild) {
-    const list = parentsByChild.get(pc.child_id) ?? [];
-    list.push(pc.parent_id);
-    parentsByChild.set(pc.child_id, list);
+    const list = parentsByChild.get(pc.childId) ?? [];
+    list.push(pc.parentId);
+    parentsByChild.set(pc.childId, list);
   }
 
   const units = new Map<string, FamilyUnit>();
@@ -264,7 +264,7 @@ function buildFamilyUnits(
 
   // 子のいない夫婦
   for (const union of unions) {
-    const key = [union.partner1_id, union.partner2_id].sort().join('|');
+    const key = [union.partner1Id, union.partner2Id].sort().join('|');
     if (!units.has(key)) {
       units.set(key, { key, parentIds: key.split('|'), childIds: [] });
     }
@@ -277,9 +277,9 @@ function buildFamilyUnits(
 /** 生年順（不明は後ろ）→ 氏名順。きょうだいの並びを安定させる。 */
 function sortPersons(persons: Person[]): Person[] {
   return [...persons].sort((a, b) => {
-    if (a.birth_date && b.birth_date) return a.birth_date.localeCompare(b.birth_date);
-    if (a.birth_date) return -1;
-    if (b.birth_date) return 1;
+    if (a.birthDate && b.birthDate) return a.birthDate.localeCompare(b.birthDate);
+    if (a.birthDate) return -1;
+    if (b.birthDate) return 1;
     return a.id.localeCompare(b.id);
   });
 }

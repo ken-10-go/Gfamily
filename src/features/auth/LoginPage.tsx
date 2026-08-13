@@ -2,12 +2,12 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
 import { useAuth } from '@/features/auth/useAuth';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { isFirebaseConfigured } from '@/lib/firebase';
 
 type Mode = 'password' | 'magic-link';
 
 export function LoginPage() {
-  const { session, signInWithPassword, sendMagicLink } = useAuth();
+  const { user, signInWithPassword, sendMagicLink } = useAuth();
   const location = useLocation();
   const [mode, setMode] = useState<Mode>('password');
   const [email, setEmail] = useState('');
@@ -18,7 +18,7 @@ export function LoginPage() {
 
   const from = (location.state as { from?: string } | null)?.from ?? '/';
 
-  if (session) {
+  if (user) {
     return <Navigate to={from} replace />;
   }
 
@@ -46,9 +46,9 @@ export function LoginPage() {
     <main className="page page--narrow">
       <h1>ログイン</h1>
 
-      {!isSupabaseConfigured && (
+      {!isFirebaseConfigured && (
         <p className="alert alert--error">
-          Supabase の環境変数が設定されていません。<code>.env</code> を作成してから再読み込みしてください。
+          Firebase の環境変数が設定されていません。<code>.env</code> を作成してから再読み込みしてください。
         </p>
       )}
 

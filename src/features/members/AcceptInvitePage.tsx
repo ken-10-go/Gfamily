@@ -8,14 +8,14 @@ import { ROLE_LABELS, type InvitationPreview } from '@/types/models';
 export function AcceptInvitePage() {
   const { token = '' } = useParams();
   const navigate = useNavigate();
-  const { session, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
 
   useEffect(() => {
-    if (authLoading || !session) return;
+    if (authLoading || !user) return;
 
     api
       .previewInvitation(token)
@@ -24,7 +24,7 @@ export function AcceptInvitePage() {
         setError(caught instanceof Error ? caught.message : '招待を確認できませんでした'),
       )
       .finally(() => setLoading(false));
-  }, [token, session, authLoading]);
+  }, [token, user, authLoading]);
 
   async function handleAccept() {
     setAccepting(true);
@@ -42,7 +42,7 @@ export function AcceptInvitePage() {
   if (authLoading) return <p className="page__status">読み込み中…</p>;
 
   // 招待の確認にもログインが必要。トークンは復帰先URLに残るので、ログイン後にここへ戻る。
-  if (!session) {
+  if (!user) {
     return (
       <main className="page page--narrow">
         <h1>招待を受け取りました</h1>
@@ -78,10 +78,10 @@ export function AcceptInvitePage() {
     <main className="page page--narrow">
       <h1>家系図への招待</h1>
       <p>
-        <strong>{preview.tree_name}</strong> に{ROLE_LABELS[preview.role]}として招待されています。
+        <strong>{preview.treeName}</strong> に{ROLE_LABELS[preview.role]}として招待されています。
       </p>
-      {preview.requires_email && (
-        <p className="note">この招待は {preview.requires_email} 宛です。</p>
+      {preview.requiresEmail && (
+        <p className="note">この招待は {preview.requiresEmail} 宛です。</p>
       )}
 
       {error && <p className="alert alert--error">{error}</p>}

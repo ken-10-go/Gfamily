@@ -1,80 +1,114 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import {
+  isSignInWithEmailLink,
+  onAuthStateChanged,
+  sendSignInLinkToEmail,
+  signInWithEmailAndPassword,
+  signInWithEmailLink,
+  signOut as firebaseSignOut,
+  type User,
+} from 'firebase/auth';
 
 import { AuthContext, type AuthState } from '@/features/auth/AuthContext';
-import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase';
+import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+
+/** ログインリンクを要求したメールアドレスの控え。別タブで開かれた場合は入力を促す。 */
+const EMAIL_STORAGE_KEY = 'familytree:signInEmail';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // 環境変数が未設定でもアプリ自体は起動させる。ここで例外を投げると画面が真っ白になり、
     // ログイン画面に出している「.env を作成してください」という案内が届かなくなる。
-    if (!isSupabaseConfigured) {
+    if (!isFirebaseConfigured) {
       setLoading(false);
       return;
     }
 
-    const supabase = getSupabaseClient();
-
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    const auth = getFirebaseAuth();
+    return onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
       setLoading(false);
     });
+  }, []);
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setLoading(false);
-    });
+  // メール内のログインリンクから戻ってきた場合の処理
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
 
-    return () => data.subscription.unsubscribe();
+    const auth = getFirebaseAuth();
+    if (!isSignInWithEmailLink(auth, window.location.href)) return;
+
+    const email =
+      window.localStorage.getItem(EMAIL_STORAGE_KEY) ??
+      window.prompt('確認のため、リンクを要求したメールアドレスを入力してください') ??
+      '';
+    if (!email) return;
+
+    void signInWithEmailLink(auth, email, window.location.href)
+      .then(() => {
+        window.localStorage.removeItem(EMAIL_STORAGE_KEY);
+        // トークンを含むURLを履歴に残さない
+        window.history.replaceState({}, '', window.location.pathname);
+      })
+      .catch(() => {
+        // 失敗時はログイン画面のフォームから再試行してもらう
+      });
   }, []);
 
   const signInWithPassword = useCallback(async (email: string, password: string) => {
-    const { error } = await getSupabaseClient().auth.signInWithPassword({ email, password });
-    if (error) throw new Error(translateAuthError(error.message));
+    try {
+      await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+    } catch (error) {
+      throw new Error(translateAuthError(error));
+    }
   }, []);
 
   const sendMagicLink = useCallback(async (email: string) => {
-    // shouldCreateUser: false が肝。ログインリンクの要求だけでアカウントが
-    // 作られてしまうと「一般公開の新規登録は行わない」方針が崩れる。
-    const { error } = await getSupabaseClient().auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false, emailRedirectTo: window.location.origin },
-    });
-    if (error) throw new Error(translateAuthError(error.message));
+    try {
+      await sendSignInLinkToEmail(getFirebaseAuth(), email, {
+        url: window.location.origin,
+        handleCodeInApp: true,
+      });
+      window.localStorage.setItem(EMAIL_STORAGE_KEY, email);
+    } catch (error) {
+      throw new Error(translateAuthError(error));
+    }
   }, []);
 
   const signOut = useCallback(async () => {
-    await getSupabaseClient().auth.signOut();
+    await firebaseSignOut(getFirebaseAuth());
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({
-      session,
-      user: session?.user ?? null,
-      loading,
-      signInWithPassword,
-      sendMagicLink,
-      signOut,
-    }),
-    [session, loading, signInWithPassword, sendMagicLink, signOut],
+    () => ({ user, loading, signInWithPassword, sendMagicLink, signOut }),
+    [user, loading, signInWithPassword, sendMagicLink, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-/** Supabase の英語メッセージのうち、利用者が実際に遭遇するものだけ日本語にする。 */
-function translateAuthError(message: string): string {
-  if (/invalid login credentials/i.test(message)) {
-    return 'メールアドレスまたはパスワードが正しくありません';
+/** Firebase のエラーコードのうち、利用者が実際に遭遇するものだけ日本語にする。 */
+function translateAuthError(error: unknown): string {
+  const code = (error as { code?: string } | null)?.code ?? '';
+
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'メールアドレスまたはパスワードが正しくありません';
+    case 'auth/invalid-email':
+      return 'メールアドレスの形式が正しくありません';
+    case 'auth/user-disabled':
+      return 'このアカウントは無効化されています';
+    case 'auth/admin-restricted-operation':
+    case 'auth/operation-not-allowed':
+      return 'このメールアドレスは登録されていません。管理者に招待を依頼してください';
+    case 'auth/too-many-requests':
+      return '試行回数が多すぎます。しばらく待ってからお試しください';
+    default:
+      return error instanceof Error ? error.message : 'ログインに失敗しました';
   }
-  if (/signups not allowed|not authorized/i.test(message)) {
-    return 'このメールアドレスは登録されていません。管理者に招待を依頼してください';
-  }
-  if (/email rate limit|too many requests/i.test(message)) {
-    return '試行回数が多すぎます。しばらく待ってからお試しください';
-  }
-  return message;
 }
