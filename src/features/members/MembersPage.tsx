@@ -168,7 +168,9 @@ export function MembersPage() {
             </label>
 
             <label className="field field--grow">
-              <span className="field__label">宛先メール（任意・指定すると本人しか使えません）</span>
+              <span className="field__label">
+                宛先メール（初めての人には必須。Googleログイン用のアカウントを用意します）
+              </span>
               <input
                 type="email"
                 value={inviteEmail}

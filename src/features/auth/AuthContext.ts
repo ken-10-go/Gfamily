@@ -6,6 +6,7 @@ export interface AuthState {
   /** 初回のセッション復元が終わるまで true。ルート保護の判断を待たせるために使う。 */
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   sendMagicLink: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 }

@@ -22,6 +22,8 @@ vi.mock('firebase/auth', () => ({
   isSignInWithEmailLink,
   signInWithEmailLink: vi.fn(),
   signInWithEmailAndPassword: vi.fn(),
+  signInWithPopup: vi.fn(),
+  GoogleAuthProvider: class { setCustomParameters() {} },
   sendSignInLinkToEmail: vi.fn(),
   signOut: vi.fn(),
 }));

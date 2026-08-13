@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onDocumentWritten, type FirestoreEvent, type Change } from 'firebase-functions/v2/firestore';
@@ -62,13 +63,24 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
 
   await requireOwner(treeId, uid);
 
+  const normalizedEmail = email?.trim().toLowerCase() || null;
+
+  // 宛先が分かっている招待は、その人のアカウントを先に用意しておく。
+  //
+  // 本番プロジェクトでは自己サインアップを無効化しているため（disabledUserSignup）、
+  // アカウントが存在しない人は Google ログインもできない。招待時に枠を作っておくことで、
+  // 「招待された人だけが Google でログインできる」状態になる。
+  if (normalizedEmail) {
+    await ensureUserExists(normalizedEmail);
+  }
+
   const token = randomBytes(32).toString('hex');
   const expiresAt = Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
 
   await db.collection(`trees/${treeId}/invitations`).add({
     tokenHash: hashToken(token),
     role,
-    email: email?.trim().toLowerCase() || null,
+    email: normalizedEmail,
     expiresAt,
     revokedAt: null,
     acceptedAt: null,
@@ -79,6 +91,25 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
 
   return { token };
 });
+
+/**
+ * 招待先のアカウントを用意する。既にあれば何もしない。
+ *
+ * パスワードは設定しない。招待された人は Google ログイン、またはログインリンクで入る。
+ * 既存アカウントに同じメールアドレスの Google ログインを行うと、新規作成ではなく
+ * そのアカウントに紐づくことをエミュレータで確認済み。
+ */
+async function ensureUserExists(email: string): Promise<void> {
+  try {
+    await getAuth().getUserByEmail(email);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'auth/user-not-found') {
+      await getAuth().createUser({ email, emailVerified: false });
+      return;
+    }
+    throw error;
+  }
+}
 
 export const revokeInvitation = onCall({ region: REGION }, async (request) => {
   const uid = requireUid(request.auth);
