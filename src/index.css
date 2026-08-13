@@ -1,7 +1,16 @@
 :root {
   --bg: #ffffff;
+  --surface: #f6f7f9;
+  --border: #d9dde3;
   --fg: #1a1a1a;
-  --muted: #5c5c5c;
+  --muted: #5c6370;
+  --accent: #2f6f4f;
+  --accent-fg: #ffffff;
+  --danger: #a8352c;
+  --link: #1f5fa8;
+  --male: #e8f0fa;
+  --female: #fbeef2;
+  --neutral: #f2f2f0;
 
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
@@ -11,9 +20,22 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #16181d;
-    --fg: #f2f2f2;
+    --surface: #1e2128;
+    --border: #333944;
+    --fg: #f2f3f5;
     --muted: #a8adb8;
+    --accent: #4c9e74;
+    --accent-fg: #0f1114;
+    --danger: #e0756c;
+    --link: #77b0ea;
+    --male: #23303f;
+    --female: #3a2a33;
+    --neutral: #2a2d34;
   }
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -22,12 +44,567 @@ body {
   color: var(--fg);
 }
 
-.page {
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 2rem 1.25rem;
+h1 {
+  font-size: 1.5rem;
+}
+h2 {
+  font-size: 1.15rem;
+  margin-top: 2rem;
+}
+h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
 }
 
-.page p {
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+
+/* --- レイアウト ----------------------------------------------------------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.app__brand {
+  font-weight: 700;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.app__account {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app__email {
   color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.page {
+  width: 100%;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+.page--narrow {
+  max-width: 26rem;
+}
+
+.page__status {
+  padding: 2rem 1.25rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* --- 部品 ---------------------------------------------------------------- */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.button--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.alert {
+  padding: 0.7rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+
+.alert--error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.alert--success {
+  border-color: var(--accent);
+}
+
+.token {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+/* --- フォーム ------------------------------------------------------------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 1rem 0;
+}
+
+.form--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.form__row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.form__row > .field {
+  flex: 1 1 8rem;
+}
+
+.form__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field--grow {
+  flex: 1 1 14rem;
+}
+
+.field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.field__label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+input,
+select,
+textarea {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 1rem;
+}
+
+.tabs__tab {
+  flex: 1;
+  padding: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tabs__tab--active {
+  background: var(--surface);
+  color: var(--fg);
+  border-color: var(--muted);
+}
+
+/* --- 一覧・表 ------------------------------------------------------------- */
+
+.card-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card-list__item {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.card-list__item--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-list__title {
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.card-list__meta {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.table th,
+.table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.table th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.9rem;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+}
+
+.detail-list dt {
+  color: var(--muted);
+}
+
+.detail-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.875rem;
+}
+
+/* --- 家系図ページ --------------------------------------------------------- */
+
+.tree-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.tree-page__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tree-page__header h1 {
+  display: inline;
+  margin: 0 0 0 0;
+  font-size: 1.25rem;
+}
+
+.tree-page__back {
+  display: block;
+  color: var(--link);
+  font-size: 0.8rem;
+  text-decoration: none;
+  margin-bottom: 0.2rem;
+}
+
+.tree-page__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tree-page__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.search {
+  position: relative;
+}
+
+.search__results {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  min-width: 14rem;
+  margin: 0.25rem 0 0;
+  padding: 0.4rem;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  font-size: 0.875rem;
+}
+
+.search__results li {
+  padding: 0.2rem 0.25rem;
+}
+
+.search__meta {
+  margin-left: 0.4rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* --- キャンバス ----------------------------------------------------------- */
+
+.tree-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+}
+
+.tree-canvas--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  padding: 2rem;
+  text-align: center;
+}
+
+.tree-canvas__svg {
+  width: 100%;
+  height: 100%;
+  min-height: 24rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.tree-canvas__svg--panning {
+  cursor: grabbing;
+}
+
+.tree-canvas__controls {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tree-canvas__controls button {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link {
+  stroke: var(--border);
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.link--couple {
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.link--divorced {
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.person-card {
+  cursor: pointer;
+}
+
+.person-card__box {
+  fill: var(--neutral);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+.person-card--male .person-card__box {
+  fill: var(--male);
+}
+
+.person-card--female .person-card__box {
+  fill: var(--female);
+}
+
+.person-card--selected .person-card__box {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.person-card:focus-visible .person-card__box {
+  stroke: var(--link);
+  stroke-width: 3;
+}
+
+.person-card__name {
+  fill: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.person-card__meta {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+/* --- 詳細パネル ----------------------------------------------------------- */
+
+.panel {
+  width: 22rem;
+  flex-shrink: 0;
+  padding: 1rem 1.25rem 3rem;
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.panel h2 {
+  margin-top: 0;
+}
+
+.panel--placeholder {
+  color: var(--muted);
+}
+
+.panel__subtitle {
+  margin-top: -0.5rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.panel__section {
+  margin-top: 0.9rem;
+}
+
+.panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1.5rem;
+}
+
+/* --- 狭い画面 ------------------------------------------------------------- */
+
+@media (max-width: 48rem) {
+  .tree-page__body {
+    flex-direction: column;
+  }
+
+  .panel {
+    width: 100%;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .tree-canvas__svg {
+    min-height: 18rem;
+  }
 }
