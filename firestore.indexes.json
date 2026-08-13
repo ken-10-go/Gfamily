@@ -1,17 +1,16 @@
 {
-  "indexes": [
+  "//": "単一フィールドの索引は Firestore が自動で作るため、ここには複合索引だけを書く。",
+  "indexes": [],
+  "fieldOverrides": [
     {
-      "//": "招待の受諾時に、トークンのハッシュから全ツリー横断で招待を探すため",
+      "//": "招待の受諾時に、トークンのハッシュから全ツリーを横断して招待を探す。",
+      "//2": "コレクショングループ検索は自動索引の対象外なので、明示的に有効化する。",
       "collectionGroup": "invitations",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [{ "fieldPath": "tokenHash", "order": "ASCENDING" }]
-    },
-    {
-      "//": "変更履歴を新しい順に表示するため",
-      "collectionGroup": "auditLogs",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
+      "fieldPath": "tokenHash",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
     }
-  ],
-  "fieldOverrides": []
+  ]
 }
