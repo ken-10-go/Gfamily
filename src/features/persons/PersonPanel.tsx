@@ -19,6 +19,14 @@ type RelativeKind = 'parent' | 'spouse' | 'child';
 interface SpouseEntry {
   person: Person;
   status: UnionStatus;
+  /** unions ドキュメントのID。関係だけを解消するときに使う。 */
+  unionId: string;
+}
+
+interface ParentChildEntry {
+  person: Person;
+  /** parentChild ドキュメントのID。 */
+  linkId: string;
 }
 
 const RELATIVE_LABELS: Record<RelativeKind, string> = {
@@ -74,6 +82,27 @@ export function PersonPanel({
     await onChanged();
     setMode('view');
     onSelectPerson(created.id);
+  }
+
+  /** 関係だけを解消する。人物そのものは残る。 */
+  async function handleRemoveLink(
+    kind: 'parentChild' | 'union',
+    id: string,
+    confirmMessage: string,
+  ) {
+    if (!window.confirm(`${confirmMessage}。よろしいですか？（人物は残ります）`)) return;
+
+    setError(null);
+    try {
+      if (kind === 'parentChild') {
+        await api.removeParentChild(treeId, id);
+      } else {
+        await api.removeUnion(treeId, id);
+      }
+      await onChanged();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '関係の解消に失敗しました');
+    }
   }
 
   async function handleDelete() {
@@ -136,7 +165,13 @@ export function PersonPanel({
 
       <RelationList
         title="親"
-        entries={relations.parents.map((r) => ({ id: r.person.id, label: displayName(r.person) }))}
+        entries={relations.parents.map((r) => ({
+          id: r.person.id,
+          label: displayName(r.person),
+          onRemove: canEdit
+            ? () => handleRemoveLink('parentChild', r.linkId, `${displayName(r.person)} を親から外す`)
+            : undefined,
+        }))}
         onSelect={onSelectPerson}
       />
       <RelationList
@@ -144,6 +179,9 @@ export function PersonPanel({
         entries={relations.spouses.map((r) => ({
           id: r.person.id,
           label: `${displayName(r.person)}（${UNION_STATUS_LABELS[r.status]}）`,
+          onRemove: canEdit
+            ? () => handleRemoveLink('union', r.unionId, `${displayName(r.person)} との婚姻関係を外す`)
+            : undefined,
         }))}
         onSelect={onSelectPerson}
       />
@@ -151,10 +189,17 @@ export function PersonPanel({
         title="きょうだい"
         entries={relations.siblings.map((p) => ({ id: p.id, label: displayName(p) }))}
         onSelect={onSelectPerson}
+        note="きょうだいは親子関係から自動で導かれます。外すには親の関係を編集してください。"
       />
       <RelationList
         title="子"
-        entries={relations.children.map((p) => ({ id: p.id, label: displayName(p) }))}
+        entries={relations.children.map((r) => ({
+          id: r.person.id,
+          label: displayName(r.person),
+          onRemove: canEdit
+            ? () => handleRemoveLink('parentChild', r.linkId, `${displayName(r.person)} を子から外す`)
+            : undefined,
+        }))}
         onSelect={onSelectPerson}
       />
 
@@ -195,10 +240,12 @@ function RelationList({
   title,
   entries,
   onSelect,
+  note,
 }: {
   title: string;
-  entries: { id: string; label: string }[];
+  entries: { id: string; label: string; onRemove?: () => void }[];
   onSelect: (id: string) => void;
+  note?: string;
 }) {
   if (entries.length === 0) return null;
 
@@ -207,13 +254,25 @@ function RelationList({
       <h3>{title}</h3>
       <ul className="link-list">
         {entries.map((entry) => (
-          <li key={entry.id}>
+          <li key={entry.id} className="link-list__row">
             <button type="button" className="link-button" onClick={() => onSelect(entry.id)}>
               {entry.label}
             </button>
+            {entry.onRemove && (
+              <button
+                type="button"
+                className="icon-button"
+                onClick={entry.onRemove}
+                aria-label={`${entry.label} との関係を外す`}
+                title="関係を外す"
+              >
+                ×
+              </button>
+            )}
           </li>
         ))}
       </ul>
+      {note && <p className="note">{note}</p>}
     </section>
   );
 }
@@ -225,31 +284,38 @@ function useRelations(graph: TreeGraph, personId: string) {
     const parentChild = graph.parentChild.filter((pc) => !pc.deletedAt);
     const unions = graph.unions.filter((u) => !u.deletedAt);
 
-    const parentIds = parentChild.filter((pc) => pc.childId === personId).map((pc) => pc.parentId);
-    const childIds = parentChild.filter((pc) => pc.parentId === personId).map((pc) => pc.childId);
+    const parentLinks = parentChild.filter((pc) => pc.childId === personId);
+    const childLinks = parentChild.filter((pc) => pc.parentId === personId);
+    const parentIds = parentLinks.map((pc) => pc.parentId);
 
+    // きょうだいは親子関係からの導出なので、単体では削除できない（親側の関係を消す）
     const siblingIds = new Set(
       parentChild
         .filter((pc) => parentIds.includes(pc.parentId) && pc.childId !== personId)
         .map((pc) => pc.childId),
     );
 
+    const toEntry = (id: string, linkId: string): ParentChildEntry | null => {
+      const person = personById.get(id);
+      return person ? { person, linkId } : null;
+    };
+    const notNull = <T,>(value: T | null): value is T => value !== null;
+
     const spouses = unions
       .filter((u) => u.partner1Id === personId || u.partner2Id === personId)
       .map((u): SpouseEntry | null => {
         const otherId = u.partner1Id === personId ? u.partner2Id : u.partner1Id;
         const other = personById.get(otherId);
-        return other ? { person: other, status: u.status } : null;
+        return other ? { person: other, status: u.status, unionId: u.id } : null;
       })
-      .filter((entry): entry is SpouseEntry => entry !== null);
-
-    const resolve = (ids: string[]) =>
-      ids.map((id) => personById.get(id)).filter((p): p is Person => Boolean(p));
+      .filter(notNull);
 
     return {
-      parents: resolve([...new Set(parentIds)]).map((person) => ({ person })),
-      children: resolve([...new Set(childIds)]),
-      siblings: resolve([...siblingIds]),
+      parents: parentLinks.map((pc) => toEntry(pc.parentId, pc.id)).filter(notNull),
+      children: childLinks.map((pc) => toEntry(pc.childId, pc.id)).filter(notNull),
+      siblings: [...siblingIds]
+        .map((id) => personById.get(id))
+        .filter((p): p is Person => Boolean(p)),
       spouses,
     };
   }, [graph, personId]);

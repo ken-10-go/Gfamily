@@ -75,7 +75,10 @@ service cloud.firestore {
         && membersAreConsistent(request.resource.data)
         && hasAnyOwner(request.resource.data);
 
-      allow delete: if isOwner(treeId);
+      // 削除は deleteTree() Cloud Function 経由のみ。
+      // ここで直接削除を許すと、配下のサブコレクション（人物・関係・監査ログ）が
+      // 消えずに残り、個人情報が到達不能なまま保持され続けてしまう。
+      allow delete: if false;
 
       match /persons/{personId} {
         allow read: if isMember(treeId);

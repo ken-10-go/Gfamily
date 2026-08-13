@@ -214,6 +214,11 @@ describe('オーナーの権限', () => {
     );
   });
 
+  it('ツリーを直接削除できない（Functions 経由のみ）', async () => {
+    // 直接消すとサブコレクションが残り、個人情報が到達不能なまま保持されてしまう
+    await assertFails(deleteDoc(doc(as(env, OWNER), 'trees', TREE)));
+  });
+
   it('createdBy を書き換えられない', async () => {
     await assertFails(
       updateDoc(doc(as(env, OWNER), 'trees', TREE), { createdBy: OUTSIDER }),

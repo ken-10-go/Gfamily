@@ -37,6 +37,38 @@ async function requireOwner(treeId: string, uid: string): Promise<void> {
 }
 
 /**
+ * 家系図を、配下の人物・関係・招待・監査ログごと完全に削除する。
+ *
+ * Firestore はドキュメントを消してもサブコレクションが残る。クライアントから
+ * ツリー文書だけを削除すると、個人情報が「誰からも見えないが消えてもいない」状態で
+ * 残り続けてしまうため、削除はここに集約している（ルール側でも直接削除を禁じている）。
+ */
+export const deleteTree = onCall({ region: REGION }, async (request) => {
+  const uid = requireUid(request.auth);
+  const { treeId } = (request.data ?? {}) as { treeId?: string };
+
+  if (!treeId) {
+    throw new HttpsError('invalid-argument', '家系図が指定されていません');
+  }
+
+  await requireOwner(treeId, uid);
+
+  const treeRef = db.doc(`trees/${treeId}`);
+
+  // ツリー文書を先に消す。配下の削除で監査ログのトリガーが発火するが、
+  // トリガー側は親ツリーの不在を見て記録をやめるため、新しいログが増えない。
+  await treeRef.delete();
+  await db.recursiveDelete(treeRef);
+
+  // トリガーが動き終わるまで待ってから、取りこぼしを掃除する。
+  // 監査ログには削除された人物の氏名や生年月日が入っているため、残してはいけない。
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  await db.recursiveDelete(treeRef);
+
+  return { ok: true };
+});
+
+/**
  * 招待を発行し、平文トークンを1度だけ返す。
  * DB にはハッシュしか保存しないので、Firestore が漏洩してもトークンは復元できない。
  */
@@ -241,6 +273,12 @@ function auditTrigger(collection: string) {
       const afterData = after?.exists ? after.data() : undefined;
 
       if (!beforeData && !afterData) return;
+
+      // 家系図ごと削除された場合は記録しない。
+      // ここで書いてしまうと、親ツリーが無いため誰も読めず消せもしない監査ログが残り、
+      // その中身（氏名・生年月日など）が到達不能なまま保持され続けてしまう。
+      const tree = await db.doc(`trees/${event.params.treeId}`).get();
+      if (!tree.exists) return;
 
       let action: 'insert' | 'update' | 'delete' | 'restore';
       if (!beforeData) {

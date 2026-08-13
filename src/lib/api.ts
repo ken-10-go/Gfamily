@@ -1,7 +1,6 @@
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -105,8 +104,13 @@ export async function updateTree(
   await updateDoc(treeDoc(treeId), { ...patch, updatedAt: serverTimestamp() });
 }
 
+/**
+ * 家系図を配下のデータごと削除する。
+ * サブコレクションを残さず消すため Cloud Functions 経由で行う。
+ */
 export async function deleteTree(treeId: string): Promise<void> {
-  await deleteDoc(treeDoc(treeId));
+  const call = httpsCallable<{ treeId: string }, { ok: boolean }>(getFns(), 'deleteTree');
+  await call({ treeId });
 }
 
 /** ログイン中のユーザーがそのツリーで持つ権限。 */

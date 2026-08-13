@@ -342,6 +342,42 @@ textarea {
   gap: 1rem;
 }
 
+.card-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.card-list__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.link-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.icon-button {
+  padding: 0 0.35rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--surface);
+  color: var(--danger);
+}
+
 .card-list__title {
   color: var(--fg);
   font-weight: 600;

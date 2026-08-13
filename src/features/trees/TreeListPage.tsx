@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { useAuth } from '@/features/auth/useAuth';
 import * as api from '@/lib/api';
 import type { Tree } from '@/types/models';
 
 export function TreeListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [trees, setTrees] = useState<Tree[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,39 @@ export function TreeListPage() {
     }
   }
 
+  const isOwner = (tree: Tree) => (user ? tree.roles[user.uid] === 'owner' : false);
+
+  async function handleRename(tree: Tree) {
+    const name = window.prompt('新しい名前を入力してください', tree.name)?.trim();
+    if (!name || name === tree.name) return;
+
+    try {
+      await api.updateTree(tree.id, { name });
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '名前の変更に失敗しました');
+    }
+  }
+
+  async function handleDelete(tree: Tree) {
+    // 取り返しがつかない操作なので、名前の入力で意思確認する
+    const typed = window.prompt(
+      `「${tree.name}」を削除すると、登録されている人物・関係・変更履歴もすべて消え、元に戻せません。\n` +
+        '削除するには、家系図の名前をそのまま入力してください。',
+    );
+    if (typed?.trim() !== tree.name) {
+      if (typed !== null) window.alert('名前が一致しなかったため、削除を中止しました。');
+      return;
+    }
+
+    try {
+      await api.deleteTree(tree.id);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '削除に失敗しました');
+    }
+  }
+
   return (
     <main className="page">
       <h1>家系図一覧</h1>
@@ -75,9 +110,25 @@ export function TreeListPage() {
         <ul className="card-list">
           {trees.map((tree) => (
             <li key={tree.id} className="card-list__item">
-              <Link to={`/trees/${tree.id}`} className="card-list__title">
-                {tree.name}
-              </Link>
+              <div className="card-list__header">
+                <Link to={`/trees/${tree.id}`} className="card-list__title">
+                  {tree.name}
+                </Link>
+                {isOwner(tree) && (
+                  <div className="card-list__actions">
+                    <button type="button" className="button" onClick={() => handleRename(tree)}>
+                      名前を変更
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--danger"
+                      onClick={() => handleDelete(tree)}
+                    >
+                      削除
+                    </button>
+                  </div>
+                )}
+              </div>
               {tree.description && <p className="card-list__meta">{tree.description}</p>}
             </li>
           ))}
