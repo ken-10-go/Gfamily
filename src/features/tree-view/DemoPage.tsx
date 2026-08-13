@@ -1,6 +1,8 @@
 import { useState } from 'react';
 
 import { TreeCanvas } from '@/features/tree-view/TreeCanvas';
+import { formatWithEra } from '@/lib/japanese-date';
+import { birthOrderLabel } from '@/lib/relations';
 import { displayName, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
 
 /**
@@ -31,8 +33,12 @@ export function DemoPage() {
           <h2>{selected ? displayName(selected) : '人物を選択'}</h2>
           {selected && (
             <dl className="detail-list">
+              <dt>続柄</dt>
+              <dd>{birthOrderLabel(DEMO_GRAPH, selected) ?? '—'}</dd>
               <dt>生年月日</dt>
-              <dd>{selected.birthDate ?? '不明'}</dd>
+              <dd>{formatWithEra(selected.birthDate) || '不明'}</dd>
+              <dt>没年月日</dt>
+              <dd>{formatWithEra(selected.deathDate) || '—'}</dd>
               <dt>出生地</dt>
               <dd>{selected.birthPlace ?? '不明'}</dd>
             </dl>
@@ -50,11 +56,14 @@ function person(
   gender: Person['gender'],
   birth: string,
   death?: string,
+  overrides: Partial<Person> = {},
 ): Person {
   return {
     id,
     familyName: familyName,
     givenName: givenName,
+    familyNameKana: null,
+    givenNameKana: null,
     maidenName: null,
     gender,
     birthDate: birth,
@@ -62,7 +71,10 @@ function person(
     birthPlace: '架空県 見本市',
     note: null,
     isLiving: !death,
+    birthOrder: null,
+    surnameHistory: [],
     deletedAt: null,
+    ...overrides,
   };
 }
 
@@ -90,19 +102,49 @@ function marriage(a: string, b: string, status: Union['status'] = 'married'): Un
 
 const DEMO_GRAPH: TreeGraph = {
   persons: [
-    person('gf', '見本', '一郎', 'male', '1930-04-02', '2005-11-18'),
-    person('gm', '見本', 'はな', 'female', '1933-08-15', '2012-01-09'),
-    person('f', '見本', '次郎', 'male', '1958-02-20'),
-    person('m', '見本', '幸子', 'female', '1961-06-30'),
+    // 明治生まれ・年しか分からない、という古い戸籍でよくある例
+    person('ggf', '見本', '源蔵', 'male', '1899', '1962', {
+      familyNameKana: 'みほん',
+      givenNameKana: 'げんぞう',
+    }),
+    person('gf', '見本', '一郎', 'male', '1930-04-02', '2005-11-18', {
+      familyNameKana: 'みほん',
+      givenNameKana: 'いちろう',
+    }),
+    // 婚姻で姓が変わった例
+    person('gm', '見本', 'はな', 'female', '1933-08-15', '2012-01-09', {
+      familyNameKana: 'みほん',
+      givenNameKana: 'はな',
+      maidenName: '仮名',
+      surnameHistory: [
+        { familyName: '仮名', date: '1933-08-15', reason: 'birth', note: null },
+        { familyName: '見本', date: '1955-05-05', reason: 'marriage', note: null },
+      ],
+    }),
+    person('f', '見本', '次郎', 'male', '1958-02-20', undefined, {
+      familyNameKana: 'みほん',
+      givenNameKana: 'じろう',
+    }),
+    person('m', '見本', '幸子', 'female', '1961-06-30', undefined, {
+      maidenName: '例',
+      surnameHistory: [
+        { familyName: '例', date: '1961-06-30', reason: 'birth', note: null },
+        { familyName: '見本', date: '1986-10-10', reason: 'marriage', note: null },
+      ],
+    }),
     person('u', '見本', '三郎', 'male', '1962-09-05'),
     person('ua', '例', '明美', 'female', '1965-03-12'),
-    person('c1', '見本', '太郎', 'male', '1988-03-14'),
+    person('c1', '見本', '太郎', 'male', '1988-03-14', undefined, {
+      familyNameKana: 'みほん',
+      givenNameKana: 'たろう',
+    }),
     person('c2', '見本', '桜', 'female', '1991-12-01'),
     person('c3', '見本', '健', 'male', '1994-07-22'),
     person('cousin', '見本', '涼', 'other', '1996-05-08'),
     person('gc', '見本', '陽', 'female', '2018-09-30'),
   ],
   parentChild: [
+    pc('ggf', 'gf'),
     pc('gf', 'f'),
     pc('gm', 'f'),
     pc('gf', 'u'),

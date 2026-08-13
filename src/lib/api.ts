@@ -146,6 +146,8 @@ function toPerson(snapshot: QueryDocumentSnapshot<DocumentData>): Person {
     id: snapshot.id,
     familyName: data.familyName ?? null,
     givenName: data.givenName ?? null,
+    familyNameKana: data.familyNameKana ?? null,
+    givenNameKana: data.givenNameKana ?? null,
     maidenName: data.maidenName ?? null,
     gender: data.gender ?? 'unknown',
     birthDate: data.birthDate ?? null,
@@ -153,6 +155,9 @@ function toPerson(snapshot: QueryDocumentSnapshot<DocumentData>): Person {
     birthPlace: data.birthPlace ?? null,
     note: data.note ?? null,
     isLiving: data.isLiving ?? true,
+    birthOrder: data.birthOrder ?? null,
+    // 既存データには存在しない項目なので、既定値を補って読み出す
+    surnameHistory: (data.surnameHistory ?? []) as Person['surnameHistory'],
     deletedAt: toIso(data.deletedAt),
   };
 }
@@ -191,6 +196,8 @@ function personPayload(input: PersonInput, uid: string) {
   return {
     familyName: blankToNull(input.familyName),
     givenName: blankToNull(input.givenName),
+    familyNameKana: blankToNull(input.familyNameKana),
+    givenNameKana: blankToNull(input.givenNameKana),
     maidenName: blankToNull(input.maidenName),
     gender: input.gender,
     birthDate: input.birthDate || null,
@@ -199,6 +206,15 @@ function personPayload(input: PersonInput, uid: string) {
     birthPlace: blankToNull(input.birthPlace),
     note: blankToNull(input.note),
     isLiving: input.isLiving,
+    birthOrder: blankToNull(input.birthOrder),
+    surnameHistory: (input.surnameHistory ?? [])
+      .filter((record) => record.familyName.trim())
+      .map((record) => ({
+        familyName: record.familyName.trim(),
+        date: record.date || null,
+        reason: record.reason,
+        note: blankToNull(record.note),
+      })),
     updatedBy: uid,
     updatedAt: serverTimestamp(),
   };

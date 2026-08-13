@@ -8,7 +8,15 @@ import {
   type LayoutNode,
 } from '@/features/tree-view/layout';
 import { usePanZoom } from '@/features/tree-view/usePanZoom';
-import { displayName, lifespanLabel, type TreeGraph } from '@/types/models';
+import { birthOrderLabel } from '@/lib/relations';
+import {
+  displayName,
+  displayNameKana,
+  hasSurnameChange,
+  lifespanLabel,
+  originalFamilyName,
+  type TreeGraph,
+} from '@/types/models';
 
 interface TreeCanvasProps {
   graph: TreeGraph;
@@ -87,6 +95,7 @@ export function TreeCanvas({ graph, selectedPersonId, onSelectPerson }: TreeCanv
               key={node.person.id}
               node={node}
               selected={node.person.id === selectedPersonId}
+              birthOrder={birthOrderLabel(graph, node.person)}
               onSelect={onSelectPerson}
             />
           ))}
@@ -114,15 +123,20 @@ export function TreeCanvas({ graph, selectedPersonId, onSelectPerson }: TreeCanv
 function PersonCard({
   node,
   selected,
+  birthOrder,
   onSelect,
 }: {
   node: LayoutNode;
   selected: boolean;
+  birthOrder: string | null;
   onSelect: (id: string) => void;
 }) {
   const { person } = node;
   const left = node.x - NODE_WIDTH / 2;
   const lifespan = lifespanLabel(person);
+  const kana = displayNameKana(person);
+  const original = originalFamilyName(person);
+  const changedSurname = hasSurnameChange(person) && original !== person.familyName ? original : null;
 
   return (
     <g
@@ -141,19 +155,30 @@ function PersonCard({
       aria-label={`${displayName(person)}${lifespan ? ` ${lifespan}` : ''}`}
     >
       <rect width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} className="person-card__box" />
-      <text x={NODE_WIDTH / 2} y={26} textAnchor="middle" className="person-card__name">
+
+      {kana && (
+        <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" className="person-card__kana">
+          {kana}
+        </text>
+      )}
+      <text x={NODE_WIDTH / 2} y={kana ? 34 : 26} textAnchor="middle" className="person-card__name">
         {displayName(person)}
       </text>
-      {person.maidenName ? (
-        <text x={NODE_WIDTH / 2} y={44} textAnchor="middle" className="person-card__meta">
-          （旧姓 {person.maidenName}）
-        </text>
-      ) : (
-        lifespan && (
-          <text x={NODE_WIDTH / 2} y={44} textAnchor="middle" className="person-card__meta">
-            {lifespan}
+      <text x={NODE_WIDTH / 2} y={kana ? 50 : 44} textAnchor="middle" className="person-card__meta">
+        {[birthOrder, lifespan].filter(Boolean).join('　')}
+      </text>
+
+      {/* 改姓している人には印を付け、どの姓から変わったかを示す */}
+      {changedSurname && (
+        <>
+          <circle cx={NODE_WIDTH - 14} cy={14} r={8} className="person-card__mark" />
+          <text x={NODE_WIDTH - 14} y={18} textAnchor="middle" className="person-card__mark-text">
+            改
           </text>
-        )
+          <title>
+            旧姓 {changedSurname}
+          </title>
+        </>
       )}
     </g>
   );

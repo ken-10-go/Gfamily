@@ -7,6 +7,7 @@ import { TreeCanvas } from '@/features/tree-view/TreeCanvas';
 import * as api from '@/lib/api';
 import {
   displayName,
+  displayNameKana,
   lifespanLabel,
   ROLE_LABELS,
   type PersonInput,
@@ -61,9 +62,19 @@ export function TreeDetailPage() {
     setAddingPerson(false);
   }
 
-  const matches = search.trim()
+  // 読みでも引けるようにする。旧姓を覚えている人を探す場面もあるので姓の履歴も対象にする。
+  const keyword = search.trim().toLowerCase();
+  const matches = keyword
     ? graph.persons.filter((person) =>
-        displayName(person).toLowerCase().includes(search.trim().toLowerCase()),
+        [
+          displayName(person),
+          displayNameKana(person),
+          person.maidenName ?? '',
+          ...person.surnameHistory.map((record) => record.familyName),
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(keyword),
       )
     : [];
 

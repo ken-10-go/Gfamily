@@ -2,10 +2,14 @@ import { useMemo, useState } from 'react';
 
 import { PersonForm } from '@/features/persons/PersonForm';
 import * as api from '@/lib/api';
+import { formatWithEra } from '@/lib/japanese-date';
+import { birthOrderLabel, deriveBirthOrder } from '@/lib/relations';
 import {
   displayName,
+  displayNameKana,
   GENDER_LABELS,
   lifespanLabel,
+  SURNAME_CHANGE_REASON_LABELS,
   UNION_STATUS_LABELS,
   type Person,
   type PersonInput,
@@ -125,6 +129,7 @@ export function PersonPanel({
         <PersonForm
           initial={person}
           submitLabel="保存"
+          derivedBirthOrder={deriveBirthOrder(graph, person.id)}
           onSubmit={handleUpdate}
           onCancel={() => setMode('view')}
         />
@@ -140,6 +145,8 @@ export function PersonPanel({
         </h2>
         <PersonForm
           submitLabel="追加"
+          // 同じ家の人を続けて登録することが多いので、姓を引き継いでおく
+          defaultFamilyName={person.familyName}
           onSubmit={(input) => handleAddRelative(mode, input)}
           onCancel={() => setMode('view')}
         />
@@ -147,21 +154,43 @@ export function PersonPanel({
     );
   }
 
+  const kana = displayNameKana(person);
+  const birthOrder = birthOrderLabel(graph, person);
+
   return (
     <aside className="panel">
       <h2>{displayName(person)}</h2>
+      {kana && <p className="panel__subtitle">{kana}</p>}
       {person.maidenName && <p className="panel__subtitle">旧姓: {person.maidenName}</p>}
 
       {error && <p className="alert alert--error">{error}</p>}
 
       <dl className="detail-list">
+        <Detail label="続柄" value={birthOrder} />
         <Detail label="性別" value={GENDER_LABELS[person.gender]} />
         <Detail label="生没" value={lifespanLabel(person) || '不明'} />
-        <Detail label="生年月日" value={person.birthDate} />
-        {!person.isLiving && <Detail label="没年月日" value={person.deathDate} />}
+        <Detail label="生年月日" value={formatWithEra(person.birthDate)} />
+        {!person.isLiving && <Detail label="没年月日" value={formatWithEra(person.deathDate)} />}
         <Detail label="出生地" value={person.birthPlace} />
         <Detail label="メモ" value={person.note} />
       </dl>
+
+      {person.surnameHistory.length > 0 && (
+        <section className="panel__section">
+          <h3>改姓の履歴</h3>
+          <ol className="surname-timeline">
+            {person.surnameHistory.map((record, index) => (
+              <li key={index}>
+                <span className="surname-timeline__name">{record.familyName}</span>
+                <span className="surname-timeline__meta">
+                  {SURNAME_CHANGE_REASON_LABELS[record.reason]}
+                  {record.date && ` ／ ${formatWithEra(record.date)}`}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <RelationList
         title="親"

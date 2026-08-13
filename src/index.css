@@ -617,6 +617,92 @@ textarea {
   font-size: 12px;
 }
 
+.person-card__kana {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.person-card__mark {
+  fill: var(--surface);
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+.person-card__mark-text {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+/* --- 日付入力・改姓履歴 ---------------------------------------------------- */
+
+.date-input,
+.surname-history {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.date-input__row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.date-input__year {
+  width: 5rem;
+}
+
+.date-input__part {
+  padding: 0.45rem 0.3rem;
+}
+
+.date-input__unit {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.date-input__preview {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.surname-history__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.surname-history__row input[type='text'] {
+  width: 6rem;
+}
+
+.surname-history__row .date-input {
+  flex: 1 1 100%;
+}
+
+.surname-timeline {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.surname-timeline__name {
+  font-weight: 600;
+}
+
+.surname-timeline__meta {
+  margin-left: 0.4rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 /* --- 詳細パネル ----------------------------------------------------------- */
 
 .panel {

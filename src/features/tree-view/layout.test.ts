@@ -11,6 +11,8 @@ function person(id: string, overrides: Partial<Person> = {}): Person {
     id,
     familyName: '山田',
     givenName: id,
+    familyNameKana: null,
+    givenNameKana: null,
     maidenName: null,
     gender: 'unknown',
     birthDate: `19${String(counter).padStart(2, '0')}-01-01`,
@@ -18,6 +20,8 @@ function person(id: string, overrides: Partial<Person> = {}): Person {
     birthPlace: null,
     note: null,
     isLiving: true,
+    birthOrder: null,
+    surnameHistory: [],
     deletedAt: null,
     ...overrides,
   };
