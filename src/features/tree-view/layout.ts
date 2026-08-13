@@ -1,3 +1,4 @@
+import { compareByBirth } from '@/lib/relations';
 import type { ParentChild, Person, TreeGraph, Union } from '@/types/models';
 
 export const NODE_WIDTH = 168;
@@ -147,10 +148,28 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
     }
   }
 
-  // 上の世代の家族単位から順に着手すると、全体の左右の並びが自然になる
+  /**
+   * 家族単位を配置する順番の基準となる生年。
+   * 親の生年を優先し、親の生年が分からなければ子の生年で代用する。
+   * どちらも分からない単位は右端に寄せる。
+   */
+  function unitBirthKey(unit: FamilyUnit): string {
+    const birthOf = (id: string) => personById.get(id)?.birthDate ?? '';
+
+    const parentBirths = unit.parentIds.map(birthOf).filter(Boolean).sort();
+    if (parentBirths.length > 0) return parentBirths[0];
+
+    const childBirths = unit.childIds.map(birthOf).filter(Boolean).sort();
+    return childBirths[0] ?? '9999';
+  }
+
+  // 上の世代から順に着手し、同じ世代では年長の家族から置く。
+  // 配置は先着順に左から詰めるので、この順番がそのまま左右の並びになる。
+  // ここを ID 順にすると、つながりのない家系どうしが登録順で並んでしまう。
   const orderedUnits = [...families].sort(
     (a, b) =>
       (generations.get(a.parentIds[0]) ?? 0) - (generations.get(b.parentIds[0]) ?? 0) ||
+      unitBirthKey(a).localeCompare(unitBirthKey(b)) ||
       a.key.localeCompare(b.key),
   );
   for (const unit of orderedUnits) {
@@ -270,16 +289,21 @@ function buildFamilyUnits(
     }
   }
 
+  // きょうだいは左から年長者順に並べる。生年が分からない子は後ろに回す。
+  for (const unit of units.values()) {
+    unit.childIds.sort((a, b) => {
+      const left = personById.get(a);
+      const right = personById.get(b);
+      if (!left || !right) return 0;
+      return compareByBirth(left, right);
+    });
+  }
+
   // 親が1人の単位でも、その親に配偶者がいれば同じ行に並べたいので単位はそのままにする
   return [...units.values()].filter((unit) => unit.parentIds.every((id) => personById.has(id)));
 }
 
-/** 生年順（不明は後ろ）→ 氏名順。きょうだいの並びを安定させる。 */
+/** 生年順（不明は後ろ）。並びの基準は relations.ts と共有する。 */
 function sortPersons(persons: Person[]): Person[] {
-  return [...persons].sort((a, b) => {
-    if (a.birthDate && b.birthDate) return a.birthDate.localeCompare(b.birthDate);
-    if (a.birthDate) return -1;
-    if (b.birthDate) return 1;
-    return a.id.localeCompare(b.id);
-  });
+  return [...persons].sort(compareByBirth);
 }

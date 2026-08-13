@@ -188,6 +188,106 @@ describe('computeLayout', () => {
     expect(nodeOf(layout, 'older').x).toBeLessThan(nodeOf(layout, 'younger').x);
   });
 
+  it('きょうだいが自分の家族を持っていても、左から年長者順に並ぶ', () => {
+    // それぞれが所帯を持つ兄弟。ID の並び順に引きずられて弟が左に来てはいけない。
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('parent', { birthDate: '1920-01-01' }),
+          person('z-elder', { birthDate: '1950-01-01' }),
+          person('a-younger', { birthDate: '1955-01-01' }),
+          person('z-elder-spouse', { birthDate: '1952-01-01' }),
+          person('a-younger-spouse', { birthDate: '1957-01-01' }),
+          person('elder-child', { birthDate: '1980-01-01' }),
+          person('younger-child', { birthDate: '1985-01-01' }),
+        ],
+        parentChild: [
+          link('parent', 'z-elder'),
+          link('parent', 'a-younger'),
+          link('z-elder', 'elder-child'),
+          link('z-elder-spouse', 'elder-child'),
+          link('a-younger', 'younger-child'),
+          link('a-younger-spouse', 'younger-child'),
+        ],
+        unions: [union('z-elder', 'z-elder-spouse'), union('a-younger', 'a-younger-spouse')],
+      }),
+    );
+
+    expect(nodeOf(layout, 'z-elder').x).toBeLessThan(nodeOf(layout, 'a-younger').x);
+    expect(nodeOf(layout, 'elder-child').x).toBeLessThan(nodeOf(layout, 'younger-child').x);
+    expectNoOverlap(layout);
+  });
+
+  it('年だけの曖昧な生年でも年長者が左に来る', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('parent', { birthDate: '1900' }),
+          person('younger', { birthDate: '1935-06' }),
+          person('elder', { birthDate: '1930' }),
+        ],
+        parentChild: [link('parent', 'younger'), link('parent', 'elder')],
+      }),
+    );
+
+    expect(nodeOf(layout, 'elder').x).toBeLessThan(nodeOf(layout, 'younger').x);
+  });
+
+  it('生年が分からない子は年長者の右に置く', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('parent', { birthDate: '1900' }),
+          person('unknown', { birthDate: null }),
+          person('known', { birthDate: '1930' }),
+        ],
+        parentChild: [link('parent', 'unknown'), link('parent', 'known')],
+      }),
+    );
+
+    expect(nodeOf(layout, 'known').x).toBeLessThan(nodeOf(layout, 'unknown').x);
+  });
+
+  it('片親しか登録されていない子が混ざっても年長者順に並ぶ', () => {
+    // 配偶者を登録する前に長男を、登録した後に次男を追加した、という入力順で起こる。
+    // 親の組が違うため別の家族単位になるが、表示上は同じきょうだいとして並べたい。
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('father', { birthDate: '1920-01-01' }),
+          person('mother', { birthDate: '1925-01-01' }),
+          person('elder', { birthDate: '1950-01-01' }),
+          person('younger', { birthDate: '1955-01-01' }),
+        ],
+        parentChild: [
+          link('father', 'elder'),
+          link('father', 'younger'),
+          link('mother', 'younger'),
+        ],
+        unions: [union('father', 'mother')],
+      }),
+    );
+
+    expect(nodeOf(layout, 'elder').x).toBeLessThan(nodeOf(layout, 'younger').x);
+    expectNoOverlap(layout);
+  });
+
+  it('つながりのない複数の家系でも、年長の家系が左に来る', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('z-old-parent', { birthDate: '1900-01-01' }),
+          person('z-old-child', { birthDate: '1930-01-01' }),
+          person('a-new-parent', { birthDate: '1940-01-01' }),
+          person('a-new-child', { birthDate: '1970-01-01' }),
+        ],
+        parentChild: [link('z-old-parent', 'z-old-child'), link('a-new-parent', 'a-new-child')],
+      }),
+    );
+
+    expect(nodeOf(layout, 'z-old-parent').x).toBeLessThan(nodeOf(layout, 'a-new-parent').x);
+  });
+
   it('3世代を正しい深さに配置する', () => {
     const layout = computeLayout(
       graph({
