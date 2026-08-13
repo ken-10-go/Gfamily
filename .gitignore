@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-ssr/
+coverage/
+*.tsbuildinfo
+
+# 秘匿情報: .env は絶対にコミットしない（.env.example のみ追跡する）
+.env
+.env.*
+!.env.example
+
+# 実データ（家族の個人情報）を誤ってコミットしないための保険
+/data/
+*.ged
+
+# editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.local
+
+# logs
+*.log
+npm-debug.log*
