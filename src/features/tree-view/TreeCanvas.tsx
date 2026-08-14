@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
   computeLayout,
-  snapToGrid,
+  gridFor,
+  snapTo,
   type LayoutMetrics,
   type LayoutNode,
 } from '@/features/tree-view/layout';
@@ -83,6 +84,7 @@ export function TreeCanvas({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [drag, setDrag] = useState<CardDrag | null>(null);
   const { viewport, isPanning, zoomBy, fitTo, handlers } = usePanZoom();
+  const grid = useMemo(() => gridFor(metrics), [metrics]);
 
   useLayoutEffect(() => {
     const element = containerRef.current;
@@ -154,10 +156,11 @@ export function TreeCanvas({
     setDrag(null);
 
     if (node && onMovePerson) {
-      // 落とした位置を格子に合わせて確定する
+      // 落とした位置を格子に合わせて確定する。
+      // 縦は世代の行に吸着するので、関係線が水平につながる。
       onMovePerson(personId, {
-        x: snapToGrid(node.x + drag.dx / viewport.scale),
-        y: snapToGrid(node.y + drag.dy / viewport.scale),
+        x: snapTo(node.x + drag.dx / viewport.scale, grid.x),
+        y: snapTo(node.y + drag.dy / viewport.scale, grid.y),
       });
     }
   }
@@ -179,6 +182,9 @@ export function TreeCanvas({
         {...handlers}
       >
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
+          {/* 動かしている間だけ格子を出して、置きたい位置を狙いやすくする */}
+          {drag?.moved && <GridLines grid={grid} width={layout.width} height={layout.height} />}
+
           <g className="tree-canvas__links">
             {layout.couples.map((couple) => (
               <CoupleLine
@@ -246,7 +252,6 @@ export function TreeCanvas({
 
 /**
  * 設定に合わせた氏名の行。姓名の順と、1行か2行かで変わる。
- * 年齢は名前のすぐ横に添える（最後の行の末尾に付ける）。
  */
 function nameLines(person: Person, settings: ViewSettings): string[] {
   const family = person.familyName ?? '';
@@ -256,14 +261,7 @@ function nameLines(person: Person, settings: ViewSettings): string[] {
   );
 
   const lines = parts.length === 0 ? [displayName(person)] : parts;
-  const joined = settings.nameLines === 2 ? lines : [lines.join(' ')];
-
-  const age = settings.showAge ? ageLabel(person) : '';
-  if (!age) return joined;
-
-  return joined.map((text, index) =>
-    index === joined.length - 1 ? `${text} [${age}]` : text,
-  );
+  return settings.nameLines === 2 ? lines : [lines.join(' ')];
 }
 
 /** カードに出す補足行（続柄・生没年）。年齢は名前の横に出すのでここには入れない。 */
@@ -306,9 +304,16 @@ function PersonCard({
   const meta = metaLine(person, birthOrder);
   const note = settings.showNote ? (person.note?.split('\n')[0] ?? '') : '';
 
-  const rows = [
+  // 年齢は名前のすぐ横に、細く小さく添える
+  const age = settings.showAge ? ageLabel(person) : '';
+
+  const rows: { text: string; className: string; age?: string }[] = [
     ...(kana ? [{ text: kana, className: 'person-card__kana' }] : []),
-    ...names.map((text) => ({ text, className: 'person-card__name' })),
+    ...names.map((text, index) => ({
+      text,
+      className: 'person-card__name',
+      age: index === names.length - 1 ? age : undefined,
+    })),
     ...(meta ? [{ text: meta, className: 'person-card__meta' }] : []),
     ...(note ? [{ text: note, className: 'person-card__meta' }] : []),
   ];
@@ -320,9 +325,9 @@ function PersonCard({
         'person-card',
         `person-card--${person.gender}`,
         selected ? 'person-card--selected' : '',
+        person.isLiving ? '' : 'person-card--deceased',
         draggable ? 'person-card--draggable' : '',
         dragOffset ? 'person-card--dragging' : '',
-        node.placedByHand ? 'person-card--placed' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -370,8 +375,41 @@ function PersonCard({
               className={row.className}
             >
               {row.text}
+              {row.age && <tspan className="person-card__age"> {row.age}</tspan>}
             </text>
           ))}
+    </g>
+  );
+}
+
+/**
+ * ドラッグ中に出す格子。
+ * 縦線は列、横線は世代の行にあたる。図の外側にも少し伸ばして、
+ * 家系図の端の外へ動かすときも目安が見えるようにする。
+ */
+function GridLines({
+  grid,
+  width,
+  height,
+}: {
+  grid: { x: number; y: number };
+  width: number;
+  height: number;
+}) {
+  const margin = grid.x * 2;
+  const columns = Math.ceil((width + margin * 2) / grid.x);
+  const rows = Math.ceil((height + margin * 2) / grid.y);
+
+  return (
+    <g className="tree-canvas__grid" aria-hidden="true">
+      {Array.from({ length: columns + 1 }, (_, i) => {
+        const x = -margin + i * grid.x;
+        return <line key={`c${i}`} x1={x} y1={-margin} x2={x} y2={height + margin} />;
+      })}
+      {Array.from({ length: rows + 1 }, (_, i) => {
+        const y = -margin + i * grid.y;
+        return <line key={`r${i}`} x1={-margin} y1={y} x2={width + margin} y2={y} />;
+      })}
     </g>
   );
 }

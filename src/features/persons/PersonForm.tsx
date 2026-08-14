@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { AgeInput } from '@/features/persons/AgeInput';
 import { JapaneseDateInput } from '@/features/persons/JapaneseDateInput';
 import {
+  BIRTH_ORDER_OPTIONS,
   GENDER_LABELS,
   SURNAME_CHANGE_REASON_LABELS,
   type Gender,
@@ -196,16 +197,24 @@ export function PersonForm({
       </div>
 
       <label className="field">
-        <span className="field__label">
-          続柄{derivedBirthOrder && `（空欄なら自動で「${derivedBirthOrder}」）`}
-        </span>
-        <input
-          type="text"
+        <span className="field__label">続柄</span>
+        <select
           value={input.birthOrder ?? ''}
           onChange={(event) => update('birthOrder', event.target.value)}
-          placeholder={derivedBirthOrder ?? '例: 長男'}
-          maxLength={20}
-        />
+        >
+          <option value="">
+            {derivedBirthOrder ? `自動（${derivedBirthOrder}）` : '自動（生年から判定）'}
+          </option>
+          {/* 既存データが選択肢に無い表記でも失わないよう、その値を先頭に足す */}
+          {input.birthOrder && !BIRTH_ORDER_OPTIONS.includes(input.birthOrder) && (
+            <option value={input.birthOrder}>{input.birthOrder}</option>
+          )}
+          {BIRTH_ORDER_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="field field--checkbox">

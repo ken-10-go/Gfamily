@@ -8,11 +8,22 @@ export const H_GAP = 28;
 /** 世代間の縦の間隔 */
 export const V_GAP = 96;
 
-/** 手で動かしたカードを合わせる格子の間隔。 */
-export const GRID = 20;
+/**
+ * 手で動かしたカードを合わせる格子。
+ *
+ * 縦は世代の行そのものに合わせる。自動配置のカードと同じ高さに乗るので、
+ * 夫婦の線やきょうだいの横棒が水平につながる。
+ * 横は列の半分刻みにして、きょうだいの間に差し込めるようにする。
+ */
+export function gridFor(metrics: LayoutMetrics): { x: number; y: number } {
+  return {
+    x: (metrics.nodeWidth + metrics.hGap) / 2,
+    y: metrics.nodeHeight + metrics.vGap,
+  };
+}
 
 /** 座標を格子に合わせる。 */
-export const snapToGrid = (value: number) => Math.round(value / GRID) * GRID;
+export const snapTo = (value: number, step: number) => Math.round(value / step) * step;
 
 /** カードの寸法。表示設定（縦書き・UIサイズ）で変わるため引数で受け取る。 */
 export interface LayoutMetrics {

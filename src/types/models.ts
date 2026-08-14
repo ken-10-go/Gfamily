@@ -166,6 +166,20 @@ export const GENDER_LABELS: Record<Gender, string> = {
   unknown: '不明',
 };
 
+/**
+ * 続柄として選べる値。
+ * 戸籍では「二男」と書くことも多いが、ここでは一般的な「次男」に揃えている。
+ */
+const ORDINAL_PREFIXES = ['長', '次', '三', '四', '五', '六', '七', '八', '九', '十'];
+
+export const BIRTH_ORDER_OPTIONS: string[] = [
+  ...ORDINAL_PREFIXES.map((prefix) => `${prefix}男`),
+  ...ORDINAL_PREFIXES.map((prefix) => `${prefix}女`),
+  ...Array.from({ length: 10 }, (_, i) => `第${i + 1}子`),
+  '養子',
+  '養女',
+];
+
 export const PARENT_KIND_LABELS: Record<ParentKind, string> = {
   biological: '実子',
   adoptive: '養子',

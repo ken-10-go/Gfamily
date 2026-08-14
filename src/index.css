@@ -11,6 +11,7 @@
   --male: #e8f0fa;
   --female: #fbeef2;
   --neutral: #f2f2f0;
+  --deceased: #9aa0aa;
 
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
@@ -31,6 +32,7 @@
     --male: #23303f;
     --female: #3a2a33;
     --neutral: #2a2d34;
+    --deceased: #6c7482;
   }
 }
 
@@ -701,9 +703,26 @@ textarea {
   font-size: 12px;
 }
 
-/* 手で置いたカードは、自動配置と区別が付くよう枠を少し強くする */
-.person-card--placed .person-card__box {
-  stroke-dasharray: 4 3;
+/* 年齢は名前の付随情報なので、小さく細く添える */
+.person-card__age {
+  fill: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* 故人は枠を灰色にして、ひと目で分かるようにする */
+.person-card--deceased .person-card__box {
+  stroke: var(--deceased);
+}
+
+.person-card--deceased .person-card__name {
+  fill: var(--muted);
+}
+
+/* ドラッグ中だけ格子を出して、置きたい位置を狙いやすくする */
+.tree-canvas__grid line {
+  stroke: var(--border);
+  stroke-width: 1;
 }
 
 .person-card__text--vertical {
