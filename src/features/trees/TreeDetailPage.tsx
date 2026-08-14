@@ -16,6 +16,7 @@ import {
   displayNameKana,
   lifespanLabel,
   ROLE_LABELS,
+  type CardPosition,
   type PersonInput,
   type Tree,
   type TreeGraph,
@@ -203,13 +204,13 @@ export function TreeDetailPage() {
     setDialog(null);
   }
 
-  /** ドラッグで入れ替えたきょうだいの順を保存する。 */
-  async function handleReorderSiblings(orderedIds: string[]) {
+  /** ドラッグで置いたカードの位置を保存する。 */
+  async function handleMovePerson(personId: string, position: CardPosition) {
     try {
-      await api.setSiblingOrder(treeId, orderedIds);
+      await api.setPersonPosition(treeId, personId, position);
       await reload();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '並び順の保存に失敗しました');
+      setError(caught instanceof Error ? caught.message : '位置の保存に失敗しました');
     }
   }
 
@@ -368,7 +369,7 @@ export function TreeDetailPage() {
           selectedPersonId={selectedId}
           onSelectPerson={openMenu}
           canReorder={canEdit}
-          onReorderSiblings={handleReorderSiblings}
+          onMovePerson={handleMovePerson}
         />
       </div>
 

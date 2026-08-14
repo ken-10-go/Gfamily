@@ -23,6 +23,12 @@ export type SurnameChangeReason =
   | 'branch'
   | 'other';
 
+/** カードの表示位置。ドラッグで置いた場所を保持する。 */
+export interface CardPosition {
+  x: number;
+  y: number;
+}
+
 export interface SurnameRecord {
   familyName: string;
   /** 変わった時期。年だけ・年月だけの曖昧な指定もできる。 */
@@ -67,6 +73,11 @@ export interface Person {
    * 戸籍の記載順に合わせたい場合など、自動の年長者順を上書きするために使う。
    */
   siblingOrder: number | null;
+  /**
+   * カードを手で置いた位置。null なら自動レイアウトに従う。
+   * ドラッグで移動すると、格子に合わせた座標がここに入る。
+   */
+  position: CardPosition | null;
   /** 改姓の履歴。出生時の姓から順に並べる。 */
   surnameHistory: SurnameRecord[];
   /** ソフト削除の時刻（ISO文字列）。null なら生存レコード。 */

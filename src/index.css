@@ -684,31 +684,26 @@ textarea {
   stroke-width: 3;
 }
 
+/* 余白を詰めたぶん、文字を大きくして読みやすさを優先する */
 .person-card__name {
   fill: var(--fg);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
 }
 
 .person-card__meta {
   fill: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .person-card__kana {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
-.person-card__mark {
-  fill: var(--surface);
-  stroke: var(--muted);
-  stroke-width: 1;
-}
-
-.person-card__mark-text {
-  fill: var(--muted);
-  font-size: 10px;
+/* 手で置いたカードは、自動配置と区別が付くよう枠を少し強くする */
+.person-card--placed .person-card__box {
+  stroke-dasharray: 4 3;
 }
 
 .person-card__text--vertical {

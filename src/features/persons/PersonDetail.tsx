@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import * as api from '@/lib/api';
 import { ageLabel, formatWithEra } from '@/lib/japanese-date';
-import { birthOrderLabel, siblingsOf } from '@/lib/relations';
+import { birthOrderLabel } from '@/lib/relations';
 import {
   displayName,
   displayNameKana,
@@ -66,28 +66,19 @@ export function PersonDetail({
     }
   }
 
-  /** ドラッグで付けた並び順を捨てて、生年順の自動整列に戻す。 */
-  async function clearSiblingOrder() {
-    const siblings = siblingsOf(graph, person.id);
-    if (siblings.length === 0) return;
-
+  /** ドラッグで置いた位置を捨てて、自動レイアウトに戻す。 */
+  async function resetPosition() {
     setError(null);
     try {
-      await api.clearSiblingOrder(
-        treeId,
-        siblings.map((sibling) => sibling.id),
-      );
+      await api.setPersonPosition(treeId, person.id, null);
       await onChanged();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '並び順の初期化に失敗しました');
+      setError(caught instanceof Error ? caught.message : '位置の初期化に失敗しました');
     }
   }
 
   const kana = displayNameKana(person);
   const age = ageLabel(person);
-  const hasManualOrder = siblingsOf(graph, person.id).some(
-    (sibling) => sibling.siblingOrder !== null,
-  );
 
   return (
     <div>
@@ -164,10 +155,10 @@ export function PersonDetail({
         onSelect={onSelectPerson}
       />
 
-      {canEdit && hasManualOrder && (
+      {canEdit && person.position && (
         <div className="panel__actions">
-          <button type="button" className="button" onClick={clearSiblingOrder}>
-            きょうだいの並び順を自動に戻す
+          <button type="button" className="button" onClick={resetPosition}>
+            配置を自動に戻す
           </button>
         </div>
       )}

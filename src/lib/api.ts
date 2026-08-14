@@ -21,6 +21,7 @@ import { httpsCallable } from 'firebase/functions';
 import { getDb, getFirebaseAuth, getFns } from '@/lib/firebase';
 import type {
   AuditLog,
+  CardPosition,
   Invitation,
   InvitationPreview,
   ParentChild,
@@ -158,6 +159,10 @@ function toPerson(snapshot: QueryDocumentSnapshot<DocumentData>): Person {
     isLiving: data.isLiving ?? true,
     birthOrder: data.birthOrder ?? null,
     siblingOrder: typeof data.siblingOrder === 'number' ? data.siblingOrder : null,
+    position:
+      data.position && typeof data.position.x === 'number' && typeof data.position.y === 'number'
+        ? { x: data.position.x, y: data.position.y }
+        : null,
     // 既存データには存在しない項目なので、既定値を補って読み出す
     surnameHistory: (data.surnameHistory ?? []) as Person['surnameHistory'],
     deletedAt: toIso(data.deletedAt),
@@ -241,6 +246,23 @@ export async function updatePerson(
 ): Promise<void> {
   const uid = requireUid();
   await updateDoc(doc(getDb(), 'trees', treeId, 'persons', personId), personPayload(input, uid));
+}
+
+/**
+ * ドラッグで動かしたカードの位置を保存する。
+ * null を渡すと手動配置を捨てて自動レイアウトに戻る。
+ */
+export async function setPersonPosition(
+  treeId: string,
+  personId: string,
+  position: CardPosition | null,
+): Promise<void> {
+  const uid = requireUid();
+  await updateDoc(doc(getDb(), 'trees', treeId, 'persons', personId), {
+    position,
+    updatedBy: uid,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /**

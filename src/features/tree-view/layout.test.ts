@@ -22,6 +22,7 @@ function person(id: string, overrides: Partial<Person> = {}): Person {
     isLiving: true,
     birthOrder: null,
     siblingOrder: null,
+    position: null,
     surnameHistory: [],
     deletedAt: null,
     ...overrides,
@@ -542,6 +543,67 @@ describe('computeLayout', () => {
     const [a, b] = ['childA', 'childB'].map((id) => nodeOf(narrow, id));
     expect(Math.abs(b.x - a.x)).toBe(70);
     expect(nodeOf(narrow, 'childA').y).toBe(240);
+  });
+
+  it('夫婦は男性を左、女性を右に置く', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('wife', { gender: 'female', birthDate: '1950-01-01' }),
+          person('husband', { gender: 'male', birthDate: '1955-01-01' }),
+          person('child', { birthDate: '1980-01-01' }),
+        ],
+        parentChild: [link('husband', 'child'), link('wife', 'child')],
+        unions: [union('husband', 'wife')],
+      }),
+    );
+
+    // 妻のほうが年上でも、男性が左に来る
+    expect(nodeOf(layout, 'husband').x).toBeLessThan(nodeOf(layout, 'wife').x);
+  });
+
+  it('性別が不明な配偶者は男女の間に置く', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('female', { gender: 'female' }),
+          person('unknown', { gender: 'unknown' }),
+          person('male', { gender: 'male' }),
+          person('child'),
+        ],
+        parentChild: [link('male', 'child'), link('unknown', 'child'), link('female', 'child')],
+      }),
+    );
+
+    expect(nodeOf(layout, 'male').x).toBeLessThan(nodeOf(layout, 'unknown').x);
+    expect(nodeOf(layout, 'unknown').x).toBeLessThan(nodeOf(layout, 'female').x);
+  });
+
+  it('手で置いた位置は自動レイアウトより優先される', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('parent'),
+          person('moved', { position: { x: 640, y: 320 } }),
+          person('auto'),
+        ],
+        parentChild: [link('parent', 'moved'), link('parent', 'auto')],
+      }),
+    );
+
+    const moved = nodeOf(layout, 'moved');
+    expect({ x: moved.x, y: moved.y }).toEqual({ x: 640, y: 320 });
+    expect(moved.placedByHand).toBe(true);
+    expect(nodeOf(layout, 'auto').placedByHand).toBe(false);
+  });
+
+  it('手で置いたカードも含めて図の大きさを測る', () => {
+    const layout = computeLayout(
+      graph({ persons: [person('a'), person('far', { position: { x: 1200, y: 900 } })] }),
+    );
+
+    expect(layout.width).toBeGreaterThanOrEqual(1200);
+    expect(layout.height).toBeGreaterThanOrEqual(900);
   });
 
   it('左端が0から始まるようにX座標を正規化する', () => {

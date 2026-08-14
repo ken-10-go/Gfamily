@@ -8,6 +8,12 @@ export const H_GAP = 28;
 /** 世代間の縦の間隔 */
 export const V_GAP = 96;
 
+/** 手で動かしたカードを合わせる格子の間隔。 */
+export const GRID = 20;
+
+/** 座標を格子に合わせる。 */
+export const snapToGrid = (value: number) => Math.round(value / GRID) * GRID;
+
 /** カードの寸法。表示設定（縦書き・UIサイズ）で変わるため引数で受け取る。 */
 export interface LayoutMetrics {
   nodeWidth: number;
@@ -30,6 +36,8 @@ export interface LayoutNode {
   /** カード上端のY座標 */
   y: number;
   generation: number;
+  /** 手で置かれた位置か。自動レイアウトに戻せるかの判断に使う。 */
+  placedByHand: boolean;
 }
 
 /** 親の組と、その組に属する子のまとまり。きょうだいはここから導出される。 */
@@ -165,7 +173,10 @@ export function computeLayout(
         : undefined;
 
     const generation = generations.get(group.parentIds[0]) ?? 0;
-    const unplaced = group.parentIds.filter((id) => !centerX.has(id));
+    // 夫婦は男性を左、女性を右に並べる
+    const unplaced = group.parentIds
+      .filter((id) => !centerX.has(id))
+      .sort((a, b) => compareSpouses(personById.get(a), personById.get(b)));
 
     if (unplaced.length > 0) {
       // 既に配置済みの親（再婚などで別のグループから置かれた）があれば、その隣に続ける
@@ -215,17 +226,20 @@ export function computeLayout(
   const minX = Math.min(...[...centerX.values()]) - metrics.nodeWidth / 2;
   const nodes: LayoutNode[] = persons.map((person) => {
     const generation = generations.get(person.id) ?? 0;
+    const auto = { x: (centerX.get(person.id) ?? 0) - minX, y: generation * ROW };
+
+    // 手で置いた位置があればそちらを使う。自動レイアウトの結果より優先する。
     return {
       person,
-      x: (centerX.get(person.id) ?? 0) - minX,
-      y: generation * ROW,
+      x: person.position?.x ?? auto.x,
+      y: person.position?.y ?? auto.y,
       generation,
+      placedByHand: person.position !== null,
     };
   });
 
-  const maxGeneration = Math.max(...nodes.map((n) => n.generation));
   const width = Math.max(...nodes.map((n) => n.x)) + metrics.nodeWidth / 2;
-  const height = maxGeneration * ROW + metrics.nodeHeight;
+  const height = Math.max(...nodes.map((n) => n.y)) + metrics.nodeHeight;
 
   return {
     nodes,
@@ -240,6 +254,20 @@ export function computeLayout(
     width,
     height,
   };
+}
+
+/** 夫婦を並べる順。男性を左、女性を右に置き、それ以外は間に挟む。 */
+const SPOUSE_RANK: Record<Person['gender'], number> = {
+  male: 0,
+  other: 1,
+  unknown: 1,
+  female: 2,
+};
+
+function compareSpouses(a: Person | undefined, b: Person | undefined): number {
+  if (!a || !b) return 0;
+  const rank = SPOUSE_RANK[a.gender] - SPOUSE_RANK[b.gender];
+  return rank !== 0 ? rank : compareForDisplay(a, b);
 }
 
 const isSubsetOf = (a: string[], b: string[]) => a.every((id) => b.includes(id));

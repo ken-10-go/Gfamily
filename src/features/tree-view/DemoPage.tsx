@@ -5,7 +5,14 @@ import { cardMetrics, useViewSettings } from '@/features/tree-view/useViewSettin
 import { ViewSettingsPanel } from '@/features/tree-view/ViewSettingsPanel';
 import { formatWithEra } from '@/lib/japanese-date';
 import { birthOrderLabel } from '@/lib/relations';
-import { displayName, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
+import {
+  displayName,
+  type CardPosition,
+  type ParentChild,
+  type Person,
+  type TreeGraph,
+  type Union,
+} from '@/types/models';
 
 /**
  * 開発用のツリービュー確認画面（本番ビルドには含まれない）。
@@ -15,18 +22,17 @@ import { displayName, type ParentChild, type Person, type TreeGraph, type Union 
  */
 export function DemoPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // 並べ替えの確認ができるよう、デモでは画面内だけで siblingOrder を保持する
+  // 配置の確認ができるよう、デモでは画面内だけで position を保持する
   const [graph, setGraph] = useState<TreeGraph>(DEMO_GRAPH);
   const { settings, update } = useViewSettings('demo');
   const selected = graph.persons.find((p) => p.id === selectedId);
 
-  function reorderSiblings(orderedIds: string[]) {
+  function movePerson(personId: string, position: CardPosition) {
     setGraph((current) => ({
       ...current,
-      persons: current.persons.map((person) => {
-        const index = orderedIds.indexOf(person.id);
-        return index < 0 ? person : { ...person, siblingOrder: index };
-      }),
+      persons: current.persons.map((person) =>
+        person.id === personId ? { ...person, position } : person,
+      ),
     }));
   }
 
@@ -38,7 +44,7 @@ export function DemoPage() {
         </div>
         <p className="note">
           何も無いところをドラッグで移動、ホイールで拡大縮小、カードをクリックで選択。
-          きょうだいはカードを左右にドラッグして並べ替えられます。
+          カードはドラッグして好きな場所に置けます（格子に合います）。
         </p>
       </header>
       <div className="tree-page__body">
@@ -49,7 +55,7 @@ export function DemoPage() {
           selectedPersonId={selectedId}
           onSelectPerson={(personId) => setSelectedId(personId)}
           canReorder
-          onReorderSiblings={reorderSiblings}
+          onMovePerson={movePerson}
         />
         <aside className="panel">
           <h2>{selected ? displayName(selected) : '人物を選択'}</h2>
@@ -98,6 +104,7 @@ function person(
     isLiving: !death,
     birthOrder: null,
     siblingOrder: null,
+    position: null,
     surnameHistory: [],
     deletedAt: null,
     ...overrides,

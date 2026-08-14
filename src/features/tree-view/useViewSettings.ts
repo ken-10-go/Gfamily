@@ -26,7 +26,7 @@ export interface ViewSettings {
 }
 
 export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
-  showAge: false,
+  showAge: true,
   showNote: false,
   showKana: true,
   nameOrder: 'family-first',
@@ -53,28 +53,33 @@ const SIZE_SCALE: Record<ViewSettings['uiSize'], number> = {
 /**
  * 設定からカードの寸法を決める。
  * 縦書きでは行が縦に伸びるため、幅を狭くして高さを大きく取る。
- * 情報を足す設定（年齢・メモ・ふりがな・2行表示）の分だけ高さを増やす。
+ * 情報を足す設定（メモ・ふりがな・2行表示）の分だけ高さを増やす。
+ *
+ * 高さは行数から詰めて決める。余白を切り詰めたぶん、文字を大きくしても
+ * カードが膨らまず、同じ画面により多くの世代が入る。
  */
 export function cardMetrics(settings: ViewSettings): CardMetrics {
   const scale = SIZE_SCALE[settings.uiSize];
 
-  const extraLines =
-    (settings.showKana ? 1 : 0) + (settings.showNote ? 1 : 0) + (settings.nameLines === 2 ? 1 : 0);
+  // 氏名の行 + 続柄や生没年の行が基本。ふりがなとメモは設定で増える。
+  const lines =
+    (settings.nameLines === 2 ? 2 : 1) + 1 + (settings.showKana ? 1 : 0) + (settings.showNote ? 1 : 0);
 
   if (settings.vertical) {
     return {
-      nodeWidth: Math.round(72 * scale),
-      nodeHeight: Math.round((150 + extraLines * 14) * scale),
-      hGap: Math.round(28 * scale),
-      vGap: Math.round(96 * scale),
+      nodeWidth: Math.round((26 + lines * 17) * scale),
+      nodeHeight: Math.round(150 * scale),
+      hGap: Math.round(24 * scale),
+      vGap: Math.round(84 * scale),
     };
   }
 
   return {
-    nodeWidth: Math.round(168 * scale),
-    nodeHeight: Math.round((50 + (extraLines + 1) * 16) * scale),
-    hGap: Math.round(28 * scale),
-    vGap: Math.round(96 * scale),
+    nodeWidth: Math.round(176 * scale),
+    // 上下の余白 12 と、行の高さ 19
+    nodeHeight: Math.round((12 + lines * 19) * scale),
+    hGap: Math.round(24 * scale),
+    vGap: Math.round(84 * scale),
   };
 }
 

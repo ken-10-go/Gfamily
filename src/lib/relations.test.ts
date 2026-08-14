@@ -27,6 +27,7 @@ function person(id: string, gender: Gender, birthDate: string | null): Person {
     isLiving: true,
     birthOrder: null,
     siblingOrder: null,
+    position: null,
     surnameHistory: [],
     deletedAt: null,
   };
