@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { birthOrderLabel, compareForDisplay, deriveBirthOrder, siblingsOf } from '@/lib/relations';
+import {
+  ancestorsOf,
+  birthOrderLabel,
+  compareForDisplay,
+  connectionProblem,
+  deriveBirthOrder,
+  siblingsOf,
+  wouldCreateCycle,
+} from '@/lib/relations';
 import type { Gender, ParentChild, Person, TreeGraph } from '@/types/models';
 
 function person(id: string, gender: Gender, birthDate: string | null): Person {
@@ -167,6 +175,83 @@ describe('siblingsOf', () => {
     );
 
     expect(siblingsOf(g, '兄').map((p) => p.id)).toEqual(['兄', '弟']);
+  });
+});
+
+describe('接続の検査', () => {
+  const father = person('父', 'male', '1930-01-01');
+  const child = person('子', 'male', '1960-01-01');
+  const grandchild = person('孫', 'male', '1990-01-01');
+  const outsider = person('他人', 'female', '1962-01-01');
+
+  const family = graph(
+    [father, child, grandchild, outsider],
+    [link('父', '子'), link('子', '孫')],
+  );
+
+  it('先祖をすべて集める', () => {
+    expect([...ancestorsOf(family, '孫')].sort()).toEqual(['子', '父']);
+    expect([...ancestorsOf(family, '父')]).toEqual([]);
+  });
+
+  it('自分の先祖を自分の子にしようとすると循環になる', () => {
+    // 孫の子として父をつなぐと、父→子→孫→父 と巡ってしまう
+    expect(wouldCreateCycle(family, '孫', '父')).toBe(true);
+    expect(wouldCreateCycle(family, '孫', '子')).toBe(true);
+  });
+
+  it('自分自身は循環とみなす', () => {
+    expect(wouldCreateCycle(family, '子', '子')).toBe(true);
+  });
+
+  it('関係のない人物とは循環しない', () => {
+    expect(wouldCreateCycle(family, '子', '他人')).toBe(false);
+  });
+
+  it('循環したデータを渡しても止まる', () => {
+    const looped = graph(
+      [person('a', 'male', null), person('b', 'male', null)],
+      [link('a', 'b'), link('b', 'a')],
+    );
+
+    expect([...ancestorsOf(looped, 'a')].sort()).toEqual(['a', 'b']);
+  });
+
+  it('つなげない理由を返す', () => {
+    expect(connectionProblem(family, '子', '子', 'parent')).toContain('自分自身');
+    expect(connectionProblem(family, '子', '父', 'parent')).toContain('すでに親子');
+    expect(connectionProblem(family, '父', '孫', 'parent')).toContain('先祖と子孫');
+    expect(connectionProblem(family, '子', '他人', 'parent')).toBeNull();
+  });
+
+  it('配偶者の重複を弾く', () => {
+    const married = {
+      ...family,
+      unions: [
+        {
+          id: 'u1',
+          partner1Id: '子',
+          partner2Id: '他人',
+          status: 'married' as const,
+          startDate: null,
+          endDate: null,
+          deletedAt: null,
+        },
+      ],
+    };
+
+    expect(connectionProblem(married, '子', '他人', 'spouse')).toContain('すでに配偶者');
+    expect(connectionProblem(married, '他人', '子', 'spouse')).toContain('すでに配偶者');
+    expect(connectionProblem(married, '子', '孫', 'spouse')).toBeNull();
+  });
+
+  it('削除済みの関係は無かったものとして扱う', () => {
+    const removed = graph(
+      [father, child],
+      [{ ...link('父', '子'), deletedAt: '2026-01-01T00:00:00Z' }],
+    );
+
+    expect(connectionProblem(removed, '子', '父', 'parent')).toBeNull();
   });
 });
 

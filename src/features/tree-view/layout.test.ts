@@ -529,6 +529,21 @@ describe('computeLayout', () => {
     expect(layout.width).toBeGreaterThan(NODE_WIDTH * 2);
   });
 
+  it('カードの寸法を指定すると間隔がそれに従う', () => {
+    // 縦書きやUIサイズの変更でカードの縦横比が変わる
+    const narrow = computeLayout(
+      graph({
+        persons: [person('parent'), person('childA'), person('childB')],
+        parentChild: [link('parent', 'childA'), link('parent', 'childB')],
+      }),
+      { nodeWidth: 60, nodeHeight: 200, hGap: 10, vGap: 40 },
+    );
+
+    const [a, b] = ['childA', 'childB'].map((id) => nodeOf(narrow, id));
+    expect(Math.abs(b.x - a.x)).toBe(70);
+    expect(nodeOf(narrow, 'childA').y).toBe(240);
+  });
+
   it('左端が0から始まるようにX座標を正規化する', () => {
     const layout = computeLayout(
       graph({

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ageLabel,
   eraYearToGregorian,
   formatEra,
   formatGregorian,
@@ -182,6 +183,45 @@ describe('fromEra', () => {
     const original = '1935-05-15';
     const [eraDate] = toEraDates(original);
     expect(fromEra(eraDate.era, eraDate.year, 5, 15)).toBe(original);
+  });
+});
+
+describe('ageLabel', () => {
+  const today = new Date('2026-08-13T00:00:00Z');
+  const living = (birthDate: string | null) => ({ birthDate, deathDate: null, isLiving: true });
+  const dead = (birthDate: string | null, deathDate: string | null) => ({
+    birthDate,
+    deathDate,
+    isLiving: false,
+  });
+
+  it('存命の満年齢を出す', () => {
+    expect(ageLabel(living('1960-05-15'), today)).toBe('66歳');
+  });
+
+  it('誕生日前ならまだ歳を取っていない', () => {
+    expect(ageLabel(living('1960-12-31'), today)).toBe('65歳');
+    expect(ageLabel(living('1960-08-13'), today)).toBe('66歳');
+    expect(ageLabel(living('1960-08-14'), today)).toBe('65歳');
+  });
+
+  it('月日が分からなければ「約」を付ける', () => {
+    expect(ageLabel(living('1960'), today)).toBe('約66歳');
+    expect(ageLabel(living('1960-05'), today)).toBe('約66歳');
+  });
+
+  it('没後は享年で表す', () => {
+    expect(ageLabel(dead('1930-04-02', '2005-11-18'), today)).toBe('享年75');
+    expect(ageLabel(dead('1899', '1962'), today)).toBe('享年約63');
+  });
+
+  it('生年が分からなければ何も出さない', () => {
+    expect(ageLabel(living(null), today)).toBe('');
+    expect(ageLabel(dead(null, '2000-01-01'), today)).toBe('');
+  });
+
+  it('没年が分からない故人は何も出さない', () => {
+    expect(ageLabel(dead('1930-01-01', null), today)).toBe('');
   });
 });
 

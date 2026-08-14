@@ -647,6 +647,105 @@ textarea {
   font-size: 10px;
 }
 
+.person-card__text--vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  dominant-baseline: hanging;
+}
+
+/* --- カードのメニュー ------------------------------------------------------ */
+
+.person-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 13rem;
+  padding: 0.3rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+}
+
+.person-menu__title {
+  margin: 0.25rem 0.5rem 0.4rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.person-menu__item {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.person-menu__item:hover {
+  background: var(--surface);
+}
+
+.person-menu__item--danger {
+  color: var(--danger);
+}
+
+/* --- モーダル -------------------------------------------------------------- */
+
+.dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 4rem);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialog__head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dialog__body {
+  padding: 0.5rem 1rem 1.25rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 9rem);
+}
+
+/* --- 表示設定 -------------------------------------------------------------- */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
 /* --- 日付入力・改姓履歴 ---------------------------------------------------- */
 
 .date-input,
@@ -699,6 +798,51 @@ textarea {
 
 .surname-history__row .date-input {
   flex: 1 1 100%;
+}
+
+/* --- 人物の選択 ------------------------------------------------------------ */
+
+.picker__list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.picker__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker__item:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.picker__item:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.picker__name {
+  font-size: 0.9rem;
+}
+
+.picker__meta {
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .surname-timeline {

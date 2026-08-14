@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 
-import { PersonForm } from '@/features/persons/PersonForm';
 import * as api from '@/lib/api';
-import { formatWithEra } from '@/lib/japanese-date';
-import { birthOrderLabel, deriveBirthOrder, siblingsOf } from '@/lib/relations';
+import { ageLabel, formatWithEra } from '@/lib/japanese-date';
+import { birthOrderLabel, siblingsOf } from '@/lib/relations';
 import {
   displayName,
   displayNameKana,
@@ -12,13 +11,9 @@ import {
   SURNAME_CHANGE_REASON_LABELS,
   UNION_STATUS_LABELS,
   type Person,
-  type PersonInput,
   type TreeGraph,
   type UnionStatus,
 } from '@/types/models';
-
-/** 追加する親族の種別。 */
-type RelativeKind = 'parent' | 'spouse' | 'child';
 
 interface SpouseEntry {
   person: Person;
@@ -33,13 +28,7 @@ interface ParentChildEntry {
   linkId: string;
 }
 
-const RELATIVE_LABELS: Record<RelativeKind, string> = {
-  parent: '親',
-  spouse: '配偶者',
-  child: '子',
-};
-
-interface PersonPanelProps {
+interface PersonDetailProps {
   treeId: string;
   graph: TreeGraph;
   person: Person;
@@ -48,53 +37,21 @@ interface PersonPanelProps {
   onChanged: () => Promise<void>;
 }
 
-export function PersonPanel({
+/** 人物の詳細と、つながっている家族。関係の解消もここから行う。 */
+export function PersonDetail({
   treeId,
   graph,
   person,
   canEdit,
   onSelectPerson,
   onChanged,
-}: PersonPanelProps) {
-  const [mode, setMode] = useState<'view' | 'edit' | RelativeKind>('view');
+}: PersonDetailProps) {
   const [error, setError] = useState<string | null>(null);
-
   const relations = useRelations(graph, person.id);
 
-  async function handleUpdate(input: PersonInput) {
-    await api.updatePerson(treeId, person.id, input);
-    await onChanged();
-    setMode('view');
-  }
-
-  /** 親族を新規作成し、同時に関係も張る。 */
-  async function handleAddRelative(kind: RelativeKind, input: PersonInput) {
-    const created = await api.createPerson(treeId, input);
-
-    if (kind === 'parent') {
-      await api.addParentChild(treeId, created.id, person.id);
-    } else if (kind === 'spouse') {
-      await api.addUnion(treeId, person.id, created.id);
-    } else {
-      await api.addParentChild(treeId, person.id, created.id);
-      // 配偶者が1人だけ分かっている場合は、その人も親として登録する
-      if (relations.spouses.length === 1) {
-        await api.addParentChild(treeId, relations.spouses[0].person.id, created.id);
-      }
-    }
-
-    await onChanged();
-    setMode('view');
-    onSelectPerson(created.id);
-  }
-
   /** 関係だけを解消する。人物そのものは残る。 */
-  async function handleRemoveLink(
-    kind: 'parentChild' | 'union',
-    id: string,
-    confirmMessage: string,
-  ) {
-    if (!window.confirm(`${confirmMessage}。よろしいですか？（人物は残ります）`)) return;
+  async function removeLink(kind: 'parentChild' | 'union', id: string, message: string) {
+    if (!window.confirm(`${message}。よろしいですか？（人物は残ります）`)) return;
 
     setError(null);
     try {
@@ -110,7 +67,7 @@ export function PersonPanel({
   }
 
   /** ドラッグで付けた並び順を捨てて、生年順の自動整列に戻す。 */
-  async function handleClearSiblingOrder() {
+  async function clearSiblingOrder() {
     const siblings = siblingsOf(graph, person.id);
     if (siblings.length === 0) return;
 
@@ -126,66 +83,24 @@ export function PersonPanel({
     }
   }
 
-  async function handleDelete() {
-    if (!window.confirm(`${displayName(person)} を削除しますか？（ゴミ箱から復元できます）`)) {
-      return;
-    }
-
-    try {
-      await api.softDeletePerson(treeId, person.id);
-      await onChanged();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '削除に失敗しました');
-    }
-  }
-
-  if (mode === 'edit') {
-    return (
-      <aside className="panel">
-        <h2>人物を編集</h2>
-        <PersonForm
-          initial={person}
-          submitLabel="保存"
-          derivedBirthOrder={deriveBirthOrder(graph, person.id)}
-          onSubmit={handleUpdate}
-          onCancel={() => setMode('view')}
-        />
-      </aside>
-    );
-  }
-
-  if (mode !== 'view') {
-    return (
-      <aside className="panel">
-        <h2>
-          {displayName(person)} の{RELATIVE_LABELS[mode]}を追加
-        </h2>
-        <PersonForm
-          submitLabel="追加"
-          // 同じ家の人を続けて登録することが多いので、姓を引き継いでおく
-          defaultFamilyName={person.familyName}
-          onSubmit={(input) => handleAddRelative(mode, input)}
-          onCancel={() => setMode('view')}
-        />
-      </aside>
-    );
-  }
-
   const kana = displayNameKana(person);
-  const birthOrder = birthOrderLabel(graph, person);
+  const age = ageLabel(person);
+  const hasManualOrder = siblingsOf(graph, person.id).some(
+    (sibling) => sibling.siblingOrder !== null,
+  );
 
   return (
-    <aside className="panel">
-      <h2>{displayName(person)}</h2>
+    <div>
       {kana && <p className="panel__subtitle">{kana}</p>}
       {person.maidenName && <p className="panel__subtitle">旧姓: {person.maidenName}</p>}
 
       {error && <p className="alert alert--error">{error}</p>}
 
       <dl className="detail-list">
-        <Detail label="続柄" value={birthOrder} />
+        <Detail label="続柄" value={birthOrderLabel(graph, person)} />
         <Detail label="性別" value={GENDER_LABELS[person.gender]} />
         <Detail label="生没" value={lifespanLabel(person) || '不明'} />
+        <Detail label="年齢" value={age} />
         <Detail label="生年月日" value={formatWithEra(person.birthDate)} />
         {!person.isLiving && <Detail label="没年月日" value={formatWithEra(person.deathDate)} />}
         <Detail label="出生地" value={person.birthPlace} />
@@ -215,7 +130,7 @@ export function PersonPanel({
           id: r.person.id,
           label: displayName(r.person),
           onRemove: canEdit
-            ? () => handleRemoveLink('parentChild', r.linkId, `${displayName(r.person)} を親から外す`)
+            ? () => removeLink('parentChild', r.linkId, `${displayName(r.person)} を親から外す`)
             : undefined,
         }))}
         onSelect={onSelectPerson}
@@ -226,7 +141,7 @@ export function PersonPanel({
           id: r.person.id,
           label: `${displayName(r.person)}（${UNION_STATUS_LABELS[r.status]}）`,
           onRemove: canEdit
-            ? () => handleRemoveLink('union', r.unionId, `${displayName(r.person)} との婚姻関係を外す`)
+            ? () => removeLink('union', r.unionId, `${displayName(r.person)} との婚姻関係を外す`)
             : undefined,
         }))}
         onSelect={onSelectPerson}
@@ -243,37 +158,20 @@ export function PersonPanel({
           id: r.person.id,
           label: displayName(r.person),
           onRemove: canEdit
-            ? () => handleRemoveLink('parentChild', r.linkId, `${displayName(r.person)} を子から外す`)
+            ? () => removeLink('parentChild', r.linkId, `${displayName(r.person)} を子から外す`)
             : undefined,
         }))}
         onSelect={onSelectPerson}
       />
 
-      {canEdit && (
+      {canEdit && hasManualOrder && (
         <div className="panel__actions">
-          <button type="button" className="button" onClick={() => setMode('edit')}>
-            編集
-          </button>
-          <button type="button" className="button" onClick={() => setMode('parent')}>
-            親を追加
-          </button>
-          <button type="button" className="button" onClick={() => setMode('spouse')}>
-            配偶者を追加
-          </button>
-          <button type="button" className="button" onClick={() => setMode('child')}>
-            子を追加
-          </button>
-          {siblingsOf(graph, person.id).some((sibling) => sibling.siblingOrder !== null) && (
-            <button type="button" className="button" onClick={handleClearSiblingOrder}>
-              並び順を自動に戻す
-            </button>
-          )}
-          <button type="button" className="button button--danger" onClick={handleDelete}>
-            削除
+          <button type="button" className="button" onClick={clearSiblingOrder}>
+            きょうだいの並び順を自動に戻す
           </button>
         </div>
       )}
-    </aside>
+    </div>
   );
 }
 
@@ -347,8 +245,8 @@ function useRelations(graph: TreeGraph, personId: string) {
     );
 
     const toEntry = (id: string, linkId: string): ParentChildEntry | null => {
-      const person = personById.get(id);
-      return person ? { person, linkId } : null;
+      const found = personById.get(id);
+      return found ? { person: found, linkId } : null;
     };
     const notNull = <T,>(value: T | null): value is T => value !== null;
 

@@ -116,3 +116,73 @@ export function deriveBirthOrder(graph: TreeGraph, personId: string): string | n
 export function birthOrderLabel(graph: TreeGraph, person: Person): string | null {
   return person.birthOrder?.trim() || deriveBirthOrder(graph, person.id);
 }
+
+// --- 既存の人物どうしをつなぐときの検査 -------------------------------------
+
+/** その人物の先祖をすべて集める。循環したデータでも止まるよう、訪問済みを持つ。 */
+export function ancestorsOf(graph: TreeGraph, personId: string): Set<string> {
+  const parentChild = graph.parentChild.filter((pc) => !pc.deletedAt);
+  const found = new Set<string>();
+  const queue = [personId];
+
+  while (queue.length > 0) {
+    const current = queue.pop() as string;
+    for (const pc of parentChild) {
+      if (pc.childId !== current || found.has(pc.parentId)) continue;
+      found.add(pc.parentId);
+      queue.push(pc.parentId);
+    }
+  }
+
+  return found;
+}
+
+/**
+ * 親子関係をつないだときに循環ができてしまうか。
+ *
+ * 自分の先祖を自分の子にすると、世代が決まらず家系図として破綻する。
+ * computeLayout は循環に耐えるようにしてあるが、そもそも作らせない。
+ */
+export function wouldCreateCycle(graph: TreeGraph, parentId: string, childId: string): boolean {
+  if (parentId === childId) return true;
+  return ancestorsOf(graph, parentId).has(childId);
+}
+
+export type ConnectionKind = 'parent' | 'child' | 'spouse';
+
+/**
+ * 既存の人物を親・子・配偶者としてつなげるか判定する。
+ * つなげない場合は理由を返し、画面でそのまま伝える。
+ */
+export function connectionProblem(
+  graph: TreeGraph,
+  personId: string,
+  otherId: string,
+  kind: ConnectionKind,
+): string | null {
+  if (personId === otherId) return '自分自身とはつなげません';
+
+  const parentChild = graph.parentChild.filter((pc) => !pc.deletedAt);
+  const unions = graph.unions.filter((u) => !u.deletedAt);
+
+  if (kind === 'spouse') {
+    const already = unions.some(
+      (u) =>
+        (u.partner1Id === personId && u.partner2Id === otherId) ||
+        (u.partner1Id === otherId && u.partner2Id === personId),
+    );
+    return already ? 'すでに配偶者として登録されています' : null;
+  }
+
+  const parentId = kind === 'parent' ? otherId : personId;
+  const childId = kind === 'parent' ? personId : otherId;
+
+  if (parentChild.some((pc) => pc.parentId === parentId && pc.childId === childId)) {
+    return 'すでに親子として登録されています';
+  }
+  if (wouldCreateCycle(graph, parentId, childId)) {
+    return '先祖と子孫が入れ替わってしまうため、つなげません';
+  }
+
+  return null;
+}

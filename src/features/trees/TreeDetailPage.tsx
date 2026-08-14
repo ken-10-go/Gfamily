@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { PersonDetail } from '@/features/persons/PersonDetail';
+import { PersonDialog } from '@/features/persons/PersonDialog';
 import { PersonForm } from '@/features/persons/PersonForm';
-import { PersonPanel } from '@/features/persons/PersonPanel';
-import { TreeCanvas } from '@/features/tree-view/TreeCanvas';
+import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
+import { PersonPicker } from '@/features/persons/PersonPicker';
+import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
+import { cardMetrics, useViewSettings } from '@/features/tree-view/useViewSettings';
+import { ViewSettingsPanel } from '@/features/tree-view/ViewSettingsPanel';
 import * as api from '@/lib/api';
+import { deriveBirthOrder, type ConnectionKind } from '@/lib/relations';
 import {
   displayName,
   displayNameKana,
@@ -18,16 +24,36 @@ import {
 
 const EMPTY_GRAPH: TreeGraph = { persons: [], parentChild: [], unions: [] };
 
+/** ダイアログで出している内容。 */
+type DialogMode =
+  | { kind: 'detail'; personId: string }
+  | { kind: 'edit'; personId: string }
+  | { kind: 'add-relative'; personId: string; relation: 'parent' | 'spouse' | 'child' }
+  | { kind: 'connect'; personId: string; relation: ConnectionKind }
+  | { kind: 'add-person' }
+  | { kind: 'settings' };
+
+const RELATIVE_LABELS = { parent: '親', spouse: '配偶者', child: '子' } as const;
+const CONNECT_LABELS: Record<ConnectionKind, string> = {
+  parent: '親',
+  spouse: '配偶者',
+  child: '子',
+};
+
 export function TreeDetailPage() {
   const { treeId = '' } = useParams();
   const [tree, setTree] = useState<Tree | null>(null);
   const [role, setRole] = useState<TreeRole | null>(null);
   const [graph, setGraph] = useState<TreeGraph>(EMPTY_GRAPH);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ personId: string; anchor: CardAnchor } | null>(null);
+  const [dialog, setDialog] = useState<DialogMode | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [addingPerson, setAddingPerson] = useState(false);
   const [search, setSearch] = useState('');
+
+  const { settings, update: updateSetting } = useViewSettings(treeId);
+  const metrics = useMemo(() => cardMetrics(settings), [settings]);
 
   const reload = useCallback(async () => {
     try {
@@ -52,8 +78,113 @@ export function TreeDetailPage() {
     void reload();
   }, [reload]);
 
-  const canEdit = role === 'owner' || role === 'editor';
-  const selected = graph.persons.find((p) => p.id === selectedId) ?? null;
+  // 権限があっても、ロック中は編集させない（閲覧中の誤操作を防ぐ）
+  const canEdit = (role === 'owner' || role === 'editor') && !settings.locked;
+  const personOf = (id: string) => graph.persons.find((p) => p.id === id) ?? null;
+
+  function openMenu(personId: string, anchor: CardAnchor) {
+    setSelectedId(personId);
+    setMenu({ personId, anchor });
+  }
+
+  function handleAction(action: PersonAction) {
+    const personId = menu?.personId;
+    setMenu(null);
+    if (!personId) return;
+
+    switch (action) {
+      case 'detail':
+        setDialog({ kind: 'detail', personId });
+        break;
+      case 'edit':
+        setDialog({ kind: 'edit', personId });
+        break;
+      case 'add-parent':
+      case 'add-spouse':
+      case 'add-child':
+        setDialog({
+          kind: 'add-relative',
+          personId,
+          relation: action.replace('add-', '') as 'parent' | 'spouse' | 'child',
+        });
+        break;
+      case 'connect-parent':
+      case 'connect-spouse':
+      case 'connect-child':
+        setDialog({
+          kind: 'connect',
+          personId,
+          relation: action.replace('connect-', '') as ConnectionKind,
+        });
+        break;
+      case 'delete':
+        void handleDelete(personId);
+        break;
+    }
+  }
+
+  async function handleDelete(personId: string) {
+    const person = personOf(personId);
+    if (!person) return;
+    if (!window.confirm(`${displayName(person)} を削除しますか？（ゴミ箱から復元できます）`)) return;
+
+    try {
+      await api.softDeletePerson(treeId, personId);
+      setSelectedId(null);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '削除に失敗しました');
+    }
+  }
+
+  async function handleCreatePerson(input: PersonInput) {
+    const created = await api.createPerson(treeId, input);
+    await reload();
+    setSelectedId(created.id);
+    setDialog(null);
+  }
+
+  /** 親族を新規作成し、同時に関係も張る。 */
+  async function handleAddRelative(
+    personId: string,
+    relation: 'parent' | 'spouse' | 'child',
+    input: PersonInput,
+  ) {
+    const created = await api.createPerson(treeId, input);
+
+    if (relation === 'parent') {
+      await api.addParentChild(treeId, created.id, personId);
+    } else if (relation === 'spouse') {
+      await api.addUnion(treeId, personId, created.id);
+    } else {
+      await api.addParentChild(treeId, personId, created.id);
+      // 配偶者が1人だけ分かっている場合は、その人も親として登録する
+      const spouses = graph.unions
+        .filter((u) => !u.deletedAt && (u.partner1Id === personId || u.partner2Id === personId))
+        .map((u) => (u.partner1Id === personId ? u.partner2Id : u.partner1Id));
+      if (spouses.length === 1) {
+        await api.addParentChild(treeId, spouses[0], created.id);
+      }
+    }
+
+    await reload();
+    setSelectedId(created.id);
+    setDialog(null);
+  }
+
+  /** すでに登録されている人物とつなぐ。 */
+  async function handleConnect(personId: string, relation: ConnectionKind, otherId: string) {
+    if (relation === 'spouse') {
+      await api.addUnion(treeId, personId, otherId);
+    } else if (relation === 'parent') {
+      await api.addParentChild(treeId, otherId, personId);
+    } else {
+      await api.addParentChild(treeId, personId, otherId);
+    }
+
+    await reload();
+    setDialog(null);
+  }
 
   /** ドラッグで入れ替えたきょうだいの順を保存する。 */
   async function handleReorderSiblings(orderedIds: string[]) {
@@ -63,13 +194,6 @@ export function TreeDetailPage() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '並び順の保存に失敗しました');
     }
-  }
-
-  async function handleCreatePerson(input: PersonInput) {
-    const created = await api.createPerson(treeId, input);
-    await reload();
-    setSelectedId(created.id);
-    setAddingPerson(false);
   }
 
   // 読みでも引けるようにする。旧姓を覚えている人を探す場面もあるので姓の履歴も対象にする。
@@ -92,7 +216,7 @@ export function TreeDetailPage() {
     return <p className="page__status">読み込み中…</p>;
   }
 
-  if (error) {
+  if (error && !tree) {
     return (
       <main className="page">
         <p className="alert alert--error">{error}</p>
@@ -100,6 +224,8 @@ export function TreeDetailPage() {
       </main>
     );
   }
+
+  const menuPerson = menu ? personOf(menu.personId) : null;
 
   return (
     <div className="tree-page">
@@ -110,6 +236,7 @@ export function TreeDetailPage() {
           </Link>
           <h1>{tree?.name}</h1>
           {role && <span className="badge">{ROLE_LABELS[role]}</span>}
+          {settings.locked && <span className="badge">編集ロック中</span>}
         </div>
 
         <div className="tree-page__tools">
@@ -130,6 +257,7 @@ export function TreeDetailPage() {
                       className="link-button"
                       onClick={() => {
                         setSelectedId(person.id);
+                        setDialog({ kind: 'detail', personId: person.id });
                         setSearch('');
                       }}
                     >
@@ -146,11 +274,14 @@ export function TreeDetailPage() {
             <button
               type="button"
               className="button button--primary"
-              onClick={() => setAddingPerson(true)}
+              onClick={() => setDialog({ kind: 'add-person' })}
             >
               人物を追加
             </button>
           )}
+          <button type="button" className="button" onClick={() => setDialog({ kind: 'settings' })}>
+            表示設定
+          </button>
           <Link to={`/trees/${treeId}/members`} className="button">
             メンバー
           </Link>
@@ -160,40 +291,165 @@ export function TreeDetailPage() {
         </div>
       </header>
 
+      {error && tree && <p className="alert alert--error tree-page__error">{error}</p>}
+
       <div className="tree-page__body">
         <TreeCanvas
           graph={graph}
+          metrics={metrics}
+          settings={settings}
           selectedPersonId={selectedId}
-          onSelectPerson={setSelectedId}
+          onSelectPerson={openMenu}
           canReorder={canEdit}
           onReorderSiblings={handleReorderSiblings}
         />
-
-        {addingPerson ? (
-          <aside className="panel">
-            <h2>人物を追加</h2>
-            <PersonForm
-              submitLabel="追加"
-              onSubmit={handleCreatePerson}
-              onCancel={() => setAddingPerson(false)}
-            />
-          </aside>
-        ) : selected ? (
-          <PersonPanel
-            treeId={treeId}
-            graph={graph}
-            person={selected}
-            canEdit={canEdit}
-            onSelectPerson={setSelectedId}
-            onChanged={reload}
-          />
-        ) : (
-          <aside className="panel panel--placeholder">
-            <p>人物を選ぶと詳細が表示されます。</p>
-            {!canEdit && <p className="note">閲覧のみの権限です。</p>}
-          </aside>
-        )}
       </div>
+
+      {menu && menuPerson && (
+        <PersonMenu
+          person={menuPerson}
+          anchor={menu.anchor}
+          canEdit={canEdit}
+          onAction={handleAction}
+          onClose={() => setMenu(null)}
+        />
+      )}
+
+      {dialog && (
+        <DialogContent
+          dialog={dialog}
+          treeId={treeId}
+          graph={graph}
+          canEdit={canEdit}
+          settings={{ settings, updateSetting }}
+          onClose={() => setDialog(null)}
+          onSelectPerson={(personId) => setDialog({ kind: 'detail', personId })}
+          onChanged={reload}
+          onCreatePerson={handleCreatePerson}
+          onAddRelative={handleAddRelative}
+          onConnect={handleConnect}
+        />
+      )}
     </div>
+  );
+}
+
+/** ダイアログの中身。モードごとの出し分けをここにまとめる。 */
+function DialogContent({
+  dialog,
+  treeId,
+  graph,
+  canEdit,
+  settings,
+  onClose,
+  onSelectPerson,
+  onChanged,
+  onCreatePerson,
+  onAddRelative,
+  onConnect,
+}: {
+  dialog: DialogMode;
+  treeId: string;
+  graph: TreeGraph;
+  canEdit: boolean;
+  settings: {
+    settings: ReturnType<typeof useViewSettings>['settings'];
+    updateSetting: ReturnType<typeof useViewSettings>['update'];
+  };
+  onClose: () => void;
+  onSelectPerson: (personId: string) => void;
+  onChanged: () => Promise<void>;
+  onCreatePerson: (input: PersonInput) => Promise<void>;
+  onAddRelative: (
+    personId: string,
+    relation: 'parent' | 'spouse' | 'child',
+    input: PersonInput,
+  ) => Promise<void>;
+  onConnect: (personId: string, relation: ConnectionKind, otherId: string) => Promise<void>;
+}) {
+  const person =
+    'personId' in dialog ? (graph.persons.find((p) => p.id === dialog.personId) ?? null) : null;
+
+  if (dialog.kind === 'settings') {
+    return (
+      <PersonDialog title="表示設定" onClose={onClose}>
+        <ViewSettingsPanel settings={settings.settings} onChange={settings.updateSetting} />
+      </PersonDialog>
+    );
+  }
+
+  if (dialog.kind === 'add-person') {
+    return (
+      <PersonDialog title="人物を追加" onClose={onClose}>
+        <PersonForm submitLabel="追加" onSubmit={onCreatePerson} onCancel={onClose} />
+      </PersonDialog>
+    );
+  }
+
+  if (!person) return null;
+
+  if (dialog.kind === 'detail') {
+    return (
+      <PersonDialog title={displayName(person)} onClose={onClose}>
+        <PersonDetail
+          treeId={treeId}
+          graph={graph}
+          person={person}
+          canEdit={canEdit}
+          onSelectPerson={onSelectPerson}
+          onChanged={onChanged}
+        />
+      </PersonDialog>
+    );
+  }
+
+  if (dialog.kind === 'edit') {
+    return (
+      <PersonDialog title={`${displayName(person)} を編集`} onClose={onClose}>
+        <PersonForm
+          initial={person}
+          submitLabel="保存"
+          derivedBirthOrder={deriveBirthOrder(graph, person.id)}
+          onSubmit={async (input) => {
+            await api.updatePerson(treeId, person.id, input);
+            await onChanged();
+            onClose();
+          }}
+          onCancel={onClose}
+        />
+      </PersonDialog>
+    );
+  }
+
+  if (dialog.kind === 'add-relative') {
+    return (
+      <PersonDialog
+        title={`${displayName(person)} の${RELATIVE_LABELS[dialog.relation]}を追加`}
+        onClose={onClose}
+      >
+        <PersonForm
+          submitLabel="追加"
+          // 同じ家の人を続けて登録することが多いので、姓を引き継いでおく
+          defaultFamilyName={person.familyName}
+          onSubmit={(input) => onAddRelative(person.id, dialog.relation, input)}
+          onCancel={onClose}
+        />
+      </PersonDialog>
+    );
+  }
+
+  return (
+    <PersonDialog
+      title={`${displayName(person)} の${CONNECT_LABELS[dialog.relation]}につなぐ`}
+      onClose={onClose}
+    >
+      <PersonPicker
+        graph={graph}
+        personId={person.id}
+        kind={dialog.relation}
+        onPick={(otherId) => onConnect(person.id, dialog.relation, otherId)}
+        onCancel={onClose}
+      />
+    </PersonDialog>
   );
 }

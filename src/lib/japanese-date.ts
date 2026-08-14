@@ -238,3 +238,52 @@ export function fromEra(
 export function yearOf(value: string | null | undefined): number | null {
   return parsePartialDate(value)?.year ?? null;
 }
+
+/** 誕生日を迎えているかを見て満年齢を出す。月日が不明な部分は迎えていない扱いにしない。 */
+function fullYearsBetween(from: PartialDate, to: PartialDate): number {
+  let years = to.year - from.year;
+
+  if (from.month !== undefined && to.month !== undefined) {
+    if (to.month < from.month) {
+      years -= 1;
+    } else if (to.month === from.month && from.day !== undefined && to.day !== undefined) {
+      if (to.day < from.day) years -= 1;
+    }
+  }
+
+  return years;
+}
+
+/**
+ * 年齢の表示。存命なら「◯歳」、没後は「享年◯」。
+ *
+ * 月日まで分からない日付では1歳ずれることがあるため「約」を付ける。
+ * 古い戸籍では年しか分からないことが多く、断定しないほうが誠実。
+ */
+export function ageLabel(
+  person: { birthDate: string | null; deathDate: string | null; isLiving: boolean },
+  today = new Date(),
+): string {
+  const birth = parsePartialDate(person.birthDate);
+  if (!birth) return '';
+
+  const end = person.isLiving
+    ? {
+        year: today.getFullYear(),
+        month: today.getMonth() + 1,
+        day: today.getDate(),
+        precision: 'day' as DatePrecision,
+      }
+    : parsePartialDate(person.deathDate);
+
+  if (!end) return '';
+
+  const years = fullYearsBetween(birth, end);
+  if (years < 0) return '';
+
+  // どちらかの精度が日まで揃っていなければ、年齢は前後しうる
+  const exact = birth.precision === 'day' && end.precision === 'day';
+  const prefix = exact ? '' : '約';
+
+  return person.isLiving ? `${prefix}${years}歳` : `享年${prefix}${years}`;
+}

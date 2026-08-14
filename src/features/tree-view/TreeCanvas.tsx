@@ -1,13 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  computeLayout,
-  NODE_HEIGHT,
-  NODE_WIDTH,
-  V_GAP,
-  type LayoutNode,
-} from '@/features/tree-view/layout';
+import { computeLayout, type LayoutMetrics, type LayoutNode } from '@/features/tree-view/layout';
 import { usePanZoom } from '@/features/tree-view/usePanZoom';
+import { DEFAULT_VIEW_SETTINGS, type ViewSettings } from '@/features/tree-view/useViewSettings';
+import { ageLabel } from '@/lib/japanese-date';
 import { birthOrderLabel } from '@/lib/relations';
 import {
   displayName,
@@ -15,6 +11,7 @@ import {
   hasSurnameChange,
   lifespanLabel,
   originalFamilyName,
+  type Person,
   type TreeGraph,
 } from '@/types/models';
 
@@ -31,24 +28,33 @@ interface CardDrag {
 /** これ以上動いたらドラッグとみなす。指やマウスの微妙な揺れで並びが変わらないようにする。 */
 const DRAG_THRESHOLD = 6;
 
+export interface CardAnchor {
+  x: number;
+  y: number;
+}
+
 interface TreeCanvasProps {
   graph: TreeGraph;
+  metrics: LayoutMetrics;
+  settings?: ViewSettings;
   selectedPersonId: string | null;
-  onSelectPerson: (personId: string) => void;
-  /** きょうだいの並べ替えを許すか。閲覧のみの権限では false。 */
+  /** カードを選んだとき。anchor は画面上の位置で、メニューを寄せるのに使う。 */
+  onSelectPerson: (personId: string, anchor: CardAnchor) => void;
+  /** きょうだいの並べ替えを許すか。閲覧のみの権限やロック中は false。 */
   canReorder?: boolean;
-  /** 並べ替えの確定。きょうだいグループ全員を表示順に並べて渡す。 */
   onReorderSiblings?: (orderedIds: string[]) => void;
 }
 
 export function TreeCanvas({
   graph,
+  metrics,
+  settings = DEFAULT_VIEW_SETTINGS,
   selectedPersonId,
   onSelectPerson,
   canReorder = false,
   onReorderSiblings,
 }: TreeCanvasProps) {
-  const layout = useMemo(() => computeLayout(graph), [graph]);
+  const layout = useMemo(() => computeLayout(graph, metrics), [graph, metrics]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [drag, setDrag] = useState<CardDrag | null>(null);
@@ -65,14 +71,14 @@ export function TreeCanvas({
     return () => observer.disconnect();
   }, []);
 
-  // 人数が変わったときだけ全体表示に合わせ直す（編集のたびに動かない）
+  // 人数やカードの大きさが変わったときだけ全体表示に合わせ直す（編集のたびに動かない）
   const personCount = layout.nodes.length;
   useEffect(() => {
     if (size.width > 0 && personCount > 0) {
       fitTo(layout.width, layout.height, size.width, size.height);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personCount, size.width, size.height]);
+  }, [personCount, size.width, size.height, metrics.nodeWidth, metrics.nodeHeight]);
 
   const positionById = useMemo(
     () => new Map(layout.nodes.map((node) => [node.person.id, node])),
@@ -106,16 +112,18 @@ export function TreeCanvas({
   }
 
   function endDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
+    const anchor = { x: event.clientX, y: event.clientY };
+
     // ドラッグ対象でないカード（並べ替え不可・閲覧のみ）はここを通る。選択だけ行う。
     if (!drag || drag.pointerId !== event.pointerId) {
-      onSelectPerson(personId);
+      onSelectPerson(personId, anchor);
       return;
     }
 
     // つまんだだけで動かしていなければ、クリックとして選択する
     if (!drag.moved) {
       setDrag(null);
-      onSelectPerson(personId);
+      onSelectPerson(personId, anchor);
       return;
     }
 
@@ -161,6 +169,7 @@ export function TreeCanvas({
                 key={couple.id}
                 a={positionById.get(couple.partner1Id)}
                 b={positionById.get(couple.partner2Id)}
+                metrics={metrics}
                 divorced={couple.status === 'divorced'}
               />
             ))}
@@ -169,6 +178,7 @@ export function TreeCanvas({
                 key={family.key}
                 parents={family.parentIds.map((id) => positionById.get(id))}
                 children={family.childIds.map((id) => positionById.get(id))}
+                metrics={metrics}
               />
             ))}
           </g>
@@ -177,10 +187,14 @@ export function TreeCanvas({
             <PersonCard
               key={node.person.id}
               node={node}
+              metrics={metrics}
+              settings={settings}
               selected={node.person.id === selectedPersonId}
               birthOrder={birthOrderLabel(graph, node.person)}
               draggable={canReorder && Boolean(groupOf(node.person.id))}
-              dragOffset={drag?.moved && drag.personId === node.person.id ? drag.dx / viewport.scale : 0}
+              dragOffset={
+                drag?.moved && drag.personId === node.person.id ? drag.dx / viewport.scale : 0
+              }
               onSelect={onSelectPerson}
               onPointerDown={startDrag}
               onPointerMove={moveDrag}
@@ -208,8 +222,29 @@ export function TreeCanvas({
   );
 }
 
+/** 設定に合わせた氏名の行。姓名の順と、1行か2行かで変わる。 */
+function nameLines(person: Person, settings: ViewSettings): string[] {
+  const family = person.familyName ?? '';
+  const given = person.givenName ?? '';
+  const parts = (settings.nameOrder === 'family-first' ? [family, given] : [given, family]).filter(
+    Boolean,
+  );
+
+  if (parts.length === 0) return [displayName(person)];
+  return settings.nameLines === 2 ? parts : [parts.join(' ')];
+}
+
+/** カードに出す補足行（続柄・生没年・年齢）。 */
+function metaLine(person: Person, birthOrder: string | null, settings: ViewSettings): string {
+  return [birthOrder, lifespanLabel(person), settings.showAge ? ageLabel(person) : '']
+    .filter(Boolean)
+    .join('　');
+}
+
 function PersonCard({
   node,
+  metrics,
+  settings,
   selected,
   birthOrder,
   draggable,
@@ -220,22 +255,36 @@ function PersonCard({
   onPointerUp,
 }: {
   node: LayoutNode;
+  metrics: LayoutMetrics;
+  settings: ViewSettings;
   selected: boolean;
   birthOrder: string | null;
   draggable: boolean;
   /** ドラッグ中の見た目の追従量（レイアウト座標）。 */
   dragOffset: number;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, anchor: CardAnchor) => void;
   onPointerDown: (personId: string, event: React.PointerEvent<SVGGElement>) => void;
   onPointerMove: (event: React.PointerEvent<SVGGElement>) => void;
   onPointerUp: (personId: string, event: React.PointerEvent<SVGGElement>) => void;
 }) {
   const { person } = node;
-  const left = node.x - NODE_WIDTH / 2 + dragOffset;
-  const lifespan = lifespanLabel(person);
-  const kana = displayNameKana(person);
+  const left = node.x - metrics.nodeWidth / 2 + dragOffset;
+
+  const names = nameLines(person, settings);
+  const kana = settings.showKana ? displayNameKana(person) : '';
+  const meta = metaLine(person, birthOrder, settings);
+  const note = settings.showNote ? (person.note?.split('\n')[0] ?? '') : '';
+
   const original = originalFamilyName(person);
-  const changedSurname = hasSurnameChange(person) && original !== person.familyName ? original : null;
+  const changedSurname =
+    hasSurnameChange(person) && original !== person.familyName ? original : null;
+
+  const rows = [
+    ...(kana ? [{ text: kana, className: 'person-card__kana' }] : []),
+    ...names.map((text) => ({ text, className: 'person-card__name' })),
+    ...(meta ? [{ text: meta, className: 'person-card__meta' }] : []),
+    ...(note ? [{ text: note, className: 'person-card__meta' }] : []),
+  ];
 
   return (
     <g
@@ -257,37 +306,58 @@ function PersonCard({
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onSelect(person.id);
+          const box = (event.currentTarget as SVGGElement).getBoundingClientRect();
+          onSelect(person.id, { x: box.left, y: box.bottom });
         }
       }}
       tabIndex={0}
       role="button"
-      aria-label={`${displayName(person)}${lifespan ? ` ${lifespan}` : ''}`}
+      aria-label={`${displayName(person)}${meta ? ` ${meta}` : ''}`}
     >
-      <rect width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} className="person-card__box" />
+      <rect
+        width={metrics.nodeWidth}
+        height={metrics.nodeHeight}
+        rx={8}
+        className="person-card__box"
+      />
 
-      {kana && (
-        <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" className="person-card__kana">
-          {kana}
-        </text>
-      )}
-      <text x={NODE_WIDTH / 2} y={kana ? 34 : 26} textAnchor="middle" className="person-card__name">
-        {displayName(person)}
-      </text>
-      <text x={NODE_WIDTH / 2} y={kana ? 50 : 44} textAnchor="middle" className="person-card__meta">
-        {[birthOrder, lifespan].filter(Boolean).join('　')}
-      </text>
+      {settings.vertical
+        ? rows.map((row, index) => (
+            <text
+              key={index}
+              // 縦書きは右の列から始める
+              x={metrics.nodeWidth - 16 - index * 15}
+              y={12}
+              className={`${row.className} person-card__text--vertical`}
+            >
+              {row.text}
+            </text>
+          ))
+        : rows.map((row, index) => (
+            <text
+              key={index}
+              x={metrics.nodeWidth / 2}
+              y={20 + index * 16}
+              textAnchor="middle"
+              className={row.className}
+            >
+              {row.text}
+            </text>
+          ))}
 
       {/* 改姓している人には印を付け、どの姓から変わったかを示す */}
       {changedSurname && (
         <>
-          <circle cx={NODE_WIDTH - 14} cy={14} r={8} className="person-card__mark" />
-          <text x={NODE_WIDTH - 14} y={18} textAnchor="middle" className="person-card__mark-text">
+          <circle cx={metrics.nodeWidth - 14} cy={14} r={8} className="person-card__mark" />
+          <text
+            x={metrics.nodeWidth - 14}
+            y={18}
+            textAnchor="middle"
+            className="person-card__mark-text"
+          >
             改
           </text>
-          <title>
-            旧姓 {changedSurname}
-          </title>
+          <title>旧姓 {changedSurname}</title>
         </>
       )}
     </g>
@@ -298,23 +368,25 @@ function PersonCard({
 function CoupleLine({
   a,
   b,
+  metrics,
   divorced,
 }: {
   a?: LayoutNode;
   b?: LayoutNode;
+  metrics: LayoutMetrics;
   divorced: boolean;
 }) {
   if (!a || !b) return null;
 
-  const y = a.y + NODE_HEIGHT / 2;
+  const y = a.y + metrics.nodeHeight / 2;
   const [left, right] = a.x <= b.x ? [a, b] : [b, a];
 
   return (
     <line
-      x1={left.x + NODE_WIDTH / 2}
+      x1={left.x + metrics.nodeWidth / 2}
       y1={y}
-      x2={right.x - NODE_WIDTH / 2}
-      y2={b.y + NODE_HEIGHT / 2}
+      x2={right.x - metrics.nodeWidth / 2}
+      y2={b.y + metrics.nodeHeight / 2}
       className={divorced ? 'link link--divorced' : 'link link--couple'}
     />
   );
@@ -327,9 +399,11 @@ function CoupleLine({
 function FamilyLines({
   parents,
   children,
+  metrics,
 }: {
   parents: (LayoutNode | undefined)[];
   children: (LayoutNode | undefined)[];
+  metrics: LayoutMetrics;
 }) {
   const presentParents = parents.filter((p): p is LayoutNode => Boolean(p));
   const presentChildren = children.filter((c): c is LayoutNode => Boolean(c));
@@ -338,9 +412,9 @@ function FamilyLines({
 
   const parentX =
     presentParents.reduce((sum, parent) => sum + parent.x, 0) / presentParents.length;
-  const parentBottom = Math.max(...presentParents.map((p) => p.y)) + NODE_HEIGHT;
+  const parentBottom = Math.max(...presentParents.map((p) => p.y)) + metrics.nodeHeight;
   const childTop = Math.min(...presentChildren.map((c) => c.y));
-  const busY = childTop - V_GAP / 2;
+  const busY = childTop - metrics.vGap / 2;
 
   const childXs = presentChildren.map((c) => c.x);
   const busLeft = Math.min(...childXs, parentX);

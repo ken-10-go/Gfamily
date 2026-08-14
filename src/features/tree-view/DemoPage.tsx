@@ -1,6 +1,8 @@
 import { useState } from 'react';
 
 import { TreeCanvas } from '@/features/tree-view/TreeCanvas';
+import { cardMetrics, useViewSettings } from '@/features/tree-view/useViewSettings';
+import { ViewSettingsPanel } from '@/features/tree-view/ViewSettingsPanel';
 import { formatWithEra } from '@/lib/japanese-date';
 import { birthOrderLabel } from '@/lib/relations';
 import { displayName, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
@@ -15,6 +17,7 @@ export function DemoPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // 並べ替えの確認ができるよう、デモでは画面内だけで siblingOrder を保持する
   const [graph, setGraph] = useState<TreeGraph>(DEMO_GRAPH);
+  const { settings, update } = useViewSettings('demo');
   const selected = graph.persons.find((p) => p.id === selectedId);
 
   function reorderSiblings(orderedIds: string[]) {
@@ -41,8 +44,10 @@ export function DemoPage() {
       <div className="tree-page__body">
         <TreeCanvas
           graph={graph}
+          metrics={cardMetrics(settings)}
+          settings={settings}
           selectedPersonId={selectedId}
-          onSelectPerson={setSelectedId}
+          onSelectPerson={(personId) => setSelectedId(personId)}
           canReorder
           onReorderSiblings={reorderSiblings}
         />
@@ -60,6 +65,9 @@ export function DemoPage() {
               <dd>{selected.birthPlace ?? '不明'}</dd>
             </dl>
           )}
+
+          <h3>表示設定</h3>
+          <ViewSettingsPanel settings={settings} onChange={update} />
         </aside>
       </div>
     </div>

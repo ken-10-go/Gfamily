@@ -8,8 +8,20 @@ export const H_GAP = 28;
 /** 世代間の縦の間隔 */
 export const V_GAP = 96;
 
-const SLOT = NODE_WIDTH + H_GAP;
-const ROW = NODE_HEIGHT + V_GAP;
+/** カードの寸法。表示設定（縦書き・UIサイズ）で変わるため引数で受け取る。 */
+export interface LayoutMetrics {
+  nodeWidth: number;
+  nodeHeight: number;
+  hGap: number;
+  vGap: number;
+}
+
+export const DEFAULT_METRICS: LayoutMetrics = {
+  nodeWidth: NODE_WIDTH,
+  nodeHeight: NODE_HEIGHT,
+  hGap: H_GAP,
+  vGap: V_GAP,
+};
 
 export interface LayoutNode {
   person: Person;
@@ -65,7 +77,13 @@ export interface TreeLayout {
  *
  * 同世代では「次に空いているX座標」を単調増加で消費するため、カードが重なることはない。
  */
-export function computeLayout(graph: TreeGraph): TreeLayout {
+export function computeLayout(
+  graph: TreeGraph,
+  metrics: LayoutMetrics = DEFAULT_METRICS,
+): TreeLayout {
+  const SLOT = metrics.nodeWidth + metrics.hGap;
+  const ROW = metrics.nodeHeight + metrics.vGap;
+
   const persons = graph.persons.filter((p) => !p.deletedAt);
   const personById = new Map(persons.map((p) => [p.id, p]));
 
@@ -194,7 +212,7 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
     placePerson(person.id);
   }
 
-  const minX = Math.min(...[...centerX.values()]) - NODE_WIDTH / 2;
+  const minX = Math.min(...[...centerX.values()]) - metrics.nodeWidth / 2;
   const nodes: LayoutNode[] = persons.map((person) => {
     const generation = generations.get(person.id) ?? 0;
     return {
@@ -206,8 +224,8 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
   });
 
   const maxGeneration = Math.max(...nodes.map((n) => n.generation));
-  const width = Math.max(...nodes.map((n) => n.x)) + NODE_WIDTH / 2;
-  const height = maxGeneration * ROW + NODE_HEIGHT;
+  const width = Math.max(...nodes.map((n) => n.x)) + metrics.nodeWidth / 2;
+  const height = maxGeneration * ROW + metrics.nodeHeight;
 
   return {
     nodes,
