@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { PersonForm } from '@/features/persons/PersonForm';
 import * as api from '@/lib/api';
 import { formatWithEra } from '@/lib/japanese-date';
-import { birthOrderLabel, deriveBirthOrder } from '@/lib/relations';
+import { birthOrderLabel, deriveBirthOrder, siblingsOf } from '@/lib/relations';
 import {
   displayName,
   displayNameKana,
@@ -106,6 +106,23 @@ export function PersonPanel({
       await onChanged();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '関係の解消に失敗しました');
+    }
+  }
+
+  /** ドラッグで付けた並び順を捨てて、生年順の自動整列に戻す。 */
+  async function handleClearSiblingOrder() {
+    const siblings = siblingsOf(graph, person.id);
+    if (siblings.length === 0) return;
+
+    setError(null);
+    try {
+      await api.clearSiblingOrder(
+        treeId,
+        siblings.map((sibling) => sibling.id),
+      );
+      await onChanged();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '並び順の初期化に失敗しました');
     }
   }
 
@@ -246,6 +263,11 @@ export function PersonPanel({
           <button type="button" className="button" onClick={() => setMode('child')}>
             子を追加
           </button>
+          {siblingsOf(graph, person.id).some((sibling) => sibling.siblingOrder !== null) && (
+            <button type="button" className="button" onClick={handleClearSiblingOrder}>
+              並び順を自動に戻す
+            </button>
+          )}
           <button type="button" className="button button--danger" onClick={handleDelete}>
             削除
           </button>

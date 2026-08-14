@@ -55,6 +55,16 @@ export function TreeDetailPage() {
   const canEdit = role === 'owner' || role === 'editor';
   const selected = graph.persons.find((p) => p.id === selectedId) ?? null;
 
+  /** ドラッグで入れ替えたきょうだいの順を保存する。 */
+  async function handleReorderSiblings(orderedIds: string[]) {
+    try {
+      await api.setSiblingOrder(treeId, orderedIds);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '並び順の保存に失敗しました');
+    }
+  }
+
   async function handleCreatePerson(input: PersonInput) {
     const created = await api.createPerson(treeId, input);
     await reload();
@@ -151,7 +161,13 @@ export function TreeDetailPage() {
       </header>
 
       <div className="tree-page__body">
-        <TreeCanvas graph={graph} selectedPersonId={selectedId} onSelectPerson={setSelectedId} />
+        <TreeCanvas
+          graph={graph}
+          selectedPersonId={selectedId}
+          onSelectPerson={setSelectedId}
+          canReorder={canEdit}
+          onReorderSiblings={handleReorderSiblings}
+        />
 
         {addingPerson ? (
           <aside className="panel">

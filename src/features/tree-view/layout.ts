@@ -1,4 +1,4 @@
-import { compareByBirth } from '@/lib/relations';
+import { compareForDisplay } from '@/lib/relations';
 import type { ParentChild, Person, TreeGraph, Union } from '@/types/models';
 
 export const NODE_WIDTH = 168;
@@ -34,9 +34,22 @@ export interface CoupleLink {
   status: Union['status'];
 }
 
+/**
+ * 並び順を決めるための、きょうだいのまとまり。
+ * 線を引くための FamilyUnit とは別に持つ。
+ */
+export interface SiblingGroup {
+  key: string;
+  parentIds: string[];
+  /** 表示順に並んだ子。ドラッグでの並べ替えもこの単位で行う。 */
+  childIds: string[];
+}
+
 export interface TreeLayout {
   nodes: LayoutNode[];
   families: FamilyUnit[];
+  /** きょうだいの並び。手動の並べ替えはこのまとまりの中で行う。 */
+  siblingGroups: SiblingGroup[];
   couples: CoupleLink[];
   width: number;
   height: number;
@@ -65,23 +78,30 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
   );
 
   if (persons.length === 0) {
-    return { nodes: [], families: [], couples: [], width: 0, height: 0 };
+    return { nodes: [], families: [], siblingGroups: [], couples: [], width: 0, height: 0 };
   }
 
   const generations = computeGenerations(persons, parentChild, unions);
   const families = buildFamilyUnits(persons, parentChild, unions, personById);
 
-  const unitsWhereParent = new Map<string, FamilyUnit[]>();
-  for (const unit of families) {
-    for (const parentId of unit.parentIds) {
-      const list = unitsWhereParent.get(parentId) ?? [];
-      list.push(unit);
-      unitsWhereParent.set(parentId, list);
+  const comparePersonIds = (a: string, b: string) => {
+    const left = personById.get(a);
+    const right = personById.get(b);
+    return left && right ? compareForDisplay(left, right) : 0;
+  };
+  const groups = buildSiblingGroups(families, comparePersonIds);
+
+  const groupsWhereParent = new Map<string, SiblingGroup[]>();
+  for (const group of groups) {
+    for (const parentId of group.parentIds) {
+      const list = groupsWhereParent.get(parentId) ?? [];
+      list.push(group);
+      groupsWhereParent.set(parentId, list);
     }
   }
 
   const centerX = new Map<string, number>();
-  const placedUnits = new Set<string>();
+  const placedGroups = new Set<string>();
   /** 世代ごとの「次に空いている左端X」 */
   const cursor = new Map<number, number>();
 
@@ -97,11 +117,11 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
   function placePerson(personId: string): void {
     if (centerX.has(personId)) return;
 
-    // 親として属する家族単位があれば、その単位ごと配置する
-    const ownUnits = unitsWhereParent.get(personId);
-    const pending = ownUnits?.find((unit) => !placedUnits.has(unit.key));
+    // 親として属するきょうだいグループがあれば、そのグループごと配置する
+    const ownGroups = groupsWhereParent.get(personId);
+    const pending = ownGroups?.find((group) => !placedGroups.has(group.key));
     if (pending) {
-      placeUnit(pending);
+      placeGroup(pending);
       if (centerX.has(personId)) return;
     }
 
@@ -109,13 +129,13 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
     centerX.set(personId, reserve(generation, 1) + SLOT / 2);
   }
 
-  function placeUnit(unit: FamilyUnit): void {
-    if (placedUnits.has(unit.key)) return;
-    placedUnits.add(unit.key);
+  function placeGroup(group: SiblingGroup): void {
+    if (placedGroups.has(group.key)) return;
+    placedGroups.add(group.key);
 
     // 子を先に配置し、その中央に親を置く（下から上へ組み上げる）
     const childCenters: number[] = [];
-    for (const childId of unit.childIds) {
+    for (const childId of group.childIds) {
       placePerson(childId);
       const x = centerX.get(childId);
       if (x !== undefined) childCenters.push(x);
@@ -126,12 +146,12 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
         ? (Math.min(...childCenters) + Math.max(...childCenters)) / 2
         : undefined;
 
-    const generation = generations.get(unit.parentIds[0]) ?? 0;
-    const unplaced = unit.parentIds.filter((id) => !centerX.has(id));
+    const generation = generations.get(group.parentIds[0]) ?? 0;
+    const unplaced = group.parentIds.filter((id) => !centerX.has(id));
 
     if (unplaced.length > 0) {
-      // 既に配置済みの親（再婚などで別の単位から置かれた）があれば、その隣に続ける
-      const placedParentX = unit.parentIds
+      // 既に配置済みの親（再婚などで別のグループから置かれた）があれば、その隣に続ける
+      const placedParentX = group.parentIds
         .filter((id) => centerX.has(id))
         .map((id) => centerX.get(id) as number);
 
@@ -148,32 +168,26 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
     }
   }
 
-  /**
-   * 家族単位を配置する順番の基準となる生年。
-   * 親の生年を優先し、親の生年が分からなければ子の生年で代用する。
-   * どちらも分からない単位は右端に寄せる。
-   */
-  function unitBirthKey(unit: FamilyUnit): string {
-    const birthOf = (id: string) => personById.get(id)?.birthDate ?? '';
+  const birthOf = (id: string) => personById.get(id)?.birthDate ?? '';
+  const earliest = (ids: string[]) => ids.map(birthOf).filter(Boolean).sort()[0];
 
-    const parentBirths = unit.parentIds.map(birthOf).filter(Boolean).sort();
-    if (parentBirths.length > 0) return parentBirths[0];
-
-    const childBirths = unit.childIds.map(birthOf).filter(Boolean).sort();
-    return childBirths[0] ?? '9999';
-  }
+  /** 親の生年を優先し、無ければ子の生年で代用する。どちらも不明なグループは右端へ。 */
+  const groupBirthKey = (group: SiblingGroup) =>
+    earliest(group.parentIds) ?? earliest(group.childIds) ?? '9999';
 
   // 上の世代から順に着手し、同じ世代では年長の家族から置く。
   // 配置は先着順に左から詰めるので、この順番がそのまま左右の並びになる。
   // ここを ID 順にすると、つながりのない家系どうしが登録順で並んでしまう。
-  const orderedUnits = [...families].sort(
+  // 親の生年が同じ場合に子の生年で決めるのは、親を共有する家族どうしを年長の子から置くため。
+  const orderedGroups = [...groups].sort(
     (a, b) =>
       (generations.get(a.parentIds[0]) ?? 0) - (generations.get(b.parentIds[0]) ?? 0) ||
-      unitBirthKey(a).localeCompare(unitBirthKey(b)) ||
+      groupBirthKey(a).localeCompare(groupBirthKey(b)) ||
+      (earliest(a.childIds) ?? '9999').localeCompare(earliest(b.childIds) ?? '9999') ||
       a.key.localeCompare(b.key),
   );
-  for (const unit of orderedUnits) {
-    placeUnit(unit);
+  for (const group of orderedGroups) {
+    placeGroup(group);
   }
   // どの家族単位にも属さない人物
   for (const person of sortPersons(persons)) {
@@ -198,6 +212,7 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
   return {
     nodes,
     families,
+    siblingGroups: groups,
     couples: unions.map((u) => ({
       id: u.id,
       partner1Id: u.partner1Id,
@@ -207,6 +222,52 @@ export function computeLayout(graph: TreeGraph): TreeLayout {
     width,
     height,
   };
+}
+
+const isSubsetOf = (a: string[], b: string[]) => a.every((id) => b.includes(id));
+
+/**
+ * 家族単位から、並び順のためのきょうだいグループを作る。
+ *
+ * 親の組が他の単位の部分集合になっている単位は、親の登録漏れとみなして統合する。
+ * 例: 長女には父母を、長男には父だけを紐づけた場合、{父} は {父,母} に吸収され、
+ * 3人が1つのきょうだいとして年齢順に並ぶ。統合しないと別の集団として左右に分かれ、
+ * 「1978 → 1982 → 1980」のように年齢が交ざらない並びになる。
+ *
+ * 再婚のように {父,母A} と {父,母B} が並ぶ場合は、互いに部分集合でないので統合しない。
+ * 受け入れ先が複数あってどちらの子か決められないときも、推測せず別のままにする。
+ *
+ * ここで統合するのはあくまで配置の順番であって、連結線は元の家族単位のまま引く。
+ * 統合して線まで引くと、紐づいていない親からも線が伸びてデータにない関係を描いてしまう。
+ */
+function buildSiblingGroups(
+  units: FamilyUnit[],
+  comparePersonIds: (a: string, b: string) => number,
+): SiblingGroup[] {
+  // 親の多い単位から見ていくと、部分集合の受け入れ先が先に出来上がる
+  const byParentCount = [...units].sort((a, b) => b.parentIds.length - a.parentIds.length);
+  const groups: SiblingGroup[] = [];
+
+  for (const unit of byParentCount) {
+    const hosts = groups.filter((group) => isSubsetOf(unit.parentIds, group.parentIds));
+
+    if (hosts.length === 1) {
+      hosts[0].childIds.push(...unit.childIds);
+      continue;
+    }
+
+    groups.push({
+      key: unit.key,
+      parentIds: [...unit.parentIds],
+      childIds: [...unit.childIds],
+    });
+  }
+
+  for (const group of groups) {
+    group.childIds = [...new Set(group.childIds)].sort(comparePersonIds);
+  }
+
+  return groups;
 }
 
 /**
@@ -295,7 +356,7 @@ function buildFamilyUnits(
       const left = personById.get(a);
       const right = personById.get(b);
       if (!left || !right) return 0;
-      return compareByBirth(left, right);
+      return compareForDisplay(left, right);
     });
   }
 
@@ -305,5 +366,5 @@ function buildFamilyUnits(
 
 /** 生年順（不明は後ろ）。並びの基準は relations.ts と共有する。 */
 function sortPersons(persons: Person[]): Person[] {
-  return [...persons].sort(compareByBirth);
+  return [...persons].sort(compareForDisplay);
 }

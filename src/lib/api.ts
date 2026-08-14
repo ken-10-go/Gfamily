@@ -11,6 +11,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Timestamp,
@@ -156,6 +157,7 @@ function toPerson(snapshot: QueryDocumentSnapshot<DocumentData>): Person {
     note: data.note ?? null,
     isLiving: data.isLiving ?? true,
     birthOrder: data.birthOrder ?? null,
+    siblingOrder: typeof data.siblingOrder === 'number' ? data.siblingOrder : null,
     // 既存データには存在しない項目なので、既定値を補って読み出す
     surnameHistory: (data.surnameHistory ?? []) as Person['surnameHistory'],
     deletedAt: toIso(data.deletedAt),
@@ -239,6 +241,43 @@ export async function updatePerson(
 ): Promise<void> {
   const uid = requireUid();
   await updateDoc(doc(getDb(), 'trees', treeId, 'persons', personId), personPayload(input, uid));
+}
+
+/**
+ * きょうだいの並び順をまとめて保存する。
+ *
+ * 渡された順に 0,1,2… を振り直す。1人だけ動かしても他の人物との前後関係が変わるため、
+ * グループ全員を1回の書き込みでそろえる。
+ */
+export async function setSiblingOrder(treeId: string, orderedIds: string[]): Promise<void> {
+  const uid = requireUid();
+  const batch = writeBatch(getDb());
+
+  orderedIds.forEach((personId, index) => {
+    batch.update(doc(getDb(), 'trees', treeId, 'persons', personId), {
+      siblingOrder: index,
+      updatedBy: uid,
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+}
+
+/** 手動の並び順を捨てて、生年順の自動整列に戻す。 */
+export async function clearSiblingOrder(treeId: string, personIds: string[]): Promise<void> {
+  const uid = requireUid();
+  const batch = writeBatch(getDb());
+
+  for (const personId of personIds) {
+    batch.update(doc(getDb(), 'trees', treeId, 'persons', personId), {
+      siblingOrder: null,
+      updatedBy: uid,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
 }
 
 /** ソフト削除。ゴミ箱から復元できる（要件定義書 3.2）。 */

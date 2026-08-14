@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { birthOrderLabel, deriveBirthOrder, siblingsOf } from '@/lib/relations';
+import { birthOrderLabel, compareForDisplay, deriveBirthOrder, siblingsOf } from '@/lib/relations';
 import type { Gender, ParentChild, Person, TreeGraph } from '@/types/models';
 
 function person(id: string, gender: Gender, birthDate: string | null): Person {
@@ -18,6 +18,7 @@ function person(id: string, gender: Gender, birthDate: string | null): Person {
     note: null,
     isLiving: true,
     birthOrder: null,
+    siblingOrder: null,
     surnameHistory: [],
     deletedAt: null,
   };
@@ -169,6 +170,41 @@ describe('siblingsOf', () => {
   });
 });
 
+describe('compareForDisplay', () => {
+  const withOrder = (id: string, birthDate: string | null, siblingOrder: number | null) => ({
+    ...person(id, 'male', birthDate),
+    siblingOrder,
+  });
+
+  it('手動で並べ替えた順を生年より優先する', () => {
+    const elder = withOrder('兄', '1960-01-01', 1);
+    const younger = withOrder('弟', '1965-01-01', 0);
+
+    expect([elder, younger].sort(compareForDisplay).map((p) => p.id)).toEqual(['弟', '兄']);
+  });
+
+  it('手動指定のある人物を、指定の無い人物より前に置く', () => {
+    const ordered = withOrder('指定あり', '1970-01-01', 0);
+    const auto = withOrder('指定なし', '1960-01-01', null);
+
+    expect([auto, ordered].sort(compareForDisplay).map((p) => p.id)).toEqual(['指定あり', '指定なし']);
+  });
+
+  it('手動指定が無ければ生年順にする', () => {
+    const elder = withOrder('兄', '1960-01-01', null);
+    const younger = withOrder('弟', '1965-01-01', null);
+
+    expect([younger, elder].sort(compareForDisplay).map((p) => p.id)).toEqual(['兄', '弟']);
+  });
+
+  it('同じ並び順の指定なら生年で決める', () => {
+    const elder = withOrder('兄', '1960-01-01', 3);
+    const younger = withOrder('弟', '1965-01-01', 3);
+
+    expect([younger, elder].sort(compareForDisplay).map((p) => p.id)).toEqual(['兄', '弟']);
+  });
+});
+
 describe('birthOrderLabel', () => {
   it('手動指定があればそれを優先する', () => {
     const father = person('父', 'male', '1930-01-01');
@@ -184,5 +220,16 @@ describe('birthOrderLabel', () => {
     const g = graph([father, child], [link('父', '子')]);
 
     expect(birthOrderLabel(g, child)).toBe('長男');
+  });
+
+  it('画面上で並べ替えても続柄は生まれた順のまま変わらない', () => {
+    // ドラッグで弟を左に持ってきても、弟が長男になってはいけない
+    const father = person('父', 'male', '1930-01-01');
+    const elder = { ...person('兄', 'male', '1960-01-01'), siblingOrder: 1 };
+    const younger = { ...person('弟', 'male', '1965-01-01'), siblingOrder: 0 };
+    const g = graph([father, elder, younger], [link('父', '兄'), link('父', '弟')]);
+
+    expect(birthOrderLabel(g, elder)).toBe('長男');
+    expect(birthOrderLabel(g, younger)).toBe('次男');
   });
 });

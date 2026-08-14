@@ -21,6 +21,7 @@ function person(id: string, overrides: Partial<Person> = {}): Person {
     note: null,
     isLiving: true,
     birthOrder: null,
+    siblingOrder: null,
     surnameHistory: [],
     deletedAt: null,
     ...overrides,
@@ -269,6 +270,141 @@ describe('computeLayout', () => {
     );
 
     expect(nodeOf(layout, 'elder').x).toBeLessThan(nodeOf(layout, 'younger').x);
+    expectNoOverlap(layout);
+  });
+
+  it('年長の子だけ両親が揃っている場合でも年長者順に並ぶ', () => {
+    // 上のケースと親の揃い方が逆。家族単位のキー順に引きずられてはいけない。
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('father', { birthDate: '1950-01-01' }),
+          person('mother', { birthDate: '1953-01-01' }),
+          person('elder', { birthDate: '1978-01-01' }),
+          person('younger', { birthDate: '1982-01-01' }),
+        ],
+        parentChild: [
+          link('father', 'elder'),
+          link('mother', 'elder'),
+          link('father', 'younger'),
+        ],
+        unions: [union('father', 'mother')],
+      }),
+    );
+
+    expect(nodeOf(layout, 'elder').x).toBeLessThan(nodeOf(layout, 'younger').x);
+    expectNoOverlap(layout);
+  });
+
+  it('きょうだいの配偶者の年齢に引きずられず、きょうだいの生年順に並ぶ', () => {
+    // 妹の夫が兄より年上、という珍しくない組み合わせ
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('father', { birthDate: '1950-01-01' }),
+          person('sister1', { birthDate: '1978-01-01' }),
+          person('brother', { birthDate: '1980-01-01' }),
+          person('sister2', { birthDate: '1982-01-01' }),
+          person('sister2-husband', { birthDate: '1970-01-01' }),
+          person('brother-wife', { birthDate: '1981-01-01' }),
+        ],
+        parentChild: [
+          link('father', 'sister1'),
+          link('father', 'brother'),
+          link('father', 'sister2'),
+        ],
+        unions: [union('sister2', 'sister2-husband'), union('brother', 'brother-wife')],
+      }),
+    );
+
+    expect(nodeOf(layout, 'sister1').x).toBeLessThan(nodeOf(layout, 'brother').x);
+    expect(nodeOf(layout, 'brother').x).toBeLessThan(nodeOf(layout, 'sister2').x);
+    expectNoOverlap(layout);
+  });
+
+  it('報告された並び（1978→1982→1980）が年齢順になる', () => {
+    // 姉妹には父母を、長男には父だけを紐づけたデータ。
+    // 別のきょうだい集団として扱われると 1978 → 1982 → 1980 の順に並んでしまう。
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('父', { birthDate: '1950-01-01' }),
+          person('母', { birthDate: '1953-01-01' }),
+          person('理奈', { birthDate: '1978-01-01', gender: 'female' }),
+          person('健一', { birthDate: '1980-01-01', gender: 'male' }),
+          person('理香', { birthDate: '1982-01-01', gender: 'female' }),
+        ],
+        parentChild: [
+          link('父', '理奈'),
+          link('母', '理奈'),
+          link('父', '健一'),
+          link('父', '理香'),
+          link('母', '理香'),
+        ],
+        unions: [union('父', '母')],
+      }),
+    );
+
+    const order = ['理奈', '健一', '理香'].map((id) => nodeOf(layout, id).x);
+    expect(order[0]).toBeLessThan(order[1]);
+    expect(order[1]).toBeLessThan(order[2]);
+    expectNoOverlap(layout);
+  });
+
+  it('再婚した父の2つの家族は統合せず、別のきょうだいとして扱う', () => {
+    // {父,母A} と {父,母B} は互いに部分集合でないので、まとめてはいけない
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('父', { birthDate: '1940-01-01' }),
+          person('母A', { birthDate: '1942-01-01' }),
+          person('母B', { birthDate: '1955-01-01' }),
+          person('前妻の子', { birthDate: '1965-01-01' }),
+          person('後妻の子', { birthDate: '1980-01-01' }),
+        ],
+        parentChild: [
+          link('父', '前妻の子'),
+          link('母A', '前妻の子'),
+          link('父', '後妻の子'),
+          link('母B', '後妻の子'),
+        ],
+        unions: [
+          union('父', '母A', { status: 'divorced' }),
+          union('父', '母B'),
+        ],
+      }),
+    );
+
+    const withChildren = layout.families.filter((f) => f.childIds.length > 0);
+    expect(withChildren).toHaveLength(2);
+    expect(nodeOf(layout, '前妻の子').x).toBeLessThan(nodeOf(layout, '後妻の子').x);
+    expectNoOverlap(layout);
+  });
+
+  it('どちらの親の子か決められない場合は推測せず別に扱う', () => {
+    // 父が2度結婚していて、片方の子は父しか分からない。どちらの家族にも吸収しない。
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('父', { birthDate: '1940-01-01' }),
+          person('母A', { birthDate: '1942-01-01' }),
+          person('母B', { birthDate: '1955-01-01' }),
+          person('母Aの子', { birthDate: '1965-01-01' }),
+          person('母Bの子', { birthDate: '1980-01-01' }),
+          person('母不明の子', { birthDate: '1970-01-01' }),
+        ],
+        parentChild: [
+          link('父', '母Aの子'),
+          link('母A', '母Aの子'),
+          link('父', '母Bの子'),
+          link('母B', '母Bの子'),
+          link('父', '母不明の子'),
+        ],
+        unions: [union('父', '母A'), union('父', '母B')],
+      }),
+    );
+
+    expect(layout.nodes).toHaveLength(6);
     expectNoOverlap(layout);
   });
 

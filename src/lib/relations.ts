@@ -21,12 +21,37 @@ function ordinalLabel(index: number, gender: Person['gender']): string {
   return `${ORDINALS[index]}${suffix}`;
 }
 
-/** 生年が古い順。分からないものは後ろに置き、同じなら登録順を保つ。 */
+/**
+ * 生まれた順。分からないものは後ろに置き、同着なら登録順で安定させる。
+ *
+ * 続柄（長男・次男）はこの順で決める。画面上でどう並べ替えても、
+ * 生まれた順が変わるわけではないので、手動の並び順は見ない。
+ */
 export function compareByBirth(a: Person, b: Person): number {
-  if (a.birthDate && b.birthDate) return a.birthDate.localeCompare(b.birthDate);
-  if (a.birthDate) return -1;
-  if (b.birthDate) return 1;
+  if (a.birthDate && b.birthDate && a.birthDate !== b.birthDate) {
+    return a.birthDate.localeCompare(b.birthDate);
+  }
+  if (a.birthDate && !b.birthDate) return -1;
+  if (!a.birthDate && b.birthDate) return 1;
+
   return a.id.localeCompare(b.id);
+}
+
+/**
+ * 家系図に並べるときの左右の順。
+ *
+ * 手動で並べ替えた順（siblingOrder）があればそれを優先し、無ければ生年順にする。
+ * 手動指定のある人物は、指定の無い人物より前に置く。
+ */
+export function compareForDisplay(a: Person, b: Person): number {
+  const left = a.siblingOrder;
+  const right = b.siblingOrder;
+
+  if (left !== null && right !== null && left !== right) return left - right;
+  if (left !== null && right === null) return -1;
+  if (left === null && right !== null) return 1;
+
+  return compareByBirth(a, b);
 }
 
 /**

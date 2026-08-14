@@ -582,6 +582,20 @@ textarea {
   cursor: pointer;
 }
 
+.person-card--draggable {
+  cursor: grab;
+}
+
+.person-card--dragging {
+  cursor: grabbing;
+  opacity: 0.75;
+}
+
+.person-card--dragging .person-card__box {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
 .person-card__box {
   fill: var(--neutral);
   stroke: var(--border);

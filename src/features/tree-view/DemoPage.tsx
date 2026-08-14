@@ -13,7 +13,19 @@ import { displayName, type ParentChild, type Person, type TreeGraph, type Union 
  */
 export function DemoPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = DEMO_GRAPH.persons.find((p) => p.id === selectedId);
+  // 並べ替えの確認ができるよう、デモでは画面内だけで siblingOrder を保持する
+  const [graph, setGraph] = useState<TreeGraph>(DEMO_GRAPH);
+  const selected = graph.persons.find((p) => p.id === selectedId);
+
+  function reorderSiblings(orderedIds: string[]) {
+    setGraph((current) => ({
+      ...current,
+      persons: current.persons.map((person) => {
+        const index = orderedIds.indexOf(person.id);
+        return index < 0 ? person : { ...person, siblingOrder: index };
+      }),
+    }));
+  }
 
   return (
     <div className="tree-page">
@@ -21,20 +33,25 @@ export function DemoPage() {
         <div>
           <h1>ツリービューのデモ（架空データ）</h1>
         </div>
-        <p className="note">ドラッグで移動、ホイールで拡大縮小、カードをクリックで選択。</p>
+        <p className="note">
+          何も無いところをドラッグで移動、ホイールで拡大縮小、カードをクリックで選択。
+          きょうだいはカードを左右にドラッグして並べ替えられます。
+        </p>
       </header>
       <div className="tree-page__body">
         <TreeCanvas
-          graph={DEMO_GRAPH}
+          graph={graph}
           selectedPersonId={selectedId}
           onSelectPerson={setSelectedId}
+          canReorder
+          onReorderSiblings={reorderSiblings}
         />
         <aside className="panel">
           <h2>{selected ? displayName(selected) : '人物を選択'}</h2>
           {selected && (
             <dl className="detail-list">
               <dt>続柄</dt>
-              <dd>{birthOrderLabel(DEMO_GRAPH, selected) ?? '—'}</dd>
+              <dd>{birthOrderLabel(graph, selected) ?? '—'}</dd>
               <dt>生年月日</dt>
               <dd>{formatWithEra(selected.birthDate) || '不明'}</dd>
               <dt>没年月日</dt>
@@ -72,6 +89,7 @@ function person(
     note: null,
     isLiving: !death,
     birthOrder: null,
+    siblingOrder: null,
     surnameHistory: [],
     deletedAt: null,
     ...overrides,

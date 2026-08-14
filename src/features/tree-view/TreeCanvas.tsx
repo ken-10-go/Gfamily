@@ -18,16 +18,40 @@ import {
   type TreeGraph,
 } from '@/types/models';
 
+/** ドラッグ中のカード。閾値を超えるまでは選択操作と区別がつかないので moved で判定する。 */
+interface CardDrag {
+  personId: string;
+  pointerId: number;
+  startClientX: number;
+  /** 画面上の移動量（ピクセル）。レイアウト座標に直すときは倍率で割る。 */
+  dx: number;
+  moved: boolean;
+}
+
+/** これ以上動いたらドラッグとみなす。指やマウスの微妙な揺れで並びが変わらないようにする。 */
+const DRAG_THRESHOLD = 6;
+
 interface TreeCanvasProps {
   graph: TreeGraph;
   selectedPersonId: string | null;
   onSelectPerson: (personId: string) => void;
+  /** きょうだいの並べ替えを許すか。閲覧のみの権限では false。 */
+  canReorder?: boolean;
+  /** 並べ替えの確定。きょうだいグループ全員を表示順に並べて渡す。 */
+  onReorderSiblings?: (orderedIds: string[]) => void;
 }
 
-export function TreeCanvas({ graph, selectedPersonId, onSelectPerson }: TreeCanvasProps) {
+export function TreeCanvas({
+  graph,
+  selectedPersonId,
+  onSelectPerson,
+  canReorder = false,
+  onReorderSiblings,
+}: TreeCanvasProps) {
   const layout = useMemo(() => computeLayout(graph), [graph]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [drag, setDrag] = useState<CardDrag | null>(null);
   const { viewport, isPanning, zoomBy, fitTo, handlers } = usePanZoom();
 
   useLayoutEffect(() => {
@@ -54,6 +78,65 @@ export function TreeCanvas({ graph, selectedPersonId, onSelectPerson }: TreeCanv
     () => new Map(layout.nodes.map((node) => [node.person.id, node])),
     [layout.nodes],
   );
+
+  /** 並べ替えできるのは、きょうだいが2人以上いる人物だけ。 */
+  const groupOf = (personId: string) =>
+    layout.siblingGroups.find(
+      (group) => group.childIds.length > 1 && group.childIds.includes(personId),
+    );
+
+  function startDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
+    if (!canReorder || !groupOf(personId)) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDrag({
+      personId,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      dx: 0,
+      moved: false,
+    });
+  }
+
+  function moveDrag(event: React.PointerEvent<SVGGElement>) {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const dx = event.clientX - drag.startClientX;
+    setDrag({ ...drag, dx, moved: drag.moved || Math.abs(dx) > DRAG_THRESHOLD });
+  }
+
+  function endDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
+    // ドラッグ対象でないカード（並べ替え不可・閲覧のみ）はここを通る。選択だけ行う。
+    if (!drag || drag.pointerId !== event.pointerId) {
+      onSelectPerson(personId);
+      return;
+    }
+
+    // つまんだだけで動かしていなければ、クリックとして選択する
+    if (!drag.moved) {
+      setDrag(null);
+      onSelectPerson(personId);
+      return;
+    }
+
+    const group = groupOf(personId);
+    const node = positionById.get(personId);
+
+    if (group && node && onReorderSiblings) {
+      // 落とした位置を X 座標に直し、その位置で並べ替えた結果を確定する
+      const droppedX = node.x + drag.dx / viewport.scale;
+      const ordered = [...group.childIds].sort((a, b) => {
+        const xa = a === personId ? droppedX : (positionById.get(a)?.x ?? 0);
+        const xb = b === personId ? droppedX : (positionById.get(b)?.x ?? 0);
+        return xa - xb;
+      });
+
+      const unchanged = ordered.every((id, index) => id === group.childIds[index]);
+      if (!unchanged) onReorderSiblings(ordered);
+    }
+
+    setDrag(null);
+  }
 
   if (personCount === 0) {
     return (
@@ -96,7 +179,12 @@ export function TreeCanvas({ graph, selectedPersonId, onSelectPerson }: TreeCanv
               node={node}
               selected={node.person.id === selectedPersonId}
               birthOrder={birthOrderLabel(graph, node.person)}
+              draggable={canReorder && Boolean(groupOf(node.person.id))}
+              dragOffset={drag?.moved && drag.personId === node.person.id ? drag.dx / viewport.scale : 0}
               onSelect={onSelectPerson}
+              onPointerDown={startDrag}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
             />
           ))}
         </g>
@@ -124,15 +212,26 @@ function PersonCard({
   node,
   selected,
   birthOrder,
+  draggable,
+  dragOffset,
   onSelect,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
 }: {
   node: LayoutNode;
   selected: boolean;
   birthOrder: string | null;
+  draggable: boolean;
+  /** ドラッグ中の見た目の追従量（レイアウト座標）。 */
+  dragOffset: number;
   onSelect: (id: string) => void;
+  onPointerDown: (personId: string, event: React.PointerEvent<SVGGElement>) => void;
+  onPointerMove: (event: React.PointerEvent<SVGGElement>) => void;
+  onPointerUp: (personId: string, event: React.PointerEvent<SVGGElement>) => void;
 }) {
   const { person } = node;
-  const left = node.x - NODE_WIDTH / 2;
+  const left = node.x - NODE_WIDTH / 2 + dragOffset;
   const lifespan = lifespanLabel(person);
   const kana = displayNameKana(person);
   const original = originalFamilyName(person);
@@ -141,9 +240,20 @@ function PersonCard({
   return (
     <g
       data-person-card
-      className={`person-card person-card--${person.gender}${selected ? ' person-card--selected' : ''}`}
+      className={[
+        'person-card',
+        `person-card--${person.gender}`,
+        selected ? 'person-card--selected' : '',
+        draggable ? 'person-card--draggable' : '',
+        dragOffset !== 0 ? 'person-card--dragging' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       transform={`translate(${left} ${node.y})`}
-      onClick={() => onSelect(person.id)}
+      // 選択は pointerup 側で判定する。ドラッグと区別するため onClick は使わない。
+      onPointerDown={(event) => onPointerDown(person.id, event)}
+      onPointerMove={onPointerMove}
+      onPointerUp={(event) => onPointerUp(person.id, event)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();

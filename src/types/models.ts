@@ -62,6 +62,11 @@ export interface Person {
   isLiving: boolean;
   /** 続柄の手動指定。null なら親子関係と生年から自動で導く。 */
   birthOrder: string | null;
+  /**
+   * きょうだい内の並び順の手動指定。null なら生年順に並べる。
+   * 戸籍の記載順に合わせたい場合など、自動の年長者順を上書きするために使う。
+   */
+  siblingOrder: number | null;
   /** 改姓の履歴。出生時の姓から順に並べる。 */
   surnameHistory: SurnameRecord[];
   /** ソフト削除の時刻（ISO文字列）。null なら生存レコード。 */
