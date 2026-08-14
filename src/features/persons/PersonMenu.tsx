@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { displayName, type Person } from '@/types/models';
 
@@ -48,6 +48,21 @@ const ITEMS: MenuItem[] = [
  */
 export function PersonMenu({ person, anchor, canEdit, onAction, onClose }: PersonMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState(anchor);
+
+  // 画面の端で切れないように、出したあとで位置を内側へ寄せる
+  useLayoutEffect(() => {
+    const box = ref.current?.getBoundingClientRect();
+    if (!box) return;
+
+    const margin = 8;
+    const x = Math.max(margin, Math.min(anchor.x, window.innerWidth - box.width - margin));
+    const y = Math.max(margin, Math.min(anchor.y, window.innerHeight - box.height - margin));
+
+    if (x !== placement.x || y !== placement.y) setPlacement({ x, y });
+    // anchor が変わったときだけ計算し直す
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchor.x, anchor.y, canEdit]);
 
   // 外側をクリックするか Esc で閉じる
   useEffect(() => {
@@ -77,7 +92,7 @@ export function PersonMenu({ person, anchor, canEdit, onAction, onClose }: Perso
     <div
       ref={ref}
       className="person-menu"
-      style={{ left: anchor.x, top: anchor.y }}
+      style={{ left: placement.x, top: placement.y }}
       role="menu"
       aria-label={`${displayName(person)} の操作`}
     >

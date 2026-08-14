@@ -67,7 +67,8 @@ function AppHeader() {
       </Link>
       {user && (
         <div className="app__account">
-          <span className="app__email">{user.email}</span>
+          {/* 狭い画面ではメールアドレスを畳む。横幅を取るわりに常時は要らない */}
+          <span className="app__email hide-narrow">{user.email}</span>
           <button type="button" className="button" onClick={() => void signOut()}>
             ログアウト
           </button>

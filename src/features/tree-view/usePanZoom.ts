@@ -76,24 +76,36 @@ export function usePanZoom(initial: Viewport = { x: 0, y: 0, scale: 1 }) {
     setViewport((current) => ({ ...current, scale: clampScale(current.scale * factor) }));
   }, []);
 
-  /** 図全体が収まるように表示位置を合わせる。 */
+  /**
+   * 図全体が収まるように表示位置を合わせる。
+   *
+   * minScale を指定すると、そこまでしか縮小しない。狭い画面で大きな家系図を
+   * 全部入れようとすると文字が潰れて読めなくなるため、読める大きさで止めて
+   * あとはパンしてもらう。収まりきらないときは上端から見せる。
+   */
   const fitTo = useCallback(
-    (contentWidth: number, contentHeight: number, viewWidth: number, viewHeight: number) => {
+    (
+      contentWidth: number,
+      contentHeight: number,
+      viewWidth: number,
+      viewHeight: number,
+      minScale = MIN_SCALE,
+    ) => {
       if (contentWidth <= 0 || contentHeight <= 0) return;
 
-      const padding = 48;
-      const scale = clampScale(
-        Math.min(
-          (viewWidth - padding * 2) / contentWidth,
-          (viewHeight - padding * 2) / contentHeight,
-          1,
-        ),
+      const padding = 24;
+      const fitted = Math.min(
+        (viewWidth - padding * 2) / contentWidth,
+        (viewHeight - padding * 2) / contentHeight,
+        1,
       );
+      const scale = clampScale(Math.max(fitted, Math.min(minScale, 1)));
 
+      const scaledHeight = contentHeight * scale;
       setViewport({
         scale,
         x: (viewWidth - contentWidth * scale) / 2,
-        y: (viewHeight - contentHeight * scale) / 2,
+        y: scaledHeight > viewHeight - padding * 2 ? padding : (viewHeight - scaledHeight) / 2,
       });
     },
     [],

@@ -51,6 +51,8 @@ export function TreeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const { settings, update: updateSetting } = useViewSettings(treeId);
   const metrics = useMemo(() => cardMetrics(settings), [settings]);
@@ -77,6 +79,21 @@ export function TreeDetailPage() {
     setLoading(true);
     void reload();
   }, [reload]);
+
+  // 「⋯」の外側を触ったら閉じる
+  useEffect(() => {
+    if (!moreOpen) return;
+
+    const close = (event: PointerEvent) => {
+      if (!(event.target as Element).closest('.more')) setMoreOpen(false);
+    };
+    const timer = window.setTimeout(() => window.addEventListener('pointerdown', close), 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pointerdown', close);
+    };
+  }, [moreOpen]);
 
   // 権限があっても、ロック中は編集させない（閲覧中の誤操作を防ぐ）
   const canEdit = (role === 'owner' || role === 'editor') && !settings.locked;
@@ -229,46 +246,28 @@ export function TreeDetailPage() {
 
   return (
     <div className="tree-page">
+      {/*
+        狭い画面では画面の高さが貴重なので、ヘッダーは1行に収める。
+        検索はアイコンから開き、頻度の低い操作は「⋯」にまとめる。
+      */}
       <header className="tree-page__header">
-        <div>
-          <Link to="/" className="tree-page__back">
-            ← 一覧
-          </Link>
-          <h1>{tree?.name}</h1>
-          {role && <span className="badge">{ROLE_LABELS[role]}</span>}
-          {settings.locked && <span className="badge">編集ロック中</span>}
-        </div>
+        <Link to="/" className="tree-page__back" aria-label="家系図の一覧へ">
+          ←
+        </Link>
+        <h1 className="tree-page__title">{tree?.name}</h1>
+        {role && <span className="badge badge--wide">{ROLE_LABELS[role]}</span>}
+        {settings.locked && <span className="badge">ロック中</span>}
 
-        <div className="tree-page__tools">
-          <div className="search">
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="名前で検索"
-              aria-label="人物を検索"
-            />
-            {matches.length > 0 && (
-              <ul className="search__results">
-                {matches.slice(0, 8).map((person) => (
-                  <li key={person.id}>
-                    <button
-                      type="button"
-                      className="link-button"
-                      onClick={() => {
-                        setSelectedId(person.id);
-                        setDialog({ kind: 'detail', personId: person.id });
-                        setSearch('');
-                      }}
-                    >
-                      {displayName(person)}
-                      <span className="search__meta">{lifespanLabel(person)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        <div className="tree-page__actions">
+          <button
+            type="button"
+            className="icon-button icon-button--tap"
+            onClick={() => setSearchOpen((open) => !open)}
+            aria-label="人物を検索"
+            aria-expanded={searchOpen}
+          >
+            🔍
+          </button>
 
           {canEdit && (
             <button
@@ -276,20 +275,88 @@ export function TreeDetailPage() {
               className="button button--primary"
               onClick={() => setDialog({ kind: 'add-person' })}
             >
-              人物を追加
+              ＋<span className="hide-narrow">人物を追加</span>
             </button>
           )}
-          <button type="button" className="button" onClick={() => setDialog({ kind: 'settings' })}>
-            表示設定
-          </button>
-          <Link to={`/trees/${treeId}/members`} className="button">
-            メンバー
-          </Link>
-          <Link to={`/trees/${treeId}/history`} className="button">
-            変更履歴
-          </Link>
+
+          <div className="more">
+            <button
+              type="button"
+              className="icon-button icon-button--tap"
+              onClick={() => setMoreOpen((open) => !open)}
+              aria-label="そのほかの操作"
+              aria-expanded={moreOpen}
+            >
+              ⋯
+            </button>
+            {moreOpen && (
+              <div className="more__menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="person-menu__item"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setDialog({ kind: 'settings' });
+                  }}
+                >
+                  表示設定
+                </button>
+                <Link
+                  to={`/trees/${treeId}/members`}
+                  role="menuitem"
+                  className="person-menu__item"
+                  onClick={() => setMoreOpen(false)}
+                >
+                  メンバー
+                </Link>
+                <Link
+                  to={`/trees/${treeId}/history`}
+                  role="menuitem"
+                  className="person-menu__item"
+                  onClick={() => setMoreOpen(false)}
+                >
+                  変更履歴
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </header>
+
+      {searchOpen && (
+        <div className="tree-page__search">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="名前・ふりがな・旧姓で検索"
+            aria-label="人物を検索"
+            autoFocus
+          />
+          {matches.length > 0 && (
+            <ul className="search__results">
+              {matches.slice(0, 8).map((person) => (
+                <li key={person.id}>
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => {
+                      setSelectedId(person.id);
+                      setDialog({ kind: 'detail', personId: person.id });
+                      setSearch('');
+                      setSearchOpen(false);
+                    }}
+                  >
+                    {displayName(person)}
+                    <span className="search__meta">{lifespanLabel(person)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {error && tree && <p className="alert alert--error tree-page__error">{error}</p>}
 

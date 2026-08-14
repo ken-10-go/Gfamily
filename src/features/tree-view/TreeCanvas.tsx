@@ -23,10 +23,23 @@ interface CardDrag {
   /** 画面上の移動量（ピクセル）。レイアウト座標に直すときは倍率で割る。 */
   dx: number;
   moved: boolean;
+  threshold: number;
 }
 
-/** これ以上動いたらドラッグとみなす。指やマウスの微妙な揺れで並びが変わらないようにする。 */
-const DRAG_THRESHOLD = 6;
+/**
+ * これ以上動いたらドラッグとみなす。
+ * 指でのタップは必ず数ピクセル動くので、マウスより広く取らないと
+ * 「押したのにメニューが出ない」状態になる。
+ */
+const DRAG_THRESHOLD = { mouse: 6, touch: 14 };
+
+/**
+ * 全体表示のときに、これ以上は縮めない倍率。
+ * 狭い画面で無理に全部を収めると文字が読めなくなるので、読める大きさで止めてパンしてもらう。
+ */
+function readableScale(viewWidth: number): number {
+  return viewWidth < 640 ? 0.6 : 0.3;
+}
 
 export interface CardAnchor {
   x: number;
@@ -75,7 +88,7 @@ export function TreeCanvas({
   const personCount = layout.nodes.length;
   useEffect(() => {
     if (size.width > 0 && personCount > 0) {
-      fitTo(layout.width, layout.height, size.width, size.height);
+      fitTo(layout.width, layout.height, size.width, size.height, readableScale(size.width));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personCount, size.width, size.height, metrics.nodeWidth, metrics.nodeHeight]);
@@ -101,6 +114,7 @@ export function TreeCanvas({
       startClientX: event.clientX,
       dx: 0,
       moved: false,
+      threshold: event.pointerType === 'mouse' ? DRAG_THRESHOLD.mouse : DRAG_THRESHOLD.touch,
     });
   }
 
@@ -108,7 +122,7 @@ export function TreeCanvas({
     if (!drag || drag.pointerId !== event.pointerId) return;
 
     const dx = event.clientX - drag.startClientX;
-    setDrag({ ...drag, dx, moved: drag.moved || Math.abs(dx) > DRAG_THRESHOLD });
+    setDrag({ ...drag, dx, moved: drag.moved || Math.abs(dx) > drag.threshold });
   }
 
   function endDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
@@ -129,6 +143,7 @@ export function TreeCanvas({
 
     const group = groupOf(personId);
     const node = positionById.get(personId);
+    let reordered = false;
 
     if (group && node && onReorderSiblings) {
       // 落とした位置を X 座標に直し、その位置で並べ替えた結果を確定する
@@ -139,11 +154,15 @@ export function TreeCanvas({
         return xa - xb;
       });
 
-      const unchanged = ordered.every((id, index) => id === group.childIds[index]);
-      if (!unchanged) onReorderSiblings(ordered);
+      reordered = !ordered.every((id, index) => id === group.childIds[index]);
+      if (reordered) onReorderSiblings(ordered);
     }
 
     setDrag(null);
+
+    // 動かしたが並びが変わらなかった場合は、選び損ねただけとみなして選択を通す。
+    // これが無いと、少し指がぶれたタップが何も起きずに空振りする。
+    if (!reordered) onSelectPerson(personId, anchor);
   }
 
   if (personCount === 0) {
@@ -211,6 +230,10 @@ export function TreeCanvas({
         <button type="button" onClick={() => zoomBy(1 / 1.2)} aria-label="縮小">
           −
         </button>
+        {/*
+          初期表示は readableScale で「読める大きさ」に留めるが、
+          「全体」は明示的な操作なので、小さくなっても全員を画面に収める。
+        */}
         <button
           type="button"
           onClick={() => fitTo(layout.width, layout.height, size.width, size.height)}
