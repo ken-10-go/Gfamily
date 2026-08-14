@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 
+import { AgeInput } from '@/features/persons/AgeInput';
 import { JapaneseDateInput } from '@/features/persons/JapaneseDateInput';
 import {
   GENDER_LABELS,
@@ -216,12 +217,7 @@ export function PersonForm({
         <span>存命</span>
       </label>
 
-      <JapaneseDateInput
-        label="生年月日"
-        value={input.birthDate ?? ''}
-        onChange={(value) => update('birthDate', value)}
-      />
-
+      {/* 没年月日を先に置く。享年から生年を逆算するときの基準になるため */}
       {!input.isLiving && (
         <JapaneseDateInput
           label="没年月日"
@@ -229,6 +225,19 @@ export function PersonForm({
           onChange={(value) => update('deathDate', value)}
         />
       )}
+
+      <JapaneseDateInput
+        label="生年月日"
+        value={input.birthDate ?? ''}
+        onChange={(value) => update('birthDate', value)}
+      />
+
+      <AgeInput
+        birthDate={input.birthDate ?? ''}
+        deathDate={input.deathDate ?? ''}
+        isLiving={input.isLiving}
+        onChangeBirthDate={(value) => update('birthDate', value)}
+      />
 
       <label className="field">
         <span className="field__label">出生地</span>

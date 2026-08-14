@@ -254,6 +254,35 @@ function fullYearsBetween(from: PartialDate, to: PartialDate): number {
   return years;
 }
 
+/** 年齢を数えるときの基準日。存命なら今日、没後は没年月日。 */
+function ageReference(
+  person: { deathDate: string | null; isLiving: boolean },
+  today: Date,
+): PartialDate | null {
+  if (person.isLiving) {
+    return {
+      year: today.getFullYear(),
+      month: today.getMonth() + 1,
+      day: today.getDate(),
+      precision: 'day',
+    };
+  }
+  return parsePartialDate(person.deathDate);
+}
+
+/** 満年齢。求められなければ null。 */
+export function ageInYears(
+  person: { birthDate: string | null; deathDate: string | null; isLiving: boolean },
+  today = new Date(),
+): number | null {
+  const birth = parsePartialDate(person.birthDate);
+  const end = ageReference(person, today);
+  if (!birth || !end) return null;
+
+  const years = fullYearsBetween(birth, end);
+  return years >= 0 ? years : null;
+}
+
 /**
  * 年齢の表示。存命なら「◯歳」、没後は「享年◯」。
  *
@@ -264,26 +293,55 @@ export function ageLabel(
   person: { birthDate: string | null; deathDate: string | null; isLiving: boolean },
   today = new Date(),
 ): string {
-  const birth = parsePartialDate(person.birthDate);
-  if (!birth) return '';
+  const years = ageInYears(person, today);
+  if (years === null) return '';
 
-  const end = person.isLiving
-    ? {
-        year: today.getFullYear(),
-        month: today.getMonth() + 1,
-        day: today.getDate(),
-        precision: 'day' as DatePrecision,
-      }
-    : parsePartialDate(person.deathDate);
-
-  if (!end) return '';
-
-  const years = fullYearsBetween(birth, end);
-  if (years < 0) return '';
+  const birth = parsePartialDate(person.birthDate) as PartialDate;
+  const end = ageReference(person, today) as PartialDate;
 
   // どちらかの精度が日まで揃っていなければ、年齢は前後しうる
   const exact = birth.precision === 'day' && end.precision === 'day';
   const prefix = exact ? '' : '約';
 
   return person.isLiving ? `${prefix}${years}歳` : `享年${prefix}${years}`;
+}
+
+/**
+ * 年齢から生年を逆算する。
+ *
+ * 「今 87歳」「享年75」しか分からない、という聞き取りの場面で使う。
+ * 誕生日を迎えたかどうかで1年変わるため、月日が分かっていればそれを踏まえて year を決め、
+ * 分からなければ年だけの曖昧な日付として返す（表示は「約◯歳」になる）。
+ *
+ * 故人で没年が分からない場合は基準が無いので null を返す。
+ */
+export function birthDateFromAge(
+  age: number,
+  person: { birthDate: string | null; deathDate: string | null; isLiving: boolean },
+  today = new Date(),
+): string | null {
+  if (!Number.isInteger(age) || age < 0 || age > 150) return null;
+
+  const reference = ageReference(person, today);
+  if (!reference) return null;
+
+  // 既に分かっている月日は残す
+  const known = parsePartialDate(person.birthDate);
+  const month = known?.month;
+  const day = known?.day;
+
+  // 基準日より誕生日が後なら、その年はまだ歳を取っていない分を戻す
+  let notYetPassed = 0;
+  if (month !== undefined && reference.month !== undefined) {
+    if (month > reference.month) {
+      notYetPassed = 1;
+    } else if (month === reference.month && day !== undefined && reference.day !== undefined) {
+      notYetPassed = day > reference.day ? 1 : 0;
+    }
+  }
+
+  const year = reference.year - age - notYetPassed;
+  if (year < 1) return null;
+
+  return toPartialDateString(year, month, day);
 }

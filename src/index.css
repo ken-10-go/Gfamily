@@ -846,6 +846,26 @@ textarea {
   font-size: 0.8rem;
 }
 
+.age-input {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.age-input__row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.age-input__row input {
+  width: 5rem;
+}
+
+.age-input .note {
+  margin: 0.4rem 0 0;
+}
+
 .surname-history__row {
   display: flex;
   flex-wrap: wrap;

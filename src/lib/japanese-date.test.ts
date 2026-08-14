@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ageInYears,
   ageLabel,
+  birthDateFromAge,
   eraYearToGregorian,
   formatEra,
   formatGregorian,
@@ -222,6 +224,74 @@ describe('ageLabel', () => {
 
   it('没年が分からない故人は何も出さない', () => {
     expect(ageLabel(dead('1930-01-01', null), today)).toBe('');
+  });
+});
+
+describe('ageInYears', () => {
+  const today = new Date('2026-08-13T00:00:00Z');
+
+  it('満年齢を数値で返す', () => {
+    expect(ageInYears({ birthDate: '1960-05-15', deathDate: null, isLiving: true }, today)).toBe(66);
+  });
+
+  it('求められなければ null', () => {
+    expect(ageInYears({ birthDate: null, deathDate: null, isLiving: true }, today)).toBeNull();
+    expect(ageInYears({ birthDate: '1930', deathDate: null, isLiving: false }, today)).toBeNull();
+  });
+});
+
+describe('birthDateFromAge', () => {
+  const today = new Date('2026-08-13T00:00:00Z');
+  const living = (birthDate: string | null = null) => ({
+    birthDate,
+    deathDate: null,
+    isLiving: true,
+  });
+  const dead = (deathDate: string | null, birthDate: string | null = null) => ({
+    birthDate,
+    deathDate,
+    isLiving: false,
+  });
+
+  it('存命の年齢から生まれ年を出す', () => {
+    // 月日が分からないので年だけの曖昧な日付になる
+    expect(birthDateFromAge(87, living(), today)).toBe('1939');
+    expect(birthDateFromAge(0, living(), today)).toBe('2026');
+  });
+
+  it('故人は没年から逆算する', () => {
+    expect(birthDateFromAge(75, dead('2005-11-18'), today)).toBe('1930');
+    expect(birthDateFromAge(63, dead('1962'), today)).toBe('1899');
+  });
+
+  it('月日が分かっていれば、誕生日を迎えたかを踏まえて年を決める', () => {
+    // 基準日は8/13。12/1生まれはまだ誕生日が来ていないので1年戻す
+    expect(birthDateFromAge(87, living('1900-12-01'), today)).toBe('1938-12-01');
+    // 3/1生まれは誕生日を過ぎている
+    expect(birthDateFromAge(87, living('1900-03-01'), today)).toBe('1939-03-01');
+    // 同月で日がまだ来ていない場合と、当日の場合
+    expect(birthDateFromAge(87, living('1900-08-14'), today)).toBe('1938-08-14');
+    expect(birthDateFromAge(87, living('1900-08-13'), today)).toBe('1939-08-13');
+  });
+
+  it('入れた年齢どおりに読み戻せる', () => {
+    for (const age of [0, 1, 37, 87, 120]) {
+      const withDay = birthDateFromAge(age, living('1900-12-01'), today);
+      expect(ageInYears({ birthDate: withDay, deathDate: null, isLiving: true }, today)).toBe(age);
+
+      const yearOnly = birthDateFromAge(age, living(), today);
+      expect(ageInYears({ birthDate: yearOnly, deathDate: null, isLiving: true }, today)).toBe(age);
+    }
+  });
+
+  it('没年が分からない故人は逆算できない', () => {
+    expect(birthDateFromAge(75, dead(null), today)).toBeNull();
+  });
+
+  it('ありえない年齢は受け付けない', () => {
+    expect(birthDateFromAge(-1, living(), today)).toBeNull();
+    expect(birthDateFromAge(151, living(), today)).toBeNull();
+    expect(birthDateFromAge(1.5, living(), today)).toBeNull();
   });
 });
 
