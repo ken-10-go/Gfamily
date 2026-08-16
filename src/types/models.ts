@@ -102,6 +102,34 @@ export type PersonInput = Pick<
   | 'surnameHistory'
 >;
 
+/** 何も入力していない状態の人物。フォームの初期値に使う。 */
+export const EMPTY_PERSON_INPUT: PersonInput = {
+  familyName: '',
+  givenName: '',
+  familyNameKana: '',
+  givenNameKana: '',
+  maidenName: '',
+  gender: 'unknown',
+  birthDate: '',
+  deathDate: '',
+  birthPlace: '',
+  note: '',
+  isLiving: true,
+  birthOrder: '',
+  surnameHistory: [],
+};
+
+/**
+ * 配偶者として追加する人の性別の既定値。
+ * 男女どちらかが分かっていればもう一方を初期選択にし、選び直す手間を減らす。
+ * 断定はできないので、いつでも変更できる「既定値」に留める。
+ */
+export function oppositeGender(gender: Gender): Gender {
+  if (gender === 'male') return 'female';
+  if (gender === 'female') return 'male';
+  return 'unknown';
+}
+
 export interface ParentChild {
   id: string;
   parentId: string;

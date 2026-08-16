@@ -510,6 +510,50 @@ textarea {
   width: 100%;
 }
 
+/* 絞り込み（フォーカスモード）の操作列。狭い画面では折り返す。 */
+.tree-page__focus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.focus__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.focus__field--grow {
+  flex: 1 1 12rem;
+}
+
+.focus__field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+}
+
+.focus__label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* 両親をまとめて追加するときの、父・母それぞれのまとまり */
+.parents__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.6rem 0.75rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
 .tree-page__error {
   margin: 0.5rem 0.75rem;
 }

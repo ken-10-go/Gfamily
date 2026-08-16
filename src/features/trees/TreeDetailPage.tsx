@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { AddRelativeForm, type RelativeKind } from '@/features/persons/AddRelativeForm';
+import { ParentsForm, type ParentsDraft } from '@/features/persons/ParentsForm';
 import { PersonDetail } from '@/features/persons/PersonDetail';
 import { PersonDialog } from '@/features/persons/PersonDialog';
 import { PersonForm } from '@/features/persons/PersonForm';
 import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
+import { DEFAULT_FOCUS_OPTIONS, focusGraph } from '@/features/tree-view/focus';
+import { FocusBar, type FocusState } from '@/features/tree-view/FocusBar';
 import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
 import { cardMetrics, useViewSettings } from '@/features/tree-view/useViewSettings';
 import { ViewSettingsPanel } from '@/features/tree-view/ViewSettingsPanel';
@@ -29,12 +33,17 @@ const EMPTY_GRAPH: TreeGraph = { persons: [], parentChild: [], unions: [] };
 type DialogMode =
   | { kind: 'detail'; personId: string }
   | { kind: 'edit'; personId: string }
-  | { kind: 'add-relative'; personId: string; relation: 'parent' | 'spouse' | 'child' }
+  | { kind: 'add-relative'; personId: string; relation: RelativeKind }
+  | { kind: 'add-parents'; personId: string }
   | { kind: 'connect'; personId: string; relation: ConnectionKind }
   | { kind: 'add-person' }
   | { kind: 'settings' };
 
-const RELATIVE_LABELS = { parent: '親', spouse: '配偶者', child: '子' } as const;
+const RELATIVE_LABELS: Record<RelativeKind, string> = {
+  parent: '親',
+  spouse: '配偶者',
+  child: '子',
+};
 const CONNECT_LABELS: Record<ConnectionKind, string> = {
   parent: '親',
   spouse: '配偶者',
@@ -54,6 +63,8 @@ export function TreeDetailPage() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [focusOpen, setFocusOpen] = useState(false);
+  const [focus, setFocus] = useState<FocusState>({ centerId: '', ...DEFAULT_FOCUS_OPTIONS });
 
   const { settings, update: updateSetting } = useViewSettings(treeId);
   const metrics = useMemo(() => cardMetrics(settings), [settings]);
@@ -100,6 +111,29 @@ export function TreeDetailPage() {
   const canEdit = (role === 'owner' || role === 'editor') && !settings.locked;
   const personOf = (id: string) => graph.persons.find((p) => p.id === id) ?? null;
 
+  // 描画に渡す家系図。フォーカス中は中心人物のまわりだけに絞る。
+  // 検索やメニューの人物探しは絞り込み前の graph を見るので、範囲外の人にもたどり着ける。
+  const visibleGraph = useMemo(
+    () => (focus.centerId ? focusGraph(graph, focus.centerId, focus) : graph),
+    [graph, focus],
+  );
+
+  /** 中心人物を決めてフォーカスを始める。 */
+  function startFocus(personId: string) {
+    setFocus((current) => ({ ...current, centerId: personId }));
+    setFocusOpen(true);
+  }
+
+  function toggleFocusBar() {
+    if (focusOpen) {
+      setFocusOpen(false);
+      return;
+    }
+    // 開くときに中心が未指定なら、選んでいる人物を初期値にする
+    if (!focus.centerId && selectedId) setFocus((current) => ({ ...current, centerId: selectedId }));
+    setFocusOpen(true);
+  }
+
   function openMenu(personId: string, anchor: CardAnchor) {
     setSelectedId(personId);
     setMenu({ personId, anchor });
@@ -123,8 +157,14 @@ export function TreeDetailPage() {
         setDialog({
           kind: 'add-relative',
           personId,
-          relation: action.replace('add-', '') as 'parent' | 'spouse' | 'child',
+          relation: action.replace('add-', '') as RelativeKind,
         });
+        break;
+      case 'add-parents':
+        setDialog({ kind: 'add-parents', personId });
+        break;
+      case 'focus':
+        startFocus(personId);
         break;
       case 'connect-parent':
       case 'connect-spouse':
@@ -162,11 +202,15 @@ export function TreeDetailPage() {
     setDialog(null);
   }
 
-  /** 親族を新規作成し、同時に関係も張る。 */
+  /**
+   * 親族を新規作成し、同時に関係も張る。
+   * 子の場合の otherParentId は「もう一方の親」で、フォーム側で選ばれた値が入る。
+   */
   async function handleAddRelative(
     personId: string,
-    relation: 'parent' | 'spouse' | 'child',
+    relation: RelativeKind,
     input: PersonInput,
+    otherParentId: string | null,
   ) {
     const created = await api.createPerson(treeId, input);
 
@@ -176,17 +220,36 @@ export function TreeDetailPage() {
       await api.addUnion(treeId, personId, created.id);
     } else {
       await api.addParentChild(treeId, personId, created.id);
-      // 配偶者が1人だけ分かっている場合は、その人も親として登録する
-      const spouses = graph.unions
-        .filter((u) => !u.deletedAt && (u.partner1Id === personId || u.partner2Id === personId))
-        .map((u) => (u.partner1Id === personId ? u.partner2Id : u.partner1Id));
-      if (spouses.length === 1) {
-        await api.addParentChild(treeId, spouses[0], created.id);
+      if (otherParentId) {
+        await api.addParentChild(treeId, otherParentId, created.id);
       }
     }
 
     await reload();
     setSelectedId(created.id);
+    setDialog(null);
+  }
+
+  /**
+   * 父と母をまとめて登録する。
+   * 2人とも入力されていれば夫婦としてもつなぎ、あとから結び直す手間を省く。
+   */
+  async function handleAddParents(personId: string, draft: ParentsDraft) {
+    const createdIds: string[] = [];
+
+    for (const input of [draft.father, draft.mother]) {
+      if (!input) continue;
+      const created = await api.createPerson(treeId, input);
+      await api.addParentChild(treeId, created.id, personId);
+      createdIds.push(created.id);
+    }
+
+    if (draft.marry && createdIds.length === 2) {
+      await api.addUnion(treeId, createdIds[0], createdIds[1]);
+    }
+
+    await reload();
+    setSelectedId(createdIds[0] ?? personId);
     setDialog(null);
   }
 
@@ -258,6 +321,7 @@ export function TreeDetailPage() {
         <h1 className="tree-page__title">{tree?.name}</h1>
         {role && <span className="badge badge--wide">{ROLE_LABELS[role]}</span>}
         {settings.locked && <span className="badge">ロック中</span>}
+        {focus.centerId && <span className="badge">絞り込み中</span>}
 
         <div className="tree-page__actions">
           <button
@@ -268,6 +332,16 @@ export function TreeDetailPage() {
             aria-expanded={searchOpen}
           >
             🔍
+          </button>
+
+          <button
+            type="button"
+            className="icon-button icon-button--tap"
+            onClick={toggleFocusBar}
+            aria-label="表示する範囲を絞り込む"
+            aria-expanded={focusOpen}
+          >
+            🎯
           </button>
 
           {canEdit && (
@@ -359,11 +433,20 @@ export function TreeDetailPage() {
         </div>
       )}
 
+      {focusOpen && (
+        <FocusBar
+          persons={graph.persons}
+          value={focus}
+          onChange={setFocus}
+          onClear={() => setFocus((current) => ({ ...current, centerId: '' }))}
+        />
+      )}
+
       {error && tree && <p className="alert alert--error tree-page__error">{error}</p>}
 
       <div className="tree-page__body">
         <TreeCanvas
-          graph={graph}
+          graph={visibleGraph}
           metrics={metrics}
           settings={settings}
           selectedPersonId={selectedId}
@@ -395,6 +478,7 @@ export function TreeDetailPage() {
           onChanged={reload}
           onCreatePerson={handleCreatePerson}
           onAddRelative={handleAddRelative}
+          onAddParents={handleAddParents}
           onConnect={handleConnect}
         />
       )}
@@ -414,6 +498,7 @@ function DialogContent({
   onChanged,
   onCreatePerson,
   onAddRelative,
+  onAddParents,
   onConnect,
 }: {
   dialog: DialogMode;
@@ -430,9 +515,11 @@ function DialogContent({
   onCreatePerson: (input: PersonInput) => Promise<void>;
   onAddRelative: (
     personId: string,
-    relation: 'parent' | 'spouse' | 'child',
+    relation: RelativeKind,
     input: PersonInput,
+    otherParentId: string | null,
   ) => Promise<void>;
+  onAddParents: (personId: string, draft: ParentsDraft) => Promise<void>;
   onConnect: (personId: string, relation: ConnectionKind, otherId: string) => Promise<void>;
 }) {
   const person =
@@ -495,11 +582,25 @@ function DialogContent({
         title={`${displayName(person)} の${RELATIVE_LABELS[dialog.relation]}を追加`}
         onClose={onClose}
       >
-        <PersonForm
-          submitLabel="追加"
-          // 同じ家の人を続けて登録することが多いので、姓を引き継いでおく
+        <AddRelativeForm
+          graph={graph}
+          person={person}
+          relation={dialog.relation}
+          onSubmit={(input, otherParentId) =>
+            onAddRelative(person.id, dialog.relation, input, otherParentId)
+          }
+          onCancel={onClose}
+        />
+      </PersonDialog>
+    );
+  }
+
+  if (dialog.kind === 'add-parents') {
+    return (
+      <PersonDialog title={`${displayName(person)} の両親を追加`} onClose={onClose}>
+        <ParentsForm
           defaultFamilyName={person.familyName}
-          onSubmit={(input) => onAddRelative(person.id, dialog.relation, input)}
+          onSubmit={(draft) => onAddParents(person.id, draft)}
           onCancel={onClose}
         />
       </PersonDialog>

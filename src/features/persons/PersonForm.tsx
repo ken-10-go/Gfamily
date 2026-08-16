@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 
 import { AgeInput } from '@/features/persons/AgeInput';
 import { JapaneseDateInput } from '@/features/persons/JapaneseDateInput';
 import {
   BIRTH_ORDER_OPTIONS,
+  EMPTY_PERSON_INPUT,
   GENDER_LABELS,
   SURNAME_CHANGE_REASON_LABELS,
   type Gender,
@@ -13,29 +14,17 @@ import {
   type SurnameRecord,
 } from '@/types/models';
 
-const EMPTY: PersonInput = {
-  familyName: '',
-  givenName: '',
-  familyNameKana: '',
-  givenNameKana: '',
-  maidenName: '',
-  gender: 'unknown',
-  birthDate: '',
-  deathDate: '',
-  birthPlace: '',
-  note: '',
-  isLiving: true,
-  birthOrder: '',
-  surnameHistory: [],
-};
-
 interface PersonFormProps {
   initial?: Person;
   submitLabel: string;
   /** 親族として追加するときに、関係元の姓をあらかじめ入れておく。 */
   defaultFamilyName?: string | null;
+  /** 関係から推測できる性別の初期選択。ユーザーはいつでも変えられる。 */
+  defaultGender?: Gender;
   /** 自動で導いた続柄。手動指定が空のときの目安として表示する。 */
   derivedBirthOrder?: string | null;
+  /** 人物の項目より前に差し込む欄。親の選択など、関係づけの指定に使う。 */
+  extraFields?: ReactNode;
   onSubmit: (input: PersonInput) => Promise<void>;
   onCancel: () => void;
 }
@@ -44,7 +33,9 @@ export function PersonForm({
   initial,
   submitLabel,
   defaultFamilyName,
+  defaultGender,
   derivedBirthOrder,
+  extraFields,
   onSubmit,
   onCancel,
 }: PersonFormProps) {
@@ -65,7 +56,11 @@ export function PersonForm({
           birthOrder: initial.birthOrder ?? '',
           surnameHistory: initial.surnameHistory ?? [],
         }
-      : { ...EMPTY, familyName: defaultFamilyName ?? '' },
+      : {
+          ...EMPTY_PERSON_INPUT,
+          familyName: defaultFamilyName ?? '',
+          gender: defaultGender ?? EMPTY_PERSON_INPUT.gender,
+        },
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -129,6 +124,8 @@ export function PersonForm({
 
   return (
     <form onSubmit={handleSubmit} className="form">
+      {extraFields}
+
       <div className="form__row">
         <label className="field">
           <span className="field__label">姓</span>

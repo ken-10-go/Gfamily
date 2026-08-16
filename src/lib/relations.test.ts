@@ -7,6 +7,7 @@ import {
   connectionProblem,
   deriveBirthOrder,
   siblingsOf,
+  spousesOf,
   wouldCreateCycle,
 } from '@/lib/relations';
 import type { Gender, ParentChild, Person, TreeGraph } from '@/types/models';
@@ -176,6 +177,59 @@ describe('siblingsOf', () => {
     );
 
     expect(siblingsOf(g, '兄').map((p) => p.id)).toEqual(['兄', '弟']);
+  });
+});
+
+describe('spousesOf', () => {
+  const honnin = person('本人', 'male', '1960-01-01');
+  const first = person('先妻', 'female', '1962-01-01');
+  const second = person('後妻', 'female', '1970-01-01');
+  const other = person('他人', 'female', '1965-01-01');
+
+  const withUnions = (unions: TreeGraph['unions']): TreeGraph => ({
+    ...graph([honnin, first, second, other]),
+    unions,
+  });
+
+  it('離婚・死別も含めて、婚姻の登録順に返す', () => {
+    const g = withUnions([
+      {
+        id: 'u1',
+        partner1Id: '本人',
+        partner2Id: '先妻',
+        status: 'divorced',
+        startDate: null,
+        endDate: null,
+        deletedAt: null,
+      },
+      {
+        id: 'u2',
+        partner1Id: '後妻',
+        partner2Id: '本人',
+        status: 'married',
+        startDate: null,
+        endDate: null,
+        deletedAt: null,
+      },
+    ]);
+
+    expect(spousesOf(g, '本人').map((p) => p.id)).toEqual(['先妻', '後妻']);
+  });
+
+  it('解消済みの関係は返さない', () => {
+    const g = withUnions([
+      {
+        id: 'u1',
+        partner1Id: '本人',
+        partner2Id: '先妻',
+        status: 'married',
+        startDate: null,
+        endDate: null,
+        deletedAt: '2024-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    expect(spousesOf(g, '本人')).toEqual([]);
   });
 });
 

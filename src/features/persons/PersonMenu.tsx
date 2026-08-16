@@ -7,11 +7,13 @@ export type PersonAction =
   | 'detail'
   | 'edit'
   | 'add-parent'
+  | 'add-parents'
   | 'add-spouse'
   | 'add-child'
   | 'connect-parent'
   | 'connect-spouse'
   | 'connect-child'
+  | 'focus'
   | 'delete';
 
 interface PersonMenuProps {
@@ -34,11 +36,13 @@ const ITEMS: MenuItem[] = [
   { action: 'detail', label: '詳細を見る' },
   { action: 'edit', label: '編集', editOnly: true },
   { action: 'add-parent', label: '親を追加', editOnly: true },
+  { action: 'add-parents', label: '両親をまとめて追加', editOnly: true },
   { action: 'add-spouse', label: '配偶者を追加', editOnly: true },
   { action: 'add-child', label: '子を追加', editOnly: true },
   { action: 'connect-parent', label: '既存の人物を親にする', editOnly: true },
   { action: 'connect-spouse', label: '既存の人物を配偶者にする', editOnly: true },
   { action: 'connect-child', label: '既存の人物を子にする', editOnly: true },
+  { action: 'focus', label: 'この人を中心に絞り込む' },
   { action: 'delete', label: '削除', editOnly: true, danger: true },
 ];
 

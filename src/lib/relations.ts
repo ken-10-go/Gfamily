@@ -88,6 +88,23 @@ export function siblingsOf(graph: TreeGraph, personId: string): Person[] {
 }
 
 /**
+ * 配偶者（離婚・死別を含む）を、婚姻の登録順で返す。
+ * 子を追加するときに「もう一方の親」を選ぶ候補になる。
+ */
+export function spousesOf(graph: TreeGraph, personId: string): Person[] {
+  const personById = new Map(graph.persons.filter((p) => !p.deletedAt).map((p) => [p.id, p]));
+
+  return graph.unions
+    .filter(
+      (union) =>
+        !union.deletedAt && (union.partner1Id === personId || union.partner2Id === personId),
+    )
+    .map((union) => (union.partner1Id === personId ? union.partner2Id : union.partner1Id))
+    .map((id) => personById.get(id))
+    .filter((person): person is Person => Boolean(person));
+}
+
+/**
  * 続柄を導く。親が分からない場合や、性別が不明で順位も定まらない場合は null。
  *
  * 男女は別々に数える。長男・長女が同じ家に並び立つのは戸籍の数え方どおり。
