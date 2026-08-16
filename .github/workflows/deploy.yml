@@ -95,13 +95,18 @@ jobs:
       # ルールとインデックスは、変更があったときだけ反映する。
       # 毎回投げると、画面だけ直した push でもアクセス制御まわりの権限が要る。
       # 前後を比べられないとき（ブランチの作成時など）は反映しない。
+      #
+      # ただし手動実行だけは別で、差分を見ずに必ず反映する。
+      # 「権限を直したので、もう一度ルールだけ反映したい」ときの入口がこれしかないため。
       - name: Detect rules changes
         id: rules
         env:
           BEFORE: ${{ github.event.before }}
         run: |
           changed=false
-          if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            changed=true
+          elif [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             if git diff --name-only "$BEFORE" "$GITHUB_SHA" \
               | grep -qE '^(firestore\.rules|firestore\.indexes\.json)$'; then
               changed=true
