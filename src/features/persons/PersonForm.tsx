@@ -19,6 +19,8 @@ interface PersonFormProps {
   submitLabel: string;
   /** 親族として追加するときに、関係元の姓をあらかじめ入れておく。 */
   defaultFamilyName?: string | null;
+  /** 姓と同じく、せいのふりがなも引き継ぐ。 */
+  defaultFamilyNameKana?: string | null;
   /** 関係から推測できる性別の初期選択。ユーザーはいつでも変えられる。 */
   defaultGender?: Gender;
   /** 自動で導いた続柄。手動指定が空のときの目安として表示する。 */
@@ -33,6 +35,7 @@ export function PersonForm({
   initial,
   submitLabel,
   defaultFamilyName,
+  defaultFamilyNameKana,
   defaultGender,
   derivedBirthOrder,
   extraFields,
@@ -59,6 +62,7 @@ export function PersonForm({
       : {
           ...EMPTY_PERSON_INPUT,
           familyName: defaultFamilyName ?? '',
+          familyNameKana: defaultFamilyNameKana ?? '',
           gender: defaultGender ?? EMPTY_PERSON_INPUT.gender,
         },
   );

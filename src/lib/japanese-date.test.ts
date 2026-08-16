@@ -207,14 +207,14 @@ describe('ageLabel', () => {
     expect(ageLabel(living('1960-08-14'), today)).toBe('65歳');
   });
 
-  it('月日が分からなければ「約」を付ける', () => {
-    expect(ageLabel(living('1960'), today)).toBe('約66歳');
-    expect(ageLabel(living('1960-05'), today)).toBe('約66歳');
+  it('月日が分からなくても「約」は付けない', () => {
+    expect(ageLabel(living('1960'), today)).toBe('66歳');
+    expect(ageLabel(living('1960-05'), today)).toBe('66歳');
   });
 
   it('没後は享年で表す', () => {
     expect(ageLabel(dead('1930-04-02', '2005-11-18'), today)).toBe('享年75');
-    expect(ageLabel(dead('1899', '1962'), today)).toBe('享年約63');
+    expect(ageLabel(dead('1899', '1962'), today)).toBe('享年63');
   });
 
   it('生年が分からなければ何も出さない', () => {

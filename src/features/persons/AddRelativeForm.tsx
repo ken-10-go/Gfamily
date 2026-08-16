@@ -67,8 +67,9 @@ export function AddRelativeForm({
   return (
     <PersonForm
       submitLabel="追加"
-      // 同じ家の人を続けて登録することが多いので、姓を引き継いでおく
+      // 同じ家の人を続けて登録することが多いので、姓とその読みを引き継いでおく
       defaultFamilyName={person.familyName}
+      defaultFamilyNameKana={person.familyNameKana}
       defaultGender={relation === 'spouse' ? oppositeGender(person.gender) : undefined}
       extraFields={extraFields}
       onSubmit={(input) => onSubmit(input, otherParentId || null)}

@@ -286,8 +286,8 @@ export function ageInYears(
 /**
  * 年齢の表示。存命なら「◯歳」、没後は「享年◯」。
  *
- * 月日まで分からない日付では1歳ずれることがあるため「約」を付ける。
- * 古い戸籍では年しか分からないことが多く、断定しないほうが誠実。
+ * 月日まで分からない日付では1歳ずれることがあるが、「約」は付けない。
+ * 曖昧な日付は古い記録ではむしろふつうで、ほとんどのカードに「約」が並ぶと読みにくい。
  */
 export function ageLabel(
   person: { birthDate: string | null; deathDate: string | null; isLiving: boolean },
@@ -296,14 +296,7 @@ export function ageLabel(
   const years = ageInYears(person, today);
   if (years === null) return '';
 
-  const birth = parsePartialDate(person.birthDate) as PartialDate;
-  const end = ageReference(person, today) as PartialDate;
-
-  // どちらかの精度が日まで揃っていなければ、年齢は前後しうる
-  const exact = birth.precision === 'day' && end.precision === 'day';
-  const prefix = exact ? '' : '約';
-
-  return person.isLiving ? `${prefix}${years}歳` : `享年${prefix}${years}`;
+  return person.isLiving ? `${years}歳` : `享年${years}`;
 }
 
 /**
@@ -311,7 +304,7 @@ export function ageLabel(
  *
  * 「今 87歳」「享年75」しか分からない、という聞き取りの場面で使う。
  * 誕生日を迎えたかどうかで1年変わるため、月日が分かっていればそれを踏まえて year を決め、
- * 分からなければ年だけの曖昧な日付として返す（表示は「約◯歳」になる）。
+ * 分からなければ年だけの曖昧な日付として返す。
  *
  * 故人で没年が分からない場合は基準が無いので null を返す。
  */

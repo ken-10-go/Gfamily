@@ -12,8 +12,10 @@ export interface ParentsDraft {
 }
 
 interface ParentsFormProps {
-  /** 子の姓。父の姓の初期値にする。 */
+  /** 子の姓。父母の姓の初期値にする。 */
   defaultFamilyName?: string | null;
+  /** 子の姓の読み。姓と同じく引き継ぐ。 */
+  defaultFamilyNameKana?: string | null;
   onSubmit: (draft: ParentsDraft) => Promise<void>;
   onCancel: () => void;
 }
@@ -21,6 +23,7 @@ interface ParentsFormProps {
 interface ParentDraft {
   familyName: string;
   givenName: string;
+  familyNameKana: string;
   givenNameKana: string;
   maidenName: string;
   birthDate: string;
@@ -30,6 +33,7 @@ interface ParentDraft {
 const EMPTY_PARENT: ParentDraft = {
   familyName: '',
   givenName: '',
+  familyNameKana: '',
   givenNameKana: '',
   maidenName: '',
   birthDate: '',
@@ -47,15 +51,20 @@ const named = (draft: ParentDraft) => Boolean(draft.familyName.trim() || draft.g
  * 詳しい項目（出生地・改姓の履歴・メモ）はここには置かない。
  * まず2人を家系図に載せることを優先し、細部はあとから人物の編集で足してもらう。
  */
-export function ParentsForm({ defaultFamilyName, onSubmit, onCancel }: ParentsFormProps) {
-  const [father, setFather] = useState<ParentDraft>({
+export function ParentsForm({
+  defaultFamilyName,
+  defaultFamilyNameKana,
+  onSubmit,
+  onCancel,
+}: ParentsFormProps) {
+  // 子の姓とその読みを引き継ぐ。同じ姓を2回打ち直さずに済む
+  const inherited = {
     ...EMPTY_PARENT,
     familyName: defaultFamilyName ?? '',
-  });
-  const [mother, setMother] = useState<ParentDraft>({
-    ...EMPTY_PARENT,
-    familyName: defaultFamilyName ?? '',
-  });
+    familyNameKana: defaultFamilyNameKana ?? '',
+  };
+  const [father, setFather] = useState<ParentDraft>(inherited);
+  const [mother, setMother] = useState<ParentDraft>(inherited);
   const [marry, setMarry] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -157,6 +166,15 @@ function ParentFields({
 
       <div className="form__row">
         <label className="field">
+          <span className="field__label">せい（ふりがな）</span>
+          <input
+            type="text"
+            value={value.familyNameKana}
+            onChange={(event) => update('familyNameKana', event.target.value)}
+            maxLength={100}
+          />
+        </label>
+        <label className="field">
           <span className="field__label">めい（ふりがな）</span>
           <input
             type="text"
@@ -200,6 +218,7 @@ function toInput(draft: ParentDraft, gender: 'male' | 'female'): PersonInput {
   return {
     ...EMPTY_PERSON_INPUT,
     familyName: draft.familyName,
+    familyNameKana: draft.familyNameKana,
     givenName: draft.givenName,
     givenNameKana: draft.givenNameKana,
     maidenName: draft.maidenName,

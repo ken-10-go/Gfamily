@@ -14,6 +14,7 @@ export type PersonAction =
   | 'connect-spouse'
   | 'connect-child'
   | 'focus'
+  | 'reset-position'
   | 'delete';
 
 interface PersonMenuProps {
@@ -30,6 +31,8 @@ interface MenuItem {
   label: string;
   editOnly?: boolean;
   danger?: boolean;
+  /** 出す条件。指定が無ければ常に出す。 */
+  when?: (person: Person) => boolean;
 }
 
 const ITEMS: MenuItem[] = [
@@ -43,6 +46,14 @@ const ITEMS: MenuItem[] = [
   { action: 'connect-spouse', label: '既存の人物を配偶者にする', editOnly: true },
   { action: 'connect-child', label: '既存の人物を子にする', editOnly: true },
   { action: 'focus', label: 'この人を中心に絞り込む' },
+  {
+    action: 'reset-position',
+    label: '自動配置に戻す',
+    editOnly: true,
+    // 手で置いたカードにだけ出す。指でのタップがドラッグと判定されて
+    // 意図せず動いてしまうことがあるので、その場で戻せるようにしておく。
+    when: (person) => person.position !== null,
+  },
   { action: 'delete', label: '削除', editOnly: true, danger: true },
 ];
 
@@ -90,7 +101,9 @@ export function PersonMenu({ person, anchor, canEdit, onAction, onClose }: Perso
     };
   }, [onClose]);
 
-  const items = ITEMS.filter((item) => canEdit || !item.editOnly);
+  const items = ITEMS.filter(
+    (item) => (canEdit || !item.editOnly) && (item.when?.(person) ?? true),
+  );
 
   return (
     <div

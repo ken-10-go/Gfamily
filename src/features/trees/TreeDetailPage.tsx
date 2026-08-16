@@ -166,6 +166,9 @@ export function TreeDetailPage() {
       case 'focus':
         startFocus(personId);
         break;
+      case 'reset-position':
+        void handleResetPosition(personId);
+        break;
       case 'connect-parent':
       case 'connect-spouse':
       case 'connect-child':
@@ -265,6 +268,16 @@ export function TreeDetailPage() {
 
     await reload();
     setDialog(null);
+  }
+
+  /** 手で置いた位置を捨てて、自動配置に戻す。 */
+  async function handleResetPosition(personId: string) {
+    try {
+      await api.setPersonPosition(treeId, personId, null);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '位置の初期化に失敗しました');
+    }
   }
 
   /** ドラッグで置いたカードの位置を保存する。 */
@@ -603,6 +616,7 @@ function DialogContent({
       <PersonDialog title={`${displayName(person)} の両親を追加`} onClose={onClose}>
         <ParentsForm
           defaultFamilyName={person.familyName}
+          defaultFamilyNameKana={person.familyNameKana}
           onSubmit={(draft) => onAddParents(person.id, draft)}
           onCancel={onClose}
         />
