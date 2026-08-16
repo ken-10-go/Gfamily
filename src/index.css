@@ -646,6 +646,17 @@ textarea {
   color: var(--muted);
 }
 
+/* 機微な情報のまとまり。鍵つきであることが分かるよう、枠を少し目立たせる */
+.sensitive {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.6rem 0.75rem 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+
 /* 両親をまとめて追加するときの、父・母それぞれのまとまり */
 .parents__group {
   display: flex;

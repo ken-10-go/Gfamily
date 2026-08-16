@@ -106,8 +106,13 @@ describe('toEraDates', () => {
     expect(toEraDates('1935')).toEqual([{ era: '昭和', year: 10 }]);
   });
 
-  it('明治より前は元号が求まらない', () => {
-    expect(toEraDates('1850')).toEqual([]);
+  it('江戸期の元号も求まる（戸籍をさかのぼると必ず出てくる）', () => {
+    expect(toEraDates('1850')).toEqual([{ era: '嘉永', year: 3 }]);
+    expect(toEraDates('1867')).toEqual([{ era: '慶応', year: 3 }]);
+  });
+
+  it('載せている最も古い元号より前は求まらない', () => {
+    expect(toEraDates('1700')).toEqual([]);
   });
 });
 
@@ -132,8 +137,12 @@ describe('formatWithEra', () => {
     expect(formatWithEra('1926')).toBe('1926年（大正15年・昭和元年）');
   });
 
-  it('明治より前は西暦だけを返す', () => {
-    expect(formatWithEra('1850')).toBe('1850年');
+  it('江戸期も併記する', () => {
+    expect(formatWithEra('1850')).toBe('1850年（嘉永3年）');
+  });
+
+  it('元号が分からないほど古ければ西暦だけを返す', () => {
+    expect(formatWithEra('1700')).toBe('1700年');
   });
 
   it('値が無ければ空文字', () => {
@@ -169,8 +178,18 @@ describe('eraYearToGregorian', () => {
     expect(eraYearToGregorian('昭和', -1)).toBeNull();
   });
 
+  it('江戸期の元号も西暦に直せる', () => {
+    expect(eraYearToGregorian('慶応', 1)).toBe(1865);
+    expect(eraYearToGregorian('嘉永', 3)).toBe(1850);
+  });
+
   it('知らない元号は null', () => {
-    expect(eraYearToGregorian('慶応', 1)).toBeNull();
+    expect(eraYearToGregorian('享保', 1)).toBeNull();
+  });
+
+  it('その元号に存在しない年は受け付けない', () => {
+    // 慶応は4年（1868）まで
+    expect(eraYearToGregorian('慶応', 5)).toBeNull();
   });
 });
 

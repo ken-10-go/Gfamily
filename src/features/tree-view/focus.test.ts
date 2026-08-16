@@ -1,27 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { focusGraph } from '@/features/tree-view/focus';
-import type { ParentChild, Person, TreeGraph, Union } from '@/types/models';
+import { EMPTY_PERSON, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
 
 function person(id: string, overrides: Partial<Person> = {}): Person {
   return {
+    ...EMPTY_PERSON,
     id,
     familyName: '山田',
     givenName: id,
-    familyNameKana: null,
-    givenNameKana: null,
-    maidenName: null,
-    gender: 'unknown',
-    birthDate: null,
-    deathDate: null,
-    birthPlace: null,
-    note: null,
-    isLiving: true,
-    birthOrder: null,
-    siblingOrder: null,
-    position: null,
-    surnameHistory: [],
-    deletedAt: null,
     ...overrides,
   };
 }

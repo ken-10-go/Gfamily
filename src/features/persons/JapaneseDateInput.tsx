@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import type { EraDate } from '@/types/models';
 import {
   ERAS,
   eraStartYear,
@@ -15,7 +16,11 @@ interface JapaneseDateInputProps {
   label: string;
   /** `YYYY` / `YYYY-MM` / `YYYY-MM-DD` のいずれか。未入力は空文字。 */
   value: string;
-  onChange: (value: string) => void;
+  /**
+   * 変更の通知。era は和暦で入力されたときの生データで、西暦入力なら null。
+   * 旧暦の月日は西暦に直せないので、入力そのものを残したい側だけが受け取る。
+   */
+  onChange: (value: string, era: EraDate | null) => void;
 }
 
 const GREGORIAN = '西暦';
@@ -47,7 +52,7 @@ export function JapaneseDateInput({ label, value, onChange }: JapaneseDateInputP
 
   function emit(year: number | '', month: number | '', day: number | '') {
     if (year === '') {
-      onChange('');
+      onChange('', null);
       return;
     }
 
@@ -55,7 +60,13 @@ export function JapaneseDateInput({ label, value, onChange }: JapaneseDateInputP
     // その元号に存在しない年（昭和65年など）は取り込まず、入力を続けさせる
     if (gregorianYear === null) return;
 
-    onChange(toPartialDateString(gregorianYear, month || null, day || null));
+    // 和暦で入れたときは、戸籍に書かれていたであろう元号・年・月日をそのまま添える
+    const raw: EraDate | null =
+      era === GREGORIAN
+        ? null
+        : { eraName: era, eraYear: year, month: month || null, day: day || null };
+
+    onChange(toPartialDateString(gregorianYear, month || null, day || null), raw);
   }
 
   return (
@@ -134,7 +145,7 @@ export function JapaneseDateInput({ label, value, onChange }: JapaneseDateInputP
           <button
             type="button"
             className="icon-button"
-            onClick={() => onChange('')}
+            onClick={() => onChange('', null)}
             aria-label={`${label}を消す`}
             title="消す"
           >

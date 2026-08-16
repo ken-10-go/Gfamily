@@ -1,3 +1,5 @@
+import type { EncryptedPayload } from '@/lib/crypto';
+
 export type TreeRole = 'owner' | 'editor' | 'viewer';
 export type Gender = 'male' | 'female' | 'other' | 'unknown';
 export type UnionStatus = 'married' | 'divorced' | 'widowed' | 'partner';
@@ -23,6 +25,21 @@ export type SurnameChangeReason =
   | 'branch'
   | 'other';
 
+/**
+ * 入力された和暦そのもの。
+ *
+ * 明治5年までは旧暦（太陰太陽暦）で、和暦の月日はグレゴリオ暦の月日と一致しない。
+ * 西暦の文字列（birthDate / deathDate）は並び替えと年齢計算のために持ち、
+ * 「戸籍に何と書いてあったか」はこちらをそのまま残す。
+ */
+export interface EraDate {
+  eraName: string;
+  /** 元号内の年。1 は元年 */
+  eraYear: number;
+  month: number | null;
+  day: number | null;
+}
+
 /** カードの表示位置。ドラッグで置いた場所を保持する。 */
 export interface CardPosition {
   x: number;
@@ -42,6 +59,11 @@ export interface Tree {
   name: string;
   description: string | null;
   createdBy: string;
+  /**
+   * 機微項目の暗号鍵を導くためのソルト（Base64）。公開されても問題ない値。
+   * まだパスフレーズを決めていないツリーでは null。
+   */
+  e2eeSalt: string | null;
   /** uid -> 権限。セキュリティルールの判定もこのマップを見る。 */
   roles: Record<string, TreeRole>;
   /** roles のキーと同じ内容。「自分が参加しているツリー」を1クエリで引くために持つ。 */
@@ -80,6 +102,19 @@ export interface Person {
   position: CardPosition | null;
   /** 改姓の履歴。出生時の姓から順に並べる。 */
   surnameHistory: SurnameRecord[];
+  /** 生年月日を和暦で入れたときの、入力そのまま。西暦は birthDate に持つ */
+  birthEra: EraDate | null;
+  /** 没年月日の和暦。同上 */
+  deathEra: EraDate | null;
+  /** 生年がはっきりしない（「頃」）。古い記録では珍しくない */
+  birthDateUncertain: boolean;
+  /** 没年がはっきりしない（「頃」） */
+  deathDateUncertain: boolean;
+  /**
+   * 端末内で暗号化した機微項目（本籍地・住所・戒名・お墓・思い出）。
+   * 中身は src/lib/crypto.ts の SensitiveFields。鍵が無ければ復号できない。
+   */
+  encryptedData: EncryptedPayload | null;
   /** ソフト削除の時刻（ISO文字列）。null なら生存レコード。 */
   deletedAt: string | null;
 }
@@ -95,11 +130,16 @@ export type PersonInput = Pick<
   | 'gender'
   | 'birthDate'
   | 'deathDate'
+  | 'birthEra'
+  | 'deathEra'
+  | 'birthDateUncertain'
+  | 'deathDateUncertain'
   | 'birthPlace'
   | 'note'
   | 'isLiving'
   | 'birthOrder'
   | 'surnameHistory'
+  | 'encryptedData'
 >;
 
 /** 何も入力していない状態の人物。フォームの初期値に使う。 */
@@ -112,11 +152,28 @@ export const EMPTY_PERSON_INPUT: PersonInput = {
   gender: 'unknown',
   birthDate: '',
   deathDate: '',
+  birthEra: null,
+  deathEra: null,
+  birthDateUncertain: false,
+  deathDateUncertain: false,
   birthPlace: '',
   note: '',
   isLiving: true,
   birthOrder: '',
   surnameHistory: [],
+  encryptedData: null,
+};
+
+/**
+ * 何も入力していない人物。
+ * 表示用の仮のカードや、テスト・デモの土台に使う。ID は使う側で入れる。
+ */
+export const EMPTY_PERSON: Person = {
+  ...EMPTY_PERSON_INPUT,
+  id: '',
+  siblingOrder: null,
+  position: null,
+  deletedAt: null,
 };
 
 /**

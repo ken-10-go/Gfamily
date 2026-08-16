@@ -80,10 +80,25 @@ service cloud.firestore {
       // 消えずに残り、個人情報が到達不能なまま保持され続けてしまう。
       allow delete: if false;
 
+      // 機微項目（本籍地・戒名など）は端末で暗号化してから送られてくる。
+      // 中身はサーバー側では読めないので、形と大きさだけを見る。
+      // 上限は「思い出のメモ4000字ぶんが Base64 で膨らんでも収まる」大きさにしている。
+      function encryptedDataIsValid(data) {
+        return !('encryptedData' in data.keys())
+          || data.encryptedData == null
+          || (data.encryptedData.keys().hasOnly(['iv', 'ciphertext', 'tag'])
+              && data.encryptedData.iv is string
+              && data.encryptedData.ciphertext is string
+              && data.encryptedData.tag is string
+              && data.encryptedData.ciphertext.size() < 30000);
+      }
+
       match /persons/{personId} {
         allow read: if isMember(treeId);
         // 削除はソフト削除（deletedAt）で行うため、update で足りる
-        allow create, update: if canEdit(treeId) && actorIsSelf();
+        allow create, update: if canEdit(treeId)
+          && actorIsSelf()
+          && encryptedDataIsValid(request.resource.data);
         allow delete: if isOwner(treeId);
       }
 

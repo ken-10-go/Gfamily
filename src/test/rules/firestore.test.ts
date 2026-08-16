@@ -157,6 +157,54 @@ describe('編集者の権限', () => {
   });
 });
 
+describe('機微項目（端末で暗号化した本籍地・戒名など）', () => {
+  const payload = { iv: 'aXY=', ciphertext: 'Y2lwaGVy', tag: 'dGFn' };
+
+  it('暗号化された形なら保存できる', async () => {
+    await assertSucceeds(
+      addDoc(personsCol(as(env, EDITOR)), {
+        givenName: '暗号あり',
+        deletedAt: null,
+        updatedBy: EDITOR,
+        encryptedData: payload,
+      }),
+    );
+  });
+
+  it('null（機微項目なし）でも保存できる', async () => {
+    await assertSucceeds(
+      addDoc(personsCol(as(env, EDITOR)), {
+        givenName: '暗号なし',
+        deletedAt: null,
+        updatedBy: EDITOR,
+        encryptedData: null,
+      }),
+    );
+  });
+
+  it('決めた形以外は受け付けない（平文を紛れ込ませない）', async () => {
+    await assertFails(
+      addDoc(personsCol(as(env, EDITOR)), {
+        givenName: '平文',
+        deletedAt: null,
+        updatedBy: EDITOR,
+        encryptedData: { ...payload, honseki: '東京都千代田区永田町1-7-1' },
+      }),
+    );
+  });
+
+  it('大きすぎる暗号文は受け付けない', async () => {
+    await assertFails(
+      addDoc(personsCol(as(env, EDITOR)), {
+        givenName: '巨大',
+        deletedAt: null,
+        updatedBy: EDITOR,
+        encryptedData: { ...payload, ciphertext: 'x'.repeat(30001) },
+      }),
+    );
+  });
+});
+
 describe('実行者の詐称防止', () => {
   it('updatedBy に他人を書けない', async () => {
     // これを許すと監査ログの「誰が」が信用できなくなる

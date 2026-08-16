@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { PassphrasePanel } from '@/features/e2ee/PassphrasePanel';
+import { TreeKeyProvider } from '@/features/e2ee/TreeKeyProvider';
 import { AddRelativeForm, type RelativeKind } from '@/features/persons/AddRelativeForm';
 import { ParentsForm, type ParentsDraft } from '@/features/persons/ParentsForm';
 import { PersonDetail } from '@/features/persons/PersonDetail';
@@ -331,7 +333,8 @@ export function TreeDetailPage() {
   const menuPerson = menu ? personOf(menu.personId) : null;
 
   return (
-    <div className="tree-page">
+    <TreeKeyProvider treeId={treeId}>
+      <div className="tree-page">
       {/*
         狭い画面では画面の高さが貴重なので、ヘッダーは1行に収める。
         検索はアイコンから開き、頻度の低い操作は「⋯」にまとめる。
@@ -507,7 +510,8 @@ export function TreeDetailPage() {
           onConnect={handleConnect}
         />
       )}
-    </div>
+      </div>
+    </TreeKeyProvider>
   );
 }
 
@@ -554,6 +558,11 @@ function DialogContent({
     return (
       <PersonDialog title="表示設定" onClose={onClose}>
         <ViewSettingsPanel settings={settings.settings} onChange={settings.updateSetting} />
+
+        <section className="panel__section">
+          <h3>🔒 機微な情報の鍵</h3>
+          <PassphrasePanel />
+        </section>
       </PersonDialog>
     );
   }

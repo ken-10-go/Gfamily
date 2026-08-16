@@ -7,30 +7,18 @@ import {
   V_GAP,
   type TreeLayout,
 } from '@/features/tree-view/layout';
-import type { ParentChild, Person, TreeGraph, Union } from '@/types/models';
+import { EMPTY_PERSON, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
 
 let counter = 0;
 
 function person(id: string, overrides: Partial<Person> = {}): Person {
   counter += 1;
   return {
+    ...EMPTY_PERSON,
     id,
     familyName: '山田',
     givenName: id,
-    familyNameKana: null,
-    givenNameKana: null,
-    maidenName: null,
-    gender: 'unknown',
     birthDate: `19${String(counter).padStart(2, '0')}-01-01`,
-    deathDate: null,
-    birthPlace: null,
-    note: null,
-    isLiving: true,
-    birthOrder: null,
-    siblingOrder: null,
-    position: null,
-    surnameHistory: [],
-    deletedAt: null,
     ...overrides,
   };
 }

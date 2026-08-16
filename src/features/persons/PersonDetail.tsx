@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { useTreeKey } from '@/features/e2ee/useTreeKey';
 import * as api from '@/lib/api';
+import type { SensitiveFields } from '@/lib/crypto';
 import { ageLabel, formatWithEra } from '@/lib/japanese-date';
 import { birthOrderLabel } from '@/lib/relations';
 import {
@@ -92,11 +94,18 @@ export function PersonDetail({
         <Detail label="性別" value={GENDER_LABELS[person.gender]} />
         <Detail label="生没" value={lifespanLabel(person) || '不明'} />
         <Detail label="年齢" value={age} />
-        <Detail label="生年月日" value={formatWithEra(person.birthDate)} />
-        {!person.isLiving && <Detail label="没年月日" value={formatWithEra(person.deathDate)} />}
+        <Detail label="生年月日" value={dateLabel(person.birthDate, person.birthEra, person.birthDateUncertain)} />
+        {!person.isLiving && (
+          <Detail
+            label="没年月日"
+            value={dateLabel(person.deathDate, person.deathEra, person.deathDateUncertain)}
+          />
+        )}
         <Detail label="出生地" value={person.birthPlace} />
         <Detail label="メモ" value={person.note} />
       </dl>
+
+      <SensitiveSection person={person} />
 
       {person.surnameHistory.length > 0 && (
         <section className="panel__section">
@@ -164,6 +173,89 @@ export function PersonDetail({
       )}
     </div>
   );
+}
+
+/**
+ * 暗号化して保存されている項目。鍵が開いているときだけ中身を出す。
+ * 鍵が無いときは「入っていること」だけを伝え、開き方を案内する。
+ */
+function SensitiveSection({ person }: { person: Person }) {
+  const key = useTreeKey();
+  const [fields, setFields] = useState<SensitiveFields | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFields(null);
+    setError(null);
+    if (!key.unlocked || !person.encryptedData) return;
+
+    void key
+      .decrypt(person.encryptedData)
+      .then((decrypted) => {
+        if (!cancelled) setFields(decrypted);
+      })
+      .catch(() => {
+        if (!cancelled) setError('復号キーが異なります');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [key, person]);
+
+  if (!person.encryptedData) return null;
+
+  if (!key.unlocked) {
+    return (
+      <section className="panel__section">
+        <h3>🔒 機微な情報</h3>
+        <p className="note">
+          本籍地・戒名などが暗号化して保存されています。表示設定の「機微な情報の鍵」で
+          合言葉を入れると読めます。
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel__section">
+      <h3>🔒 機微な情報</h3>
+      {error && <p className="alert alert--error">{error}</p>}
+      {fields && (
+        <dl className="detail-list">
+          <Detail label="本籍地" value={fields.honseki} />
+          <Detail label="現住所" value={fields.address} />
+          <Detail label="戒名・法名" value={fields.kaimyo} />
+          <Detail label="お墓" value={fields.graveLocation} />
+          <Detail label="思い出" value={fields.biographyNotes} />
+        </dl>
+      )}
+    </section>
+  );
+}
+
+/**
+ * 日付の表示。和暦で入力されたものは、その表記を添える。
+ *
+ * 明治5年までは旧暦なので、西暦へ機械的に直した月日は戸籍の記載と合わない。
+ * 入力された和暦をそのまま残しているので、両方を見せて判断できるようにする。
+ */
+function dateLabel(
+  value: string | null,
+  era: Person['birthEra'],
+  uncertain: boolean,
+): string {
+  const base = formatWithEra(value);
+  if (!base) return '';
+
+  const raw = era
+    ? `${era.eraName}${era.eraYear === 1 ? '元' : era.eraYear}年${era.month ? `${era.month}月` : ''}${era.day ? `${era.day}日` : ''}`
+    : '';
+  // 元号から機械的に導ける表記と同じなら、二重に出さない
+  const withRaw = raw && !base.includes(raw) ? `${base}（記載: ${raw}）` : base;
+
+  return uncertain ? `${withRaw} 頃` : withRaw;
 }
 
 function Detail({ label, value }: { label: string; value: string | null | undefined }) {

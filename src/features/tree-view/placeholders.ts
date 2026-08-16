@@ -1,5 +1,11 @@
 import { spousesOf } from '@/lib/relations';
-import { oppositeGender, type Person, type TreeGraph, type Union } from '@/types/models';
+import {
+  EMPTY_PERSON,
+  oppositeGender,
+  type Person,
+  type TreeGraph,
+  type Union,
+} from '@/types/models';
 
 /** 空の配偶者カードの ID。人物の ID から作るので、誰の枠かがそのまま分かる。 */
 export const spousePlaceholderId = (personId: string) => `placeholder:spouse:${personId}`;
@@ -41,7 +47,7 @@ export function withSpousePlaceholders(graph: TreeGraph): TreeGraph {
 
     const id = spousePlaceholderId(person.id);
     placeholders.push({
-      ...EMPTY_PLACEHOLDER,
+      ...PLACEHOLDER,
       id,
       // 相手が分かっていれば逆の性別で置く。左右の並びが実在のカードと同じになる
       gender: oppositeGender(person.gender),
@@ -67,22 +73,4 @@ export function withSpousePlaceholders(graph: TreeGraph): TreeGraph {
 }
 
 /** 空の配偶者カードの中身。名前の代わりに用途を出す。 */
-const EMPTY_PLACEHOLDER: Person = {
-  id: '',
-  familyName: null,
-  givenName: '＋ 配偶者',
-  familyNameKana: null,
-  givenNameKana: null,
-  maidenName: null,
-  gender: 'unknown',
-  birthDate: null,
-  deathDate: null,
-  birthPlace: null,
-  note: null,
-  isLiving: true,
-  birthOrder: null,
-  siblingOrder: null,
-  position: null,
-  surnameHistory: [],
-  deletedAt: null,
-};
+const PLACEHOLDER: Person = { ...EMPTY_PERSON, givenName: '＋ 配偶者' };

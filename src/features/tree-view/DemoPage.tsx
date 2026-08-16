@@ -7,6 +7,7 @@ import { formatWithEra } from '@/lib/japanese-date';
 import { birthOrderLabel } from '@/lib/relations';
 import {
   displayName,
+  EMPTY_PERSON,
   type CardPosition,
   type ParentChild,
   type Person,
@@ -90,23 +91,14 @@ function person(
   overrides: Partial<Person> = {},
 ): Person {
   return {
+    ...EMPTY_PERSON,
     id,
-    familyName: familyName,
-    givenName: givenName,
-    familyNameKana: null,
-    givenNameKana: null,
-    maidenName: null,
+    familyName,
+    givenName,
     gender,
     birthDate: birth,
     deathDate: death ?? null,
-    birthPlace: '架空県 見本市',
-    note: null,
     isLiving: !death,
-    birthOrder: null,
-    siblingOrder: null,
-    position: null,
-    surnameHistory: [],
-    deletedAt: null,
     ...overrides,
   };
 }

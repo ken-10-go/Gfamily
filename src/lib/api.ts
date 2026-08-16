@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 
+import { generateSalt } from '@/lib/crypto';
 import { getDb, getFirebaseAuth, getFns } from '@/lib/firebase';
 import type {
   AuditLog,
@@ -61,6 +62,7 @@ function toTree(snapshot: QueryDocumentSnapshot<DocumentData>): Tree {
     name: data.name ?? '',
     description: data.description ?? null,
     createdBy: data.createdBy ?? '',
+    e2eeSalt: data.e2eeSalt ?? null,
     roles: data.roles ?? {},
     memberIds: data.memberIds ?? [],
   };
@@ -90,6 +92,8 @@ export async function createTree(name: string, description?: string): Promise<st
     name,
     description: description?.trim() || null,
     createdBy: uid,
+    // 機微項目の鍵を導くためのソルト。作成時に決め、以後変えない
+    e2eeSalt: generateSalt(),
     roles: { [uid]: 'owner' satisfies TreeRole },
     memberIds: [uid],
     createdAt: serverTimestamp(),
@@ -104,6 +108,22 @@ export async function updateTree(
   patch: { name?: string; description?: string | null },
 ): Promise<void> {
   await updateDoc(treeDoc(treeId), { ...patch, updatedAt: serverTimestamp() });
+}
+
+/**
+ * まだソルトを持たないツリーに、あとから付ける。
+ *
+ * 機微項目の暗号化を導入する前に作られたツリーのための処理。
+ * すでにあるソルトは決して上書きしない（上書きすると、暗号化済みのデータを
+ * 二度と復号できなくなる）。
+ */
+export async function ensureTreeSalt(treeId: string): Promise<string> {
+  const tree = await getTree(treeId);
+  if (tree.e2eeSalt) return tree.e2eeSalt;
+
+  const salt = generateSalt();
+  await updateDoc(treeDoc(treeId), { e2eeSalt: salt, updatedAt: serverTimestamp() });
+  return salt;
 }
 
 /**
@@ -154,6 +174,11 @@ function toPerson(snapshot: QueryDocumentSnapshot<DocumentData>): Person {
     gender: data.gender ?? 'unknown',
     birthDate: data.birthDate ?? null,
     deathDate: data.deathDate ?? null,
+    birthEra: (data.birthEra ?? null) as Person['birthEra'],
+    deathEra: (data.deathEra ?? null) as Person['deathEra'],
+    birthDateUncertain: data.birthDateUncertain ?? false,
+    deathDateUncertain: data.deathDateUncertain ?? false,
+    encryptedData: (data.encryptedData ?? null) as Person['encryptedData'],
     birthPlace: data.birthPlace ?? null,
     note: data.note ?? null,
     isLiving: data.isLiving ?? true,
@@ -210,6 +235,13 @@ function personPayload(input: PersonInput, uid: string) {
     birthDate: input.birthDate || null,
     // 存命なら没年月日は保持しない
     deathDate: input.isLiving ? null : input.deathDate || null,
+    // 戸籍に書かれていた和暦そのもの。西暦に直せない旧暦の月日を残すために持つ
+    birthEra: input.birthEra ?? null,
+    deathEra: input.isLiving ? null : (input.deathEra ?? null),
+    birthDateUncertain: input.birthDateUncertain ?? false,
+    deathDateUncertain: input.isLiving ? false : (input.deathDateUncertain ?? false),
+    // 端末で暗号化済みの機微項目。サーバー側では中身を読めない
+    encryptedData: input.encryptedData ?? null,
     birthPlace: blankToNull(input.birthPlace),
     note: blankToNull(input.note),
     isLiving: input.isLiving,

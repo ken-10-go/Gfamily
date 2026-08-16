@@ -2,27 +2,16 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AddRelativeForm } from '@/features/persons/AddRelativeForm';
-import type { Person, TreeGraph } from '@/types/models';
+import { EMPTY_PERSON, type Person, type TreeGraph } from '@/types/models';
 
 function person(id: string, overrides: Partial<Person> = {}): Person {
   return {
+    ...EMPTY_PERSON,
     id,
     familyName: '後藤',
     givenName: id,
     familyNameKana: 'ごとう',
-    givenNameKana: null,
-    maidenName: null,
     gender: 'male',
-    birthDate: null,
-    deathDate: null,
-    birthPlace: null,
-    note: null,
-    isLiving: true,
-    birthOrder: null,
-    siblingOrder: null,
-    position: null,
-    surnameHistory: [],
-    deletedAt: null,
     ...overrides,
   };
 }
