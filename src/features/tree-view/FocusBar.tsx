@@ -85,6 +85,13 @@ export function FocusBar({ persons, value, onChange, onClear }: FocusBarProps) {
       <button type="button" className="button" onClick={onClear} disabled={!value.centerId}>
         解除
       </button>
+
+      {value.centerId && (
+        <p className="note focus__note">
+          絞り込み中は自動配置で表示し、カードの移動はできません。手で置いた位置は
+          そのまま保存されていて、解除すると元どおりに並びます。
+        </p>
+      )}
     </div>
   );
 }

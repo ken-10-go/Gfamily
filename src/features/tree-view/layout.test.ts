@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeLayout, NODE_WIDTH, type TreeLayout } from '@/features/tree-view/layout';
+import {
+  computeLayout,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  V_GAP,
+  type TreeLayout,
+} from '@/features/tree-view/layout';
 import type { ParentChild, Person, TreeGraph, Union } from '@/types/models';
 
 let counter = 0;
@@ -604,6 +610,90 @@ describe('computeLayout', () => {
 
     expect(layout.width).toBeGreaterThanOrEqual(1200);
     expect(layout.height).toBeGreaterThanOrEqual(900);
+  });
+
+  it('手で置いた親の真下に、自動配置の子をぶら下げる', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('父', { position: { x: 900, y: 400 } }),
+          person('母', { position: { x: 1100, y: 400 } }),
+          person('新しい子'),
+        ],
+        parentChild: [link('父', '新しい子'), link('母', '新しい子')],
+      }),
+    );
+
+    const child = nodeOf(layout, '新しい子');
+    // 夫婦の中央、1世代ぶん下
+    expect(child.x).toBeCloseTo(1000, 5);
+    expect(child.y).toBeCloseTo(400 + NODE_HEIGHT + V_GAP, 5);
+    // 自動配置のままなので、あとから並べ直せる
+    expect(child.placedByHand).toBe(false);
+  });
+
+  it('子が複数いても、並びと間隔を保ったまま親の下へ寄せる', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('親', { position: { x: 800, y: 0 } }),
+          person('兄', { birthDate: '1980-01-01' }),
+          person('弟', { birthDate: '1985-01-01' }),
+        ],
+        parentChild: [link('親', '兄'), link('親', '弟')],
+      }),
+    );
+
+    const older = nodeOf(layout, '兄');
+    const younger = nodeOf(layout, '弟');
+
+    expect(older.x).toBeLessThan(younger.x);
+    expect((older.x + younger.x) / 2).toBeCloseTo(800, 5);
+    expect(younger.x - older.x).toBeCloseTo(NODE_WIDTH + 28, 5);
+  });
+
+  it('手で置いた子は、親を動かしても動かさない', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('親', { position: { x: 900, y: 0 } }),
+          person('据え置きの子', { position: { x: 100, y: 500 } }),
+        ],
+        parentChild: [link('親', '据え置きの子')],
+      }),
+    );
+
+    const child = nodeOf(layout, '据え置きの子');
+    expect({ x: child.x, y: child.y }).toEqual({ x: 100, y: 500 });
+  });
+
+  it('親を動かしたぶんは孫にも伝わる', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [person('祖父', { position: { x: 1000, y: 0 } }), person('父'), person('孫')],
+        parentChild: [link('祖父', '父'), link('父', '孫')],
+      }),
+    );
+
+    expect(nodeOf(layout, '父').x).toBeCloseTo(1000, 5);
+    expect(nodeOf(layout, '孫').x).toBeCloseTo(1000, 5);
+    expect(nodeOf(layout, '孫').y).toBeCloseTo(2 * (NODE_HEIGHT + V_GAP), 5);
+  });
+
+  it('ignoreManualPositions を指定すると、手で置いた位置を無視して自動で並べる', () => {
+    const input = graph({
+      persons: [person('親'), person('子', { position: { x: 1200, y: 900 } })],
+      parentChild: [link('親', '子')],
+    });
+
+    const layout = computeLayout(input, undefined, { ignoreManualPositions: true });
+    const child = nodeOf(layout, '子');
+
+    expect(child.placedByHand).toBe(false);
+    expect(child.x).toBeCloseTo(nodeOf(layout, '親').x, 5);
+    expect(child.y).toBeCloseTo(NODE_HEIGHT + V_GAP, 5);
+    // データ側の指定は残ったまま。解除すれば元の位置に戻る
+    expect(nodeOf(computeLayout(input), '子').x).toBe(1200);
   });
 
   it('左端が0から始まるようにX座標を正規化する', () => {

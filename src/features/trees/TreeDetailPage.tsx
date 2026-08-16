@@ -453,6 +453,9 @@ export function TreeDetailPage() {
           onSelectPerson={openMenu}
           canReorder={canEdit}
           onMovePerson={handleMovePerson}
+          // 絞り込み中は自動配置で描く。手で置いた座標は家系図の全体を前提にした値で、
+          // 一部だけを取り出すとカードが遠くに取り残されるため。
+          ignoreManualPositions={Boolean(focus.centerId)}
         />
       </div>
 

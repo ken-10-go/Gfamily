@@ -76,6 +76,17 @@ export interface SiblingGroup {
   childIds: string[];
 }
 
+export interface LayoutOptions {
+  /**
+   * 手で置いた位置（`person.position`）を無視して、すべて自動配置にする。
+   *
+   * 絞り込み表示のように、家系図の一部だけを描くときに使う。
+   * 手動の座標は家系図の全体を前提に決めた値なので、一部だけを取り出すと
+   * 遠くに取り残されたカードになってしまう。データは変えず、描画だけを自動に戻す。
+   */
+  ignoreManualPositions?: boolean;
+}
+
 export interface TreeLayout {
   nodes: LayoutNode[];
   families: FamilyUnit[];
@@ -99,6 +110,7 @@ export interface TreeLayout {
 export function computeLayout(
   graph: TreeGraph,
   metrics: LayoutMetrics = DEFAULT_METRICS,
+  options: LayoutOptions = {},
 ): TreeLayout {
   const SLOT = metrics.nodeWidth + metrics.hGap;
   const ROW = metrics.nodeHeight + metrics.vGap;
@@ -235,19 +247,24 @@ export function computeLayout(
   }
 
   const minX = Math.min(...[...centerX.values()]) - metrics.nodeWidth / 2;
+  const manual = (person: Person) => (options.ignoreManualPositions ? null : person.position);
+
   const nodes: LayoutNode[] = persons.map((person) => {
     const generation = generations.get(person.id) ?? 0;
     const auto = { x: (centerX.get(person.id) ?? 0) - minX, y: generation * ROW };
+    const placed = manual(person);
 
     // 手で置いた位置があればそちらを使う。自動レイアウトの結果より優先する。
     return {
       person,
-      x: person.position?.x ?? auto.x,
-      y: person.position?.y ?? auto.y,
+      x: placed?.x ?? auto.x,
+      y: placed?.y ?? auto.y,
       generation,
-      placedByHand: person.position !== null,
+      placedByHand: placed !== null,
     };
   });
+
+  attachChildrenToPlacedParents(nodes, families, metrics);
 
   const width = Math.max(...nodes.map((n) => n.x)) + metrics.nodeWidth / 2;
   const height = Math.max(...nodes.map((n) => n.y)) + metrics.nodeHeight;
@@ -265,6 +282,57 @@ export function computeLayout(
     width,
     height,
   };
+}
+
+/**
+ * 手で置いた親の下に、自動配置の子をぶら下げ直す。
+ *
+ * 自動配置の座標は「全員を自動で並べたら」の位置なので、親を手で動かしていると
+ * 子だけが元の場所に取り残される。新しく子を追加したときに、親から遠く離れた場所に
+ * 出てきてしまうのがこれ。親の位置を基準に、子の並び（左右の順と間隔）は保ったまま
+ * 真下へ寄せる。
+ *
+ * 上の世代から順に処理し、寄せた子はその子（孫）を寄せるときの基準にもなる。
+ * 親を動かすと、その下の家系がまとまってついてくる。
+ * 手で置いた子は動かさない。置いた本人の意図を上書きしないため。
+ */
+function attachChildrenToPlacedParents(
+  nodes: LayoutNode[],
+  families: FamilyUnit[],
+  metrics: LayoutMetrics,
+): void {
+  const byId = new Map(nodes.map((node) => [node.person.id, node]));
+  const present = (ids: string[]) =>
+    ids.map((id) => byId.get(id)).filter((node): node is LayoutNode => Boolean(node));
+
+  const generationOf = (family: FamilyUnit) => {
+    const levels = present(family.parentIds).map((parent) => parent.generation);
+    return levels.length > 0 ? Math.min(...levels) : 0;
+  };
+
+  // 寄せ直した子。孫を寄せるときの基準になる（手で置いた人と同じ扱い）。
+  const moved = new Set<string>();
+
+  for (const family of [...families].sort((a, b) => generationOf(a) - generationOf(b))) {
+    const parents = present(family.parentIds);
+    if (!parents.some((parent) => parent.placedByHand || moved.has(parent.person.id))) continue;
+
+    const children = present(family.childIds).filter((child) => !child.placedByHand);
+    if (children.length === 0) continue;
+
+    const parentXs = parents.map((parent) => parent.x);
+    const childXs = children.map((child) => child.x);
+    const dx =
+      (Math.min(...parentXs) + Math.max(...parentXs)) / 2 -
+      (Math.min(...childXs) + Math.max(...childXs)) / 2;
+    const y = Math.max(...parents.map((parent) => parent.y)) + metrics.nodeHeight + metrics.vGap;
+
+    for (const child of children) {
+      child.x += dx;
+      child.y = y;
+      moved.add(child.person.id);
+    }
+  }
 }
 
 /** 夫婦を並べる順。男性を左、女性を右に置き、それ以外は間に挟む。 */

@@ -68,6 +68,11 @@ interface TreeCanvasProps {
   canReorder?: boolean;
   /** ドラッグで置いた位置の確定。格子に合わせた座標が渡る。 */
   onMovePerson?: (personId: string, position: CardPosition) => void;
+  /**
+   * 手で置いた位置を無視して自動配置で描く。絞り込み表示のときに使う。
+   * 一部だけを描くと手動の座標が意味を持たないため、カードの移動もできなくする。
+   */
+  ignoreManualPositions?: boolean;
 }
 
 export function TreeCanvas({
@@ -78,8 +83,13 @@ export function TreeCanvas({
   onSelectPerson,
   canReorder = false,
   onMovePerson,
+  ignoreManualPositions = false,
 }: TreeCanvasProps) {
-  const layout = useMemo(() => computeLayout(graph, metrics), [graph, metrics]);
+  const layout = useMemo(
+    () => computeLayout(graph, metrics, { ignoreManualPositions }),
+    [graph, metrics, ignoreManualPositions],
+  );
+  const draggable = canReorder && !ignoreManualPositions;
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [drag, setDrag] = useState<CardDrag | null>(null);
@@ -112,7 +122,7 @@ export function TreeCanvas({
   );
 
   function startDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
-    if (!canReorder) return;
+    if (!draggable) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
     setDrag({
@@ -213,7 +223,7 @@ export function TreeCanvas({
               settings={settings}
               selected={node.person.id === selectedPersonId}
               birthOrder={birthOrderLabel(graph, node.person)}
-              draggable={canReorder}
+              draggable={draggable}
               dragOffset={
                 drag?.moved && drag.personId === node.person.id
                   ? { x: drag.dx / viewport.scale, y: drag.dy / viewport.scale }

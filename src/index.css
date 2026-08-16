@@ -538,6 +538,12 @@ textarea {
   font-size: 0.875rem;
 }
 
+/* 注意書きは操作列の下に単独で回り込ませる */
+.focus__note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .focus__label {
   font-size: 0.8rem;
   color: var(--muted);
