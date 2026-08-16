@@ -26,6 +26,17 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix functions
 
+      # 壊れたものを自動で本番へ出さないための関門。
+      # ルールのテストは Java が要るため ci.yml に任せ、ここでは走らせない。
+      - name: Typecheck
+        run: npm run typecheck && npm run typecheck --prefix functions
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
       - name: Build
         env:
           # Firebase のクライアント設定は公開前提の値だが、プロジェクトごとに異なるため
