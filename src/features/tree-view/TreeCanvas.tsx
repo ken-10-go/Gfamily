@@ -7,10 +7,15 @@ import {
   type LayoutMetrics,
   type LayoutNode,
 } from '@/features/tree-view/layout';
+import { placeholderTarget, withSpousePlaceholders } from '@/features/tree-view/placeholders';
 import { usePanZoom } from '@/features/tree-view/usePanZoom';
-import { DEFAULT_VIEW_SETTINGS, type ViewSettings } from '@/features/tree-view/useViewSettings';
-import { ageLabel } from '@/lib/japanese-date';
-import { birthOrderLabel } from '@/lib/relations';
+import {
+  DEFAULT_VIEW_SETTINGS,
+  type CardField,
+  type ViewSettings,
+} from '@/features/tree-view/useViewSettings';
+import { ageLabel, formatWithEra } from '@/lib/japanese-date';
+import { birthOrderLabel, lineageOf } from '@/lib/relations';
 import {
   displayName,
   displayNameKana,
@@ -85,11 +90,22 @@ export function TreeCanvas({
   onMovePerson,
   ignoreManualPositions = false,
 }: TreeCanvasProps) {
+  // 空の配偶者カードはレイアウト計算の前に足す。枠のぶんの場所が確保され、実在のカードと重ならない
+  const drawn = useMemo(
+    () => (settings.showSpousePlaceholder && canReorder ? withSpousePlaceholders(graph) : graph),
+    [graph, settings.showSpousePlaceholder, canReorder],
+  );
   const layout = useMemo(
-    () => computeLayout(graph, metrics, { ignoreManualPositions }),
-    [graph, metrics, ignoreManualPositions],
+    () => computeLayout(drawn, metrics, { ignoreManualPositions }),
+    [drawn, metrics, ignoreManualPositions],
   );
   const draggable = canReorder && !ignoreManualPositions;
+
+  // 選んだ人物からさかのぼる筋。強調表示に使う
+  const lineage = useMemo(
+    () => (settings.highlightLineage ? lineageOf(graph, selectedPersonId) : new Set<string>()),
+    [graph, selectedPersonId, settings.highlightLineage],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [drag, setDrag] = useState<CardDrag | null>(null);
@@ -122,7 +138,7 @@ export function TreeCanvas({
   );
 
   function startDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
-    if (!draggable) return;
+    if (!draggable || placeholderTarget(personId)) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
     setDrag({
@@ -211,6 +227,7 @@ export function TreeCanvas({
                 parents={family.parentIds.map((id) => positionById.get(id))}
                 children={family.childIds.map((id) => positionById.get(id))}
                 metrics={metrics}
+                lineage={lineage}
               />
             ))}
           </g>
@@ -222,7 +239,9 @@ export function TreeCanvas({
               metrics={metrics}
               settings={settings}
               selected={node.person.id === selectedPersonId}
-              birthOrder={birthOrderLabel(graph, node.person)}
+              inLineage={lineage.has(node.person.id)}
+              birthOrder={placeholderTarget(node.person.id) ? null : birthOrderLabel(graph, node.person)}
+              placeholder={placeholderTarget(node.person.id) !== null}
               draggable={draggable}
               dragOffset={
                 drag?.moved && drag.personId === node.person.id
@@ -274,9 +293,30 @@ function nameLines(person: Person, settings: ViewSettings): string[] {
   return settings.nameLines === 2 ? lines : [lines.join(' ')];
 }
 
-/** カードに出す補足行（続柄・生没年）。年齢は名前の横に出すのでここには入れない。 */
-function metaLine(person: Person, birthOrder: string | null): string {
-  return [birthOrder, lifespanLabel(person)].filter(Boolean).join('　');
+/**
+ * 氏名の下に出す1行ぶんの文字。空文字ならその行は描かない。
+ *
+ * 年齢は氏名の横に添えるので、ここには含めない。
+ */
+function fieldText(field: CardField, person: Person, birthOrder: string | null): string {
+  switch (field) {
+    case 'kana':
+      return displayNameKana(person);
+    case 'meta':
+      return [birthOrder, lifespanLabel(person)].filter(Boolean).join('　');
+    case 'birthOrder':
+      return birthOrder ?? '';
+    case 'lifespan':
+      return lifespanLabel(person);
+    case 'birthDate':
+      return formatWithEra(person.birthDate);
+    case 'deathDate':
+      return person.isLiving ? '' : formatWithEra(person.deathDate);
+    case 'birthPlace':
+      return person.birthPlace ?? '';
+    case 'note':
+      return person.note?.split('\n')[0] ?? '';
+  }
 }
 
 function PersonCard({
@@ -284,6 +324,8 @@ function PersonCard({
   metrics,
   settings,
   selected,
+  inLineage,
+  placeholder,
   birthOrder,
   draggable,
   dragOffset,
@@ -296,6 +338,10 @@ function PersonCard({
   metrics: LayoutMetrics;
   settings: ViewSettings;
   selected: boolean;
+  /** 選んだ人物からさかのぼる直系の筋にいるか */
+  inLineage: boolean;
+  /** 実在しない「＋ 配偶者」の枠か */
+  placeholder: boolean;
   birthOrder: string | null;
   draggable: boolean;
   /** ドラッグ中の見た目の追従量（レイアウト座標）。動かしていなければ null。 */
@@ -310,23 +356,28 @@ function PersonCard({
   const top = node.y + (dragOffset?.y ?? 0);
 
   const names = nameLines(person, settings);
-  const kana = settings.showKana ? displayNameKana(person) : '';
-  const meta = metaLine(person, birthOrder);
-  const note = settings.showNote ? (person.note?.split('\n')[0] ?? '') : '';
-
   // 年齢は名前のすぐ横に、細く小さく添える
   const age = settings.showAge ? ageLabel(person) : '';
 
+  // ふりがなだけは氏名の上に置く。読みは名前の一部という見え方にする。
+  const above = settings.cardFields.includes('kana') ? displayNameKana(person) : '';
+  const below = settings.cardFields
+    .filter((field) => field !== 'kana')
+    .map((field) => fieldText(field, person, birthOrder))
+    .filter(Boolean);
+
   const rows: { text: string; className: string; age?: string }[] = [
-    ...(kana ? [{ text: kana, className: 'person-card__kana' }] : []),
+    ...(above ? [{ text: above, className: 'person-card__kana' }] : []),
     ...names.map((text, index) => ({
       text,
       className: 'person-card__name',
       age: index === names.length - 1 ? age : undefined,
     })),
-    ...(meta ? [{ text: meta, className: 'person-card__meta' }] : []),
-    ...(note ? [{ text: note, className: 'person-card__meta' }] : []),
+    ...below.map((text) => ({ text, className: 'person-card__meta' })),
   ];
+
+  // 読み上げでは、カードに出している補足行をそのまま読ませる
+  const ariaLabel = [displayName(person), ...below].join(' ');
 
   return (
     <g
@@ -335,6 +386,8 @@ function PersonCard({
         'person-card',
         `person-card--${person.gender}`,
         selected ? 'person-card--selected' : '',
+        inLineage ? 'person-card--lineage' : '',
+        placeholder ? 'person-card--placeholder' : '',
         person.isLiving ? '' : 'person-card--deceased',
         draggable ? 'person-card--draggable' : '',
         dragOffset ? 'person-card--dragging' : '',
@@ -355,7 +408,7 @@ function PersonCard({
       }}
       tabIndex={0}
       role="button"
-      aria-label={`${displayName(person)}${meta ? ` ${meta}` : ''}`}
+      aria-label={ariaLabel}
     >
       <rect
         width={metrics.nodeWidth}
@@ -460,10 +513,13 @@ function FamilyLines({
   parents,
   children,
   metrics,
+  lineage,
 }: {
   parents: (LayoutNode | undefined)[];
   children: (LayoutNode | undefined)[];
   metrics: LayoutMetrics;
+  /** 直系の筋にいる人物。親と子の両方が入っている線だけを強調する */
+  lineage: Set<string>;
 }) {
   const presentParents = parents.filter((p): p is LayoutNode => Boolean(p));
   const presentChildren = children.filter((c): c is LayoutNode => Boolean(c));
@@ -480,9 +536,21 @@ function FamilyLines({
   const busLeft = Math.min(...childXs, parentX);
   const busRight = Math.max(...childXs, parentX);
 
+  // 親と子の両方が筋に入っているときだけ、その親子の線をたどれるように強調する
+  const parentInLineage = presentParents.some((parent) => lineage.has(parent.person.id));
+  const lineageChildren = presentChildren.filter((child) => lineage.has(child.person.id));
+  const highlighted = parentInLineage && lineageChildren.length > 0;
+  const linkClass = (on: boolean) => (on ? 'link link--lineage' : 'link');
+
   return (
     <g className="link-group">
-      <line x1={parentX} y1={parentBottom} x2={parentX} y2={busY} className="link" />
+      <line
+        x1={parentX}
+        y1={parentBottom}
+        x2={parentX}
+        y2={busY}
+        className={linkClass(highlighted)}
+      />
       {busRight - busLeft > 1 && (
         <line x1={busLeft} y1={busY} x2={busRight} y2={busY} className="link" />
       )}
@@ -493,7 +561,7 @@ function FamilyLines({
           y1={busY}
           x2={child.x}
           y2={child.y}
-          className="link"
+          className={linkClass(highlighted && lineage.has(child.person.id))}
         />
       ))}
     </g>

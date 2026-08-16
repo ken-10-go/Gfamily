@@ -9,6 +9,7 @@ import { PersonForm } from '@/features/persons/PersonForm';
 import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { DEFAULT_FOCUS_OPTIONS, focusGraph } from '@/features/tree-view/focus';
+import { placeholderTarget } from '@/features/tree-view/placeholders';
 import { FocusBar, type FocusState } from '@/features/tree-view/FocusBar';
 import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
 import { cardMetrics, useViewSettings } from '@/features/tree-view/useViewSettings';
@@ -135,6 +136,14 @@ export function TreeDetailPage() {
   }
 
   function openMenu(personId: string, anchor: CardAnchor) {
+    // 「＋ 配偶者」の空カードは実在しないので、そのまま配偶者の追加を開く
+    const placeholderFor = placeholderTarget(personId);
+    if (placeholderFor) {
+      setSelectedId(placeholderFor);
+      if (canEdit) setDialog({ kind: 'add-relative', personId: placeholderFor, relation: 'spouse' });
+      return;
+    }
+
     setSelectedId(personId);
     setMenu({ personId, anchor });
   }

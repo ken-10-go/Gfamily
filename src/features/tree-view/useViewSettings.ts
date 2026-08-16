@@ -6,13 +6,69 @@ import { useCallback, useEffect, useState } from 'react';
  * 表示上の好みであってデータではないので Firestore には保存せず、
  * 端末の localStorage にツリーごとに持つ。書き込み権限もルールの変更も要らない。
  */
+/**
+ * カードの氏名行より下に出す項目。設定した順に上から並ぶ。
+ * 氏名は必ず出すので、この一覧には含めない。
+ */
+export type CardField =
+  | 'kana'
+  | 'meta'
+  | 'birthOrder'
+  | 'lifespan'
+  | 'birthDate'
+  | 'deathDate'
+  | 'birthPlace'
+  | 'note';
+
+export const CARD_FIELD_LABELS: Record<CardField, string> = {
+  kana: 'ふりがな',
+  meta: '続柄・生没年',
+  birthOrder: '続柄',
+  lifespan: '生没年',
+  birthDate: '生年月日（和暦併記）',
+  deathDate: '没年月日（和暦併記）',
+  birthPlace: '出生地',
+  note: 'メモの1行目',
+};
+
+/** 画面の設定に出す順番。カード上もこの順で並ぶ。 */
+export const CARD_FIELD_ORDER: CardField[] = [
+  'kana',
+  'meta',
+  'birthOrder',
+  'lifespan',
+  'birthDate',
+  'deathDate',
+  'birthPlace',
+  'note',
+];
+
+/**
+ * カードに出せる行数の上限。
+ * これ以上増やすとカードが縦に伸びて、画面に入る世代が減ってしまう。
+ */
+export const MAX_CARD_FIELDS = 6;
+
+/**
+ * 配色のテーマ。auto は今までどおり OS の設定（ダークモード）に従う。
+ * 既定は和風モダン。
+ */
+export type ThemeName = 'washi' | 'monotone' | 'pastel' | 'auto';
+
+export const THEME_LABELS: Record<ThemeName, string> = {
+  washi: '和風モダン',
+  monotone: 'モノトーン',
+  pastel: 'パステル',
+  auto: '端末の設定に従う',
+};
+
 export interface ViewSettings {
-  /** 年齢（存命なら満年齢、没後は享年）をカードに出す */
+  /** 配色のテーマ */
+  theme: ThemeName;
+  /** 年齢（存命なら満年齢、没後は享年）を氏名の横に出す */
   showAge: boolean;
-  /** メモの1行目をカードに出す */
-  showNote: boolean;
-  /** ふりがなをカードに出す */
-  showKana: boolean;
+  /** 氏名の下に出す項目。上から順に並ぶ */
+  cardFields: CardField[];
   /** 姓と名の並び。given-first は「太郎 山田」 */
   nameOrder: 'family-first' | 'given-first';
   /** 氏名を姓と名で改行する */
@@ -21,18 +77,24 @@ export interface ViewSettings {
   uiSize: 'small' | 'medium' | 'large';
   /** 縦書きにする */
   vertical: boolean;
+  /** 選んだ人物とその直系尊属を強調する */
+  highlightLineage: boolean;
+  /** 配偶者が未登録の人に「＋ 配偶者」の空カードを出す */
+  showSpousePlaceholder: boolean;
   /** 編集操作を止める。閲覧中の誤操作を防ぐ */
   locked: boolean;
 }
 
 export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
+  theme: 'washi',
   showAge: true,
-  showNote: false,
-  showKana: true,
+  cardFields: ['kana', 'meta'],
   nameOrder: 'family-first',
   nameLines: 1,
   uiSize: 'medium',
   vertical: false,
+  highlightLineage: true,
+  showSpousePlaceholder: false,
   locked: false,
 };
 
@@ -61,9 +123,8 @@ const SIZE_SCALE: Record<ViewSettings['uiSize'], number> = {
 export function cardMetrics(settings: ViewSettings): CardMetrics {
   const scale = SIZE_SCALE[settings.uiSize];
 
-  // 氏名の行 + 続柄や生没年の行が基本。ふりがなとメモは設定で増える。
-  const lines =
-    (settings.nameLines === 2 ? 2 : 1) + 1 + (settings.showKana ? 1 : 0) + (settings.showNote ? 1 : 0);
+  // 氏名の行に、下に出す項目の数を足す
+  const lines = (settings.nameLines === 2 ? 2 : 1) + settings.cardFields.length;
 
   if (settings.vertical) {
     return {
@@ -85,12 +146,42 @@ export function cardMetrics(settings: ViewSettings): CardMetrics {
 
 const storageKey = (treeId: string) => `familytree:view:${treeId}`;
 
+/** 以前の設定の形。cardFields に置き換わった項目を読み替えるために持つ。 */
+interface LegacySettings {
+  showKana?: boolean;
+  showNote?: boolean;
+}
+
+/**
+ * 保存済みの設定を今の形に直す。
+ *
+ * ふりがな・メモの表示は個別の真偽値だったものを cardFields に統合した。
+ * 端末に残っている設定をそのまま捨てると見た目が変わってしまうので、読み替える。
+ */
+export function migrateSettings(stored: Partial<ViewSettings> & LegacySettings): ViewSettings {
+  const merged = { ...DEFAULT_VIEW_SETTINGS, ...stored };
+
+  if (!Array.isArray(stored.cardFields)) {
+    const fields: CardField[] = [];
+    if (stored.showKana ?? DEFAULT_VIEW_SETTINGS.cardFields.includes('kana')) fields.push('kana');
+    fields.push('meta');
+    if (stored.showNote) fields.push('note');
+    merged.cardFields = fields;
+  }
+
+  // 知らない項目や上限超えは捨てる（別の版で保存された設定が混ざっても壊れないように）
+  merged.cardFields = merged.cardFields
+    .filter((field) => CARD_FIELD_ORDER.includes(field))
+    .slice(0, MAX_CARD_FIELDS);
+
+  return merged;
+}
+
 function read(treeId: string): ViewSettings {
   try {
     const stored = window.localStorage.getItem(storageKey(treeId));
     if (!stored) return DEFAULT_VIEW_SETTINGS;
-    // 設定項目が増えても壊れないよう、既定値に上書きする形で読む
-    return { ...DEFAULT_VIEW_SETTINGS, ...(JSON.parse(stored) as Partial<ViewSettings>) };
+    return migrateSettings(JSON.parse(stored) as Partial<ViewSettings> & LegacySettings);
   } catch {
     return DEFAULT_VIEW_SETTINGS;
   }
@@ -103,6 +194,21 @@ export function useViewSettings(treeId: string) {
   useEffect(() => {
     setSettings(read(treeId));
   }, [treeId]);
+
+  // テーマは CSS 変数の束なので、根の要素に印を付けて切り替える。
+  // 家系図の画面を離れたら元に戻し、一覧などには持ち込まない。
+  useEffect(() => {
+    const root = document.documentElement;
+    if (settings.theme === 'auto') {
+      delete root.dataset.theme;
+    } else {
+      root.dataset.theme = settings.theme;
+    }
+
+    return () => {
+      delete root.dataset.theme;
+    };
+  }, [settings.theme]);
 
   const update = useCallback(
     <K extends keyof ViewSettings>(key: K, value: ViewSettings[K]) => {

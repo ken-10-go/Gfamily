@@ -6,6 +6,7 @@ import {
   compareForDisplay,
   connectionProblem,
   deriveBirthOrder,
+  lineageOf,
   siblingsOf,
   spousesOf,
   wouldCreateCycle,
@@ -177,6 +178,32 @@ describe('siblingsOf', () => {
     );
 
     expect(siblingsOf(g, '兄').map((p) => p.id)).toEqual(['兄', '弟']);
+  });
+});
+
+describe('lineageOf', () => {
+  const grandfather = person('祖父', 'male', '1930-01-01');
+  const father = person('父', 'male', '1960-01-01');
+  const mother = person('母', 'female', '1962-01-01');
+  const self = person('本人', 'male', '1990-01-01');
+  const sister = person('妹', 'female', '1993-01-01');
+
+  const g = graph(
+    [grandfather, father, mother, self, sister],
+    [link('祖父', '父'), link('父', '本人'), link('母', '本人'), link('父', '妹')],
+  );
+
+  it('本人と直系尊属をすべて返す', () => {
+    expect([...lineageOf(g, '本人')].sort()).toEqual(['本人', '父', '母', '祖父'].sort());
+  });
+
+  it('きょうだいや子孫は含めない', () => {
+    expect(lineageOf(g, '本人').has('妹')).toBe(false);
+    expect(lineageOf(g, '祖父')).toEqual(new Set(['祖父']));
+  });
+
+  it('人物を選んでいなければ空', () => {
+    expect(lineageOf(g, null).size).toBe(0);
   });
 });
 

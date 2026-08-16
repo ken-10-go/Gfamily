@@ -12,14 +12,22 @@
   --female: #fbeef2;
   --neutral: #f2f2f0;
   --deceased: #9aa0aa;
+  /* 故人カードの背景。性別の色より優先して塗る */
+  --deceased-bg: #f5f5f5;
+  /* 直系をたどる線と枠の色 */
+  --lineage: #c5a059;
 
   color-scheme: light dark;
   font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
   line-height: 1.6;
 }
 
+/*
+ * ダークは「配色を端末の設定に任せる」ときだけ効かせる。
+ * テーマを選んでいる間は data-theme が付くので、そちらが優先される。
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #16181d;
     --surface: #1e2128;
     --border: #333944;
@@ -33,7 +41,74 @@
     --female: #3a2a33;
     --neutral: #2a2d34;
     --deceased: #6c7482;
+    --deceased-bg: #23262c;
+    --lineage: #c5a059;
   }
+}
+
+/* --- 配色のテーマ ---------------------------------------------------------
+ * 仕様書（UI/UX Design Guide）の3テーマ。既定は和風モダン。
+ * カードの色は「故人 > 性別」の順で上書きされる（故人であることを優先して示す）。
+ * ------------------------------------------------------------------------ */
+
+/* 和風モダン：折本や和装本の生成り色に、金煤竹の枠線 */
+:root[data-theme='washi'] {
+  --bg: #faf9f6;
+  --surface: #f3f1ea;
+  --border: #bdc3c7;
+  --fg: #2c3e50;
+  --muted: #7f8c8d;
+  --accent: #c5a059;
+  --accent-fg: #ffffff;
+  --danger: #a8352c;
+  --link: #1f5fa8;
+  --male: #edf1f5;
+  --female: #f8eef0;
+  --neutral: #faf9f6;
+  --deceased: #9aa0aa;
+  --deceased-bg: #f5f5f5;
+  --lineage: #c5a059;
+  color-scheme: light;
+}
+
+/* モノトーン：相続手続きなど、実務で使うとき用 */
+:root[data-theme='monotone'] {
+  --bg: #ffffff;
+  --surface: #f5f5f5;
+  --border: #cccccc;
+  --fg: #333333;
+  --muted: #6b6b6b;
+  --accent: #333333;
+  --accent-fg: #ffffff;
+  --danger: #8c2f28;
+  --link: #1a4f8a;
+  --male: #f5f5f5;
+  --female: #ececec;
+  --neutral: #fafafa;
+  --deceased: #9a9a9a;
+  --deceased-bg: #e8e8e8;
+  --lineage: #333333;
+  color-scheme: light;
+}
+
+/* パステル：子どもの成長記録など、明るく見せたいとき用 */
+:root[data-theme='pastel'] {
+  --bg: #fffdfb;
+  --surface: #fdf6f7;
+  --border: #e3d9dc;
+  --fg: #3b3a42;
+  --muted: #8a8791;
+  --accent: #83ccd2;
+  --accent-fg: #14343a;
+  --danger: #d1697a;
+  --link: #4a90a4;
+  --male: #ddeff2;
+  --female: #ffe3ea;
+  --neutral: #fdfbf7;
+  --deceased: #a8a4ae;
+  --deceased-bg: #f0eef2;
+  --lineage: #e8a0b4;
+  color-scheme: light;
 }
 
 * {
@@ -523,6 +598,16 @@ textarea {
 }
 
 /* 絞り込み（フォーカスモード）の操作列。狭い画面では折り返す。 */
+.settings__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
 .tree-page__focus {
   display: flex;
   flex-wrap: wrap;
@@ -772,13 +857,37 @@ textarea {
   font-weight: 400;
 }
 
-/* 故人は枠を灰色にして、ひと目で分かるようにする */
+/* 故人は背景も枠も灰色に落として、ひと目で分かるようにする */
 .person-card--deceased .person-card__box {
+  fill: var(--deceased-bg);
   stroke: var(--deceased);
 }
 
 .person-card--deceased .person-card__name {
   fill: var(--muted);
+}
+
+/* 実在しない「＋ 配偶者」の枠。点線にして、登録済みのカードと見分ける */
+.person-card--placeholder .person-card__box {
+  fill: none;
+  stroke: var(--border);
+  stroke-dasharray: 6 4;
+}
+
+.person-card--placeholder .person-card__name {
+  fill: var(--muted);
+  font-weight: 400;
+}
+
+/* 選んだ人からさかのぼる筋。枠と線を金色の太線でつなぐ */
+.person-card--lineage .person-card__box {
+  stroke: var(--lineage);
+  stroke-width: 3;
+}
+
+.link--lineage {
+  stroke: var(--lineage);
+  stroke-width: 3;
 }
 
 /* ドラッグ中だけ格子を出して、置きたい位置を狙いやすくする */

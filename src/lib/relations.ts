@@ -155,6 +155,21 @@ export function ancestorsOf(graph: TreeGraph, personId: string): Set<string> {
 }
 
 /**
+ * 選んだ人物と、その直系尊属をまとめて返す。
+ *
+ * 家系図の上で「自分はどの筋から来たのか」を一目で追えるようにするための強調表示に使う。
+ * 配偶者やきょうだいは含めない。含めると、たどってきた筋が太線に埋もれてしまう。
+ * 人物が指定されていなければ空集合を返す（強調しない）。
+ */
+export function lineageOf(graph: TreeGraph, personId: string | null): Set<string> {
+  if (!personId) return new Set();
+
+  const lineage = ancestorsOf(graph, personId);
+  lineage.add(personId);
+  return lineage;
+}
+
+/**
  * 親子関係をつないだときに循環ができてしまうか。
  *
  * 自分の先祖を自分の子にすると、世代が決まらず家系図として破綻する。

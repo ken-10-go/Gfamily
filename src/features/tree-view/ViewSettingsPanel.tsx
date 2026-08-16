@@ -1,4 +1,12 @@
-import type { ViewSettings } from '@/features/tree-view/useViewSettings';
+import {
+  CARD_FIELD_LABELS,
+  CARD_FIELD_ORDER,
+  MAX_CARD_FIELDS,
+  THEME_LABELS,
+  type CardField,
+  type ThemeName,
+  type ViewSettings,
+} from '@/features/tree-view/useViewSettings';
 
 interface ViewSettingsPanelProps {
   settings: ViewSettings;
@@ -7,22 +15,67 @@ interface ViewSettingsPanelProps {
 
 /** 家系図の見た目を切り替える。設定はこの端末にツリーごとに保存される。 */
 export function ViewSettingsPanel({ settings, onChange }: ViewSettingsPanelProps) {
+  /** 表示項目の入れ替え。並びは決まった順にそろえるので、選ぶ・外すだけでよい。 */
+  function toggleField(field: CardField, on: boolean) {
+    const next = CARD_FIELD_ORDER.filter((candidate) =>
+      candidate === field ? on : settings.cardFields.includes(candidate),
+    );
+    onChange('cardFields', next.slice(0, MAX_CARD_FIELDS));
+  }
+
+  const full = settings.cardFields.length >= MAX_CARD_FIELDS;
+
   return (
     <div className="settings">
+      <label className="settings__row">
+        <span>配色</span>
+        <select
+          value={settings.theme}
+          onChange={(event) => onChange('theme', event.target.value as ThemeName)}
+        >
+          {Object.entries(THEME_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <fieldset className="settings__group">
+        <legend className="field__label">カードに出す項目（最大{MAX_CARD_FIELDS}行）</legend>
+        <p className="note">氏名は常に表示します。ここで選んだ項目が、この順で下に並びます。</p>
+
+        {CARD_FIELD_ORDER.map((field) => {
+          const checked = settings.cardFields.includes(field);
+          return (
+            <label key={field} className="settings__row">
+              <span>{CARD_FIELD_LABELS[field]}</span>
+              <input
+                type="checkbox"
+                checked={checked}
+                // 上限に達したら、外す操作だけを受け付ける
+                disabled={!checked && full}
+                onChange={(event) => toggleField(field, event.target.checked)}
+              />
+            </label>
+          );
+        })}
+      </fieldset>
+
       <Toggle
-        label="年齢を表示"
+        label="年齢を氏名の横に表示"
         checked={settings.showAge}
         onChange={(value) => onChange('showAge', value)}
       />
       <Toggle
-        label="ふりがなを表示"
-        checked={settings.showKana}
-        onChange={(value) => onChange('showKana', value)}
+        label="選んだ人の直系をたどって強調"
+        checked={settings.highlightLineage}
+        onChange={(value) => onChange('highlightLineage', value)}
       />
       <Toggle
-        label="メモの1行目を表示"
-        checked={settings.showNote}
-        onChange={(value) => onChange('showNote', value)}
+        label="配偶者の空カードを出す（タップで追加）"
+        checked={settings.showSpousePlaceholder}
+        onChange={(value) => onChange('showSpousePlaceholder', value)}
       />
       <Toggle
         label="縦書きにする"
