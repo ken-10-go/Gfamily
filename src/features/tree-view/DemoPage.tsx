@@ -103,12 +103,12 @@ function person(
   };
 }
 
-function pc(parentId: string, childId: string): ParentChild {
+function pc(parentId: string, childId: string, kind: ParentChild['kind'] = 'biological'): ParentChild {
   return {
     id: `${parentId}-${childId}`,
     parentId: parentId,
     childId: childId,
-    kind: 'biological',
+    kind,
     deletedAt: null,
   };
 }
@@ -178,8 +178,9 @@ const DEMO_GRAPH: TreeGraph = {
     pc('m', 'c1'),
     pc('f', 'c2'),
     pc('m', 'c2'),
-    pc('f', 'c3'),
-    pc('m', 'c3'),
+    // 線の描き分け（実線と破線）を確かめられるよう、1人は養子にしておく
+    pc('f', 'c3', 'adoptive'),
+    pc('m', 'c3', 'adoptive'),
     pc('u', 'cousin'),
     pc('ua', 'cousin'),
     pc('c1', 'gc'),

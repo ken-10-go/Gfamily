@@ -47,6 +47,19 @@ describe('AddRelativeForm', () => {
     expect(field('せい（ふりがな）').value).toBe('');
   });
 
+  it('親子の追加では、実子か縁組かを選べる', () => {
+    renderFor(person('健一'), 'child');
+    expect((screen.getByLabelText('親子の種別') as HTMLSelectElement).value).toBe('biological');
+
+    renderFor(person('健一'), 'parent');
+    expect(screen.getByLabelText('この人から見た続柄（実親・養親など）')).toBeTruthy();
+  });
+
+  it('配偶者の追加では親子の種別を聞かない', () => {
+    renderFor(person('健一'), 'spouse');
+    expect(screen.queryByLabelText('親子の種別')).toBeNull();
+  });
+
   it('配偶者はもう一方と逆の性別を初期選択にする', () => {
     renderFor(person('健一', { gender: 'male' }), 'spouse');
 

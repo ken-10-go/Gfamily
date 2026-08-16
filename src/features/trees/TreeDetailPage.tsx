@@ -24,6 +24,7 @@ import {
   lifespanLabel,
   ROLE_LABELS,
   type CardPosition,
+  type ParentKind,
   type PersonInput,
   type Tree,
   type TreeGraph,
@@ -266,17 +267,18 @@ export function TreeDetailPage() {
     relation: RelativeKind,
     input: PersonInput,
     otherParentId: string | null,
+    kind: ParentKind,
   ) {
     const created = await api.createPerson(treeId, input);
 
     if (relation === 'parent') {
-      await api.addParentChild(treeId, created.id, personId);
+      await api.addParentChild(treeId, created.id, personId, kind);
     } else if (relation === 'spouse') {
       await api.addUnion(treeId, personId, created.id);
     } else {
-      await api.addParentChild(treeId, personId, created.id);
+      await api.addParentChild(treeId, personId, created.id, kind);
       if (otherParentId) {
-        await api.addParentChild(treeId, otherParentId, created.id);
+        await api.addParentChild(treeId, otherParentId, created.id, kind);
       }
     }
 
@@ -295,7 +297,7 @@ export function TreeDetailPage() {
     for (const input of [draft.father, draft.mother]) {
       if (!input) continue;
       const created = await api.createPerson(treeId, input);
-      await api.addParentChild(treeId, created.id, personId);
+      await api.addParentChild(treeId, created.id, personId, draft.kind);
       createdIds.push(created.id);
     }
 
@@ -309,13 +311,18 @@ export function TreeDetailPage() {
   }
 
   /** すでに登録されている人物とつなぐ。 */
-  async function handleConnect(personId: string, relation: ConnectionKind, otherId: string) {
+  async function handleConnect(
+    personId: string,
+    relation: ConnectionKind,
+    otherId: string,
+    kind: ParentKind,
+  ) {
     if (relation === 'spouse') {
       await api.addUnion(treeId, personId, otherId);
     } else if (relation === 'parent') {
-      await api.addParentChild(treeId, otherId, personId);
+      await api.addParentChild(treeId, otherId, personId, kind);
     } else {
-      await api.addParentChild(treeId, personId, otherId);
+      await api.addParentChild(treeId, personId, otherId, kind);
     }
 
     await reload();
@@ -612,9 +619,15 @@ function DialogContent({
     relation: RelativeKind,
     input: PersonInput,
     otherParentId: string | null,
+    kind: ParentKind,
   ) => Promise<void>;
   onAddParents: (personId: string, draft: ParentsDraft) => Promise<void>;
-  onConnect: (personId: string, relation: ConnectionKind, otherId: string) => Promise<void>;
+  onConnect: (
+    personId: string,
+    relation: ConnectionKind,
+    otherId: string,
+    kind: ParentKind,
+  ) => Promise<void>;
 }) {
   const person =
     'personId' in dialog ? (graph.persons.find((p) => p.id === dialog.personId) ?? null) : null;
@@ -685,8 +698,8 @@ function DialogContent({
           graph={graph}
           person={person}
           relation={dialog.relation}
-          onSubmit={(input, otherParentId) =>
-            onAddRelative(person.id, dialog.relation, input, otherParentId)
+          onSubmit={(input, otherParentId, kind) =>
+            onAddRelative(person.id, dialog.relation, input, otherParentId, kind)
           }
           onCancel={onClose}
         />
@@ -716,7 +729,7 @@ function DialogContent({
         graph={graph}
         personId={person.id}
         kind={dialog.relation}
-        onPick={(otherId) => onConnect(person.id, dialog.relation, otherId)}
+        onPick={(otherId, kind) => onConnect(person.id, dialog.relation, otherId, kind)}
         onCancel={onClose}
       />
     </PersonDialog>

@@ -1,14 +1,21 @@
 import { useMemo, useState } from 'react';
 
+import { ParentKindSelect } from '@/features/persons/ParentKindSelect';
 import { connectionProblem, type ConnectionKind } from '@/lib/relations';
-import { displayName, displayNameKana, lifespanLabel, type TreeGraph } from '@/types/models';
+import {
+  displayName,
+  displayNameKana,
+  lifespanLabel,
+  type ParentKind,
+  type TreeGraph,
+} from '@/types/models';
 
 interface PersonPickerProps {
   graph: TreeGraph;
   /** つなぐ相手を探す起点になる人物。 */
   personId: string;
   kind: ConnectionKind;
-  onPick: (otherId: string) => Promise<void>;
+  onPick: (otherId: string, parentKind: ParentKind) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -29,6 +36,7 @@ export function PersonPicker({ graph, personId, kind, onPick, onCancel }: Person
   const [keyword, setKeyword] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [parentKind, setParentKind] = useState<ParentKind>('biological');
 
   const candidates = useMemo(() => {
     const needle = keyword.trim().toLowerCase();
@@ -55,7 +63,7 @@ export function PersonPicker({ graph, personId, kind, onPick, onCancel }: Person
     setError(null);
     setBusyId(otherId);
     try {
-      await onPick(otherId);
+      await onPick(otherId, parentKind);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '接続に失敗しました');
     } finally {
@@ -75,6 +83,9 @@ export function PersonPicker({ graph, personId, kind, onPick, onCancel }: Person
           autoFocus
         />
       </label>
+
+      {/* 親子としてつなぐときだけ、実子か縁組かを選ぶ */}
+      {kind !== 'spouse' && <ParentKindSelect value={parentKind} onChange={setParentKind} />}
 
       {error && <p className="alert alert--error">{error}</p>}
 

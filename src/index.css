@@ -793,6 +793,15 @@ textarea {
   stroke-width: 2;
 }
 
+/*
+ * 縁組（養子・特別養子・婿養子・連れ子・里子）の親子線。
+ * 実子の一本線と見分けられるよう破線にする。刻みは離婚の線より細かくして、
+ * 「切れた関係」ではなく「結んだ関係」に見えるようにする。
+ */
+.link--adoptive {
+  stroke-dasharray: 4 3;
+}
+
 .link--divorced {
   stroke: var(--muted);
   stroke-width: 2;
@@ -899,6 +908,35 @@ textarea {
 .link--lineage {
   stroke: var(--lineage);
   stroke-width: 3;
+}
+
+/* 線の読み方。図の邪魔をしないよう、左下に小さく置く */
+.tree-canvas__legend {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.75rem;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.tree-canvas__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tree-canvas__legend dt,
+.tree-canvas__legend dd {
+  margin: 0;
 }
 
 /* ドラッグ中だけ格子を出して、置きたい位置を狙いやすくする */

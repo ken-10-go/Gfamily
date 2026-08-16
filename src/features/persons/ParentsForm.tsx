@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 
 import { JapaneseDateInput } from '@/features/persons/JapaneseDateInput';
-import { EMPTY_PERSON_INPUT, type PersonInput } from '@/types/models';
+import { ParentKindSelect } from '@/features/persons/ParentKindSelect';
+import { EMPTY_PERSON_INPUT, type ParentKind, type PersonInput } from '@/types/models';
 
 /** 両親の入力結果。名前を入れなかった側は null になる。 */
 export interface ParentsDraft {
@@ -9,6 +10,8 @@ export interface ParentsDraft {
   mother: PersonInput | null;
   /** 2人とも入力したとき、夫婦としてもつなぐか。 */
   marry: boolean;
+  /** 子から見た親子の種別（実親・養親など）。 */
+  kind: ParentKind;
 }
 
 interface ParentsFormProps {
@@ -66,6 +69,7 @@ export function ParentsForm({
   const [father, setFather] = useState<ParentDraft>(inherited);
   const [mother, setMother] = useState<ParentDraft>(inherited);
   const [marry, setMarry] = useState(true);
+  const [kind, setKind] = useState<ParentKind>('biological');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -84,6 +88,7 @@ export function ParentsForm({
         father: named(father) ? toInput(father, 'male') : null,
         mother: named(mother) ? toInput(mother, 'female') : null,
         marry,
+        kind,
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '保存に失敗しました');
@@ -100,6 +105,12 @@ export function ParentsForm({
 
       <ParentFields legend="父" value={father} onChange={setFather} />
       <ParentFields legend="母" value={mother} onChange={setMother} showMaidenName />
+
+      <ParentKindSelect
+        value={kind}
+        onChange={setKind}
+        label="この子から見た続柄（実親・養親など）"
+      />
 
       <label className="field field--checkbox">
         <input

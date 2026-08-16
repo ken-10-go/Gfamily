@@ -1,10 +1,12 @@
 import { useState } from 'react';
 
+import { ParentKindSelect } from '@/features/persons/ParentKindSelect';
 import { PersonForm } from '@/features/persons/PersonForm';
 import { spousesOf } from '@/lib/relations';
 import {
   displayName,
   oppositeGender,
+  type ParentKind,
   type Person,
   type PersonInput,
   type TreeGraph,
@@ -21,7 +23,7 @@ interface AddRelativeFormProps {
    * 追加の実行。otherParentId は子を追加するときの「もう一方の親」で、
    * 指定しない場合は null。
    */
-  onSubmit: (input: PersonInput, otherParentId: string | null) => Promise<void>;
+  onSubmit: (input: PersonInput, otherParentId: string | null, kind: ParentKind) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -43,8 +45,18 @@ export function AddRelativeForm({
   const spouses = relation === 'child' ? spousesOf(graph, person.id) : [];
   // 配偶者が1人だけなら、その人を初期選択にする（これまでの自動登録と同じ結果になる）
   const [otherParentId, setOtherParentId] = useState(spouses.length === 1 ? spouses[0].id : '');
+  const [kind, setKind] = useState<ParentKind>('biological');
 
-  const extraFields =
+  const parentKindField =
+    relation === 'parent' || relation === 'child' ? (
+      <ParentKindSelect
+        value={kind}
+        onChange={setKind}
+        label={relation === 'parent' ? 'この人から見た続柄（実親・養親など）' : '親子の種別'}
+      />
+    ) : null;
+
+  const otherParentField =
     relation === 'child' && spouses.length > 0 ? (
       <label className="field">
         <span className="field__label">もう一方の親</span>
@@ -64,6 +76,14 @@ export function AddRelativeForm({
       </label>
     ) : null;
 
+  const extraFields =
+    parentKindField || otherParentField ? (
+      <>
+        {otherParentField}
+        {parentKindField}
+      </>
+    ) : null;
+
   return (
     <PersonForm
       submitLabel="追加"
@@ -72,7 +92,7 @@ export function AddRelativeForm({
       defaultFamilyNameKana={person.familyNameKana}
       defaultGender={relation === 'spouse' ? oppositeGender(person.gender) : undefined}
       extraFields={extraFields}
-      onSubmit={(input) => onSubmit(input, otherParentId || null)}
+      onSubmit={(input) => onSubmit(input, otherParentId || null, kind)}
       onCancel={onCancel}
     />
   );

@@ -4,6 +4,8 @@ import {
   computeLayout,
   gridFor,
   snapTo,
+  type CoupleLink,
+  type FamilyUnit,
   type LayoutMetrics,
   type LayoutNode,
 } from '@/features/tree-view/layout';
@@ -20,9 +22,13 @@ import {
   displayName,
   displayNameKana,
   lifespanLabel,
+  PARENT_KIND_LABELS,
+  UNION_STATUS_LABELS,
   type CardPosition,
+  type ParentKind,
   type Person,
   type TreeGraph,
+  type UnionStatus,
 } from '@/types/models';
 
 /** ドラッグ中のカード。閾値を超えるまでは選択操作と区別がつかないので moved で判定する。 */
@@ -277,7 +283,7 @@ export function TreeCanvas({
                 a={positionById.get(couple.partner1Id)}
                 b={positionById.get(couple.partner2Id)}
                 metrics={metrics}
-                divorced={couple.status === 'divorced'}
+                status={couple.status}
               />
             ))}
             {layout.families.map((family) => (
@@ -285,6 +291,7 @@ export function TreeCanvas({
                 key={family.key}
                 parents={family.parentIds.map((id) => positionById.get(id))}
                 children={family.childIds.map((id) => positionById.get(id))}
+                childKinds={family.childKinds}
                 metrics={metrics}
                 lineage={lineage}
               />
@@ -322,6 +329,8 @@ export function TreeCanvas({
         </g>
       </svg>
 
+      <LineLegend families={layout.families} couples={layout.couples} />
+
       <div className="tree-canvas__controls">
         <button type="button" onClick={() => zoomBy(1.2)} aria-label="拡大">
           ＋
@@ -340,6 +349,62 @@ export function TreeCanvas({
           全体
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 線の読み方。
+ *
+ * 家系図としてふつうの「実線＝実の親子」だけの図では出さない。
+ * 縁組や離婚など、線の違いに意味がある家系図のときにだけ添える。
+ */
+function LineLegend({
+  families,
+  couples,
+}: {
+  families: FamilyUnit[];
+  couples: CoupleLink[];
+}) {
+  const hasAdoptive = families.some((family) =>
+    Object.values(family.childKinds).some((kind) => kind !== 'biological'),
+  );
+  const hasDivorced = couples.some((couple) => couple.status === 'divorced');
+  const hasMarried = couples.some(
+    (couple) => couple.status === 'married' || couple.status === 'widowed',
+  );
+
+  if (!hasAdoptive && !hasDivorced) return null;
+
+  return (
+    <dl className="tree-canvas__legend">
+      <Legend label="実の親子" className="link" />
+      {hasAdoptive && <Legend label="養子・連れ子など" className="link link--adoptive" />}
+      {hasMarried && <Legend label="婚姻" className="link link--couple" doubled />}
+      {hasDivorced && <Legend label="離婚" className="link link--divorced" />}
+    </dl>
+  );
+}
+
+function Legend({
+  label,
+  className,
+  doubled = false,
+}: {
+  label: string;
+  className: string;
+  doubled?: boolean;
+}) {
+  return (
+    <div className="tree-canvas__legend-item">
+      <dt>
+        <svg width="28" height="10" aria-hidden="true">
+          {(doubled ? [3, 7] : [5]).map((y) => (
+            <line key={y} x1={2} y1={y} x2={26} y2={y} className={className} />
+          ))}
+        </svg>
+      </dt>
+      <dd>{label}</dd>
     </div>
   );
 }
@@ -550,31 +615,49 @@ function GridLines({
   );
 }
 
-/** 夫婦をつなぐ横線。離婚は破線で表す。 */
+/**
+ * 夫婦をつなぐ横線。
+ *
+ * 婚姻（死別を含む）は伝統的な書き方に合わせて二重の実線、
+ * 婚姻届のないパートナーは一本の実線、離婚は破線で表す（仕様書 3.5-3）。
+ */
 function CoupleLine({
   a,
   b,
   metrics,
-  divorced,
+  status,
 }: {
   a?: LayoutNode;
   b?: LayoutNode;
   metrics: LayoutMetrics;
-  divorced: boolean;
+  status: UnionStatus;
 }) {
   if (!a || !b) return null;
 
-  const y = a.y + metrics.nodeHeight / 2;
   const [left, right] = a.x <= b.x ? [a, b] : [b, a];
+  const x1 = left.x + metrics.nodeWidth / 2;
+  const x2 = right.x - metrics.nodeWidth / 2;
+  const y1 = left.y + metrics.nodeHeight / 2;
+  const y2 = right.y + metrics.nodeHeight / 2;
+
+  const className = status === 'divorced' ? 'link link--divorced' : 'link link--couple';
+  // 二重線は上下に2本引いて表す。線の太さを変えるより、和装の家系図の見た目に近い
+  const offsets = status === 'married' || status === 'widowed' ? [-2, 2] : [0];
 
   return (
-    <line
-      x1={left.x + metrics.nodeWidth / 2}
-      y1={y}
-      x2={right.x - metrics.nodeWidth / 2}
-      y2={b.y + metrics.nodeHeight / 2}
-      className={divorced ? 'link link--divorced' : 'link link--couple'}
-    />
+    <g className="link-group">
+      {offsets.map((offset) => (
+        <line
+          key={offset}
+          x1={x1}
+          y1={y1 + offset}
+          x2={x2}
+          y2={y2 + offset}
+          className={className}
+        />
+      ))}
+      <title>{UNION_STATUS_LABELS[status]}</title>
+    </g>
   );
 }
 
@@ -585,11 +668,14 @@ function CoupleLine({
 function FamilyLines({
   parents,
   children,
+  childKinds,
   metrics,
   lineage,
 }: {
   parents: (LayoutNode | undefined)[];
   children: (LayoutNode | undefined)[];
+  /** 子ごとの親子の種別。実子は実線、縁組は破線で描き分ける */
+  childKinds: Record<string, ParentKind>;
   metrics: LayoutMetrics;
   /** 直系の筋にいる人物。親と子の両方が入っている線だけを強調する */
   lineage: Set<string>;
@@ -627,16 +713,29 @@ function FamilyLines({
       {busRight - busLeft > 1 && (
         <line x1={busLeft} y1={busY} x2={busRight} y2={busY} className="link" />
       )}
-      {presentChildren.map((child) => (
-        <line
-          key={child.person.id}
-          x1={child.x}
-          y1={busY}
-          x2={child.x}
-          y2={child.y}
-          className={linkClass(highlighted && lineage.has(child.person.id))}
-        />
-      ))}
+      {presentChildren.map((child) => {
+        // 実子は一本の実線、養子・連れ子・里子などの縁組は破線（仕様書 3.5-3）
+        const kind = childKinds[child.person.id] ?? 'biological';
+        const adoptive = kind !== 'biological';
+
+        return (
+          <line
+            key={child.person.id}
+            x1={child.x}
+            y1={busY}
+            x2={child.x}
+            y2={child.y}
+            className={[
+              linkClass(highlighted && lineage.has(child.person.id)),
+              adoptive ? 'link--adoptive' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            <title>{PARENT_KIND_LABELS[kind]}</title>
+          </line>
+        );
+      })}
     </g>
   );
 }

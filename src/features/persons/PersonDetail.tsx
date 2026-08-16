@@ -10,8 +10,10 @@ import {
   displayNameKana,
   GENDER_LABELS,
   lifespanLabel,
+  PARENT_KIND_LABELS,
   SURNAME_CHANGE_REASON_LABELS,
   UNION_STATUS_LABELS,
+  type ParentKind,
   type Person,
   type TreeGraph,
   type UnionStatus,
@@ -28,6 +30,8 @@ interface ParentChildEntry {
   person: Person;
   /** parentChild ドキュメントのID。 */
   linkId: string;
+  /** 実子・養子などの種別。実子以外は一覧にも添える。 */
+  kind: ParentKind;
 }
 
 interface PersonDetailProps {
@@ -128,7 +132,7 @@ export function PersonDetail({
         title="親"
         entries={relations.parents.map((r) => ({
           id: r.person.id,
-          label: displayName(r.person),
+          label: withKind(displayName(r.person), r.kind),
           onRemove: canEdit
             ? () => removeLink('parentChild', r.linkId, `${displayName(r.person)} を親から外す`)
             : undefined,
@@ -156,7 +160,7 @@ export function PersonDetail({
         title="子"
         entries={relations.children.map((r) => ({
           id: r.person.id,
-          label: displayName(r.person),
+          label: withKind(displayName(r.person), r.kind),
           onRemove: canEdit
             ? () => removeLink('parentChild', r.linkId, `${displayName(r.person)} を子から外す`)
             : undefined,
@@ -258,6 +262,11 @@ function dateLabel(
   return uncertain ? `${withRaw} 頃` : withRaw;
 }
 
+/** 実子以外は種別を添える。実子はふつうなので、いちいち書かない。 */
+function withKind(name: string, kind: ParentKind): string {
+  return kind === 'biological' ? name : `${name}（${PARENT_KIND_LABELS[kind]}）`;
+}
+
 function Detail({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
@@ -327,9 +336,9 @@ function useRelations(graph: TreeGraph, personId: string) {
         .map((pc) => pc.childId),
     );
 
-    const toEntry = (id: string, linkId: string): ParentChildEntry | null => {
+    const toEntry = (id: string, linkId: string, kind: ParentKind): ParentChildEntry | null => {
       const found = personById.get(id);
-      return found ? { person: found, linkId } : null;
+      return found ? { person: found, linkId, kind } : null;
     };
     const notNull = <T,>(value: T | null): value is T => value !== null;
 
@@ -343,8 +352,8 @@ function useRelations(graph: TreeGraph, personId: string) {
       .filter(notNull);
 
     return {
-      parents: parentLinks.map((pc) => toEntry(pc.parentId, pc.id)).filter(notNull),
-      children: childLinks.map((pc) => toEntry(pc.childId, pc.id)).filter(notNull),
+      parents: parentLinks.map((pc) => toEntry(pc.parentId, pc.id, pc.kind)).filter(notNull),
+      children: childLinks.map((pc) => toEntry(pc.childId, pc.id, pc.kind)).filter(notNull),
       siblings: [...siblingIds]
         .map((id) => personById.get(id))
         .filter((p): p is Person => Boolean(p)),

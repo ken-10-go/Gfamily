@@ -1,5 +1,5 @@
 import { compareForDisplay } from '@/lib/relations';
-import type { ParentChild, Person, TreeGraph, Union } from '@/types/models';
+import type { ParentChild, ParentKind, Person, TreeGraph, Union } from '@/types/models';
 
 export const NODE_WIDTH = 168;
 export const NODE_HEIGHT = 64;
@@ -56,6 +56,13 @@ export interface FamilyUnit {
   key: string;
   parentIds: string[];
   childIds: string[];
+  /**
+   * 子ごとの親子の種別。関係線を実線と破線で描き分けるために持つ。
+   *
+   * 1人の子が父とは実子・母とは養子、ということがある（連れ子など）。
+   * その場合は実子でないほうを採り、「ここには縁組がある」と分かるようにする。
+   */
+  childKinds: Record<string, ParentKind>;
 }
 
 export interface CoupleLink {
@@ -557,8 +564,9 @@ function buildFamilyUnits(
 
     const sorted = [...new Set(parentIds)].sort();
     const key = sorted.join('|');
-    const unit = units.get(key) ?? { key, parentIds: sorted, childIds: [] };
+    const unit = units.get(key) ?? { key, parentIds: sorted, childIds: [], childKinds: {} };
     unit.childIds.push(person.id);
+    unit.childKinds[person.id] = kindOf(parentChild, sorted, person.id);
     units.set(key, unit);
   }
 
@@ -566,7 +574,7 @@ function buildFamilyUnits(
   for (const union of unions) {
     const key = [union.partner1Id, union.partner2Id].sort().join('|');
     if (!units.has(key)) {
-      units.set(key, { key, parentIds: key.split('|'), childIds: [] });
+      units.set(key, { key, parentIds: key.split('|'), childIds: [], childKinds: {} });
     }
   }
 
@@ -582,6 +590,18 @@ function buildFamilyUnits(
 
   // 親が1人の単位でも、その親に配偶者がいれば同じ行に並べたいので単位はそのままにする
   return [...units.values()].filter((unit) => unit.parentIds.every((id) => personById.has(id)));
+}
+
+/**
+ * その家族単位から見た、子との関係の種別。
+ * 実子でない関係が1つでもあれば、そちらを採る（縁組を線で示すため）。
+ */
+function kindOf(parentChild: ParentChild[], parentIds: string[], childId: string): ParentKind {
+  const kinds = parentChild
+    .filter((pc) => pc.childId === childId && parentIds.includes(pc.parentId))
+    .map((pc) => pc.kind);
+
+  return kinds.find((kind) => kind !== 'biological') ?? 'biological';
 }
 
 /** 生年順（不明は後ろ）。並びの基準は relations.ts と共有する。 */

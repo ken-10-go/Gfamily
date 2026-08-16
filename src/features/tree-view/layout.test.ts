@@ -600,6 +600,37 @@ describe('computeLayout', () => {
     expect(layout.height).toBeGreaterThanOrEqual(900);
   });
 
+  it('家族単位に親子の種別を持たせる（線の描き分けに使う）', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [person('父'), person('母'), person('実子'), person('養子')].map((p) => p),
+        parentChild: [
+          link('父', '実子'),
+          link('母', '実子'),
+          link('父', '養子', { kind: 'adoptive' }),
+          link('母', '養子', { kind: 'adoptive' }),
+        ],
+      }),
+    );
+
+    const family = layout.families.find((f) => f.childIds.length === 2);
+    expect(family?.childKinds['実子']).toBe('biological');
+    expect(family?.childKinds['養子']).toBe('adoptive');
+  });
+
+  it('片方の親とだけ縁組している子は、縁組のほうを採る', () => {
+    // 連れ子：母とは実子、再婚した父とは連れ子
+    const layout = computeLayout(
+      graph({
+        persons: [person('父'), person('母'), person('連れ子')],
+        parentChild: [link('母', '連れ子'), link('父', '連れ子', { kind: 'step' })],
+      }),
+    );
+
+    const family = layout.families.find((f) => f.childIds.includes('連れ子'));
+    expect(family?.childKinds['連れ子']).toBe('step');
+  });
+
   it('新しい世代の最初の子でも、親の真下に置かれる', () => {
     // 祖父母の下に父がいて、その父に子を1人追加した状態。
     // 子の世代にはまだ誰もいないので、素朴に「空いている左端」へ置くと
