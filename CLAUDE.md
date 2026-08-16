@@ -1,8 +1,14 @@
 # CLAUDE.md
 
-家族・親戚限定で共有する家系図Webアプリ。要件は [要件定義書.md](要件定義書.md)、セットアップは [README.md](README.md) を参照。
+家族・親戚限定で共有する家系図Webアプリ。セットアップは [README.md](README.md) を参照。
 
-フェーズ1（認証・人物/関係CRUD・ツリービュー・招待・権限制御）まで実装済み。
+仕様書は `specs/` の8本（「絆ツリー」要件v4・アーキテクチャv3・DBスキーマv3・セキュリティv3・
+UIデザイン・ワイヤーフレーム・パフォーマンス・ロードマップ）が正。
+[要件定義書.md](要件定義書.md) は初期の下書きで、`specs/` と食い違う箇所は `specs/` を優先する。
+
+仕様書は Flutter 前提で書かれているが、**実装は React Web を継続する**方針。
+Flutter 固有の記述（CustomPainter・RepaintBoundary・InteractiveViewer）は
+Web の等価物（SVG・React.memo・自前のパン/ズーム）に読み替える。
 
 ## スタック
 
@@ -46,6 +52,23 @@ npm run dev
 ルールを触ったら `npm run test:rules` も必ず走らせる（Java が必要）。
 Firebase なしで描画を見たいときは `/demo`（DEV ビルドのみ）。
 
+## 仕様書と実装の名前の対応
+
+スキーマは現行の名前を維持し、仕様書の名前には合わせていない（本番データの移行を避けるため）。
+将来 Flutter 版と Firestore を共有するなら、ここが移行対象になる。
+
+| 仕様書 | 実装 |
+| --- | --- |
+| `isDeceased` | `isLiving`（真偽が逆） |
+| `lastName` / `firstName` / `lastNameKana` | `familyName` / `givenName` / `familyNameKana` |
+| `relationships`（1コレクション） | `parentChild` + `unions`（親1人ずつの辺で持つ） |
+| `members` サブコレクション | ツリー文書の `roles` マップ + `memberIds` 配列 |
+| `HybridDate` | 日付文字列（`YYYY[-MM[-DD]]`）+ `birthEra` / `deathEra`（和暦の生データ） |
+| `sortOrder` | `siblingOrder` |
+| `subtype: biological \| adoptive` | `kind`（実子・養子・特別養子・婿養子・連れ子・里子の6種） |
+
+新しく作るものは仕様書の名前に合わせる（`treeBridges` など）。
+
 ## 設計上の決まりごと
 
 - **UI から Firestore を直接触らない。** クエリは `src/lib/api.ts` に集約する。
@@ -59,6 +82,12 @@ Firebase なしで描画を見たいときは `/demo`（DEV ビルドのみ）�
 - **削除はソフト削除（`deletedAt`）。** 物理削除の権限はオーナーにしか無い。ゴミ箱から復元できる。
 - **招待と監査ログはクライアントから書けない。** Cloud Functions（Admin SDK）経由のみ。
 - **ルールを変更したら `src/test/rules/firestore.test.ts` を必ず更新・実行する。**
+- **機微項目（本籍地・住所・戒名・お墓・思い出）は端末で暗号化してから保存する。**
+  鍵はパスフレーズとツリーの `e2eeSalt` から導き、メモリ（React の Context）にしか置かない。
+  平文をサーバーへ送らない・保存しないこと。氏名・生没年・関係は暗号化しない（骨組みは残す）。
+- **他家とのつながりは Cloud Functions 経由でのみ作る。** 承認時に配る
+  `/treeBridges/{treeId}_{uid}` を、ルールが `exists()` 1回で見て「他家の故人だけ」を許可する。
+  クライアントに書かせると、自分で自分に閲覧許可を配れてしまう。
 - **`main` と `claude/**` への push で本番へ自動デプロイされる。** GitHub Actions が
   Hosting（画面）と Firestore のルール・インデックスを反映する。PR やマージは要らない。
   デプロイ前に typecheck・lint・`npm test`・`npm run test:rules`・build が走り、
@@ -80,13 +109,15 @@ Firebase なしで描画を見たいときは `/demo`（DEV ビルドのみ）�
   物理削除（オーナーのみ）では削除実行者ではなく最後の更新者が記録される。
 - バンドルが約 830KB（gzip 約 250KB）。Firebase SDK が大きい。ルート単位の遅延読み込みが有効。
 
-## 残りのフェーズ
+## 実装済みと未実装（specs/ のロードマップに対して）
 
-2. ファンチャート・タイムライン・家族カードビュー、写真添付、GEDCOM インポート
-3. エクスポート（画像/PDF/GEDCOM）、命日リマインド、PWA、監査ログ強化
+実装済み: 認証・人物/関係CRUD・ツリービュー・招待・権限制御・和暦（江戸期含む）・
+フォーカスモード・手動配置・監査ログ・ゴミ箱・配色テーマ・カード表示項目の選択・
+直系の強調・機微項目のE2EE・他家とのつながり（ダブルハンドシェイクと合同表示）。
 
-未実装のうち要件定義書に挙がっているもの: ミニマップ、
-大規模ツリーの仮想化、写真添付（Cloud Storage の設計が必要）。
+未実装: 回忌法要と長寿祝いの通知（Cloud Functions）、家紋・名字マスター、
+エクスポート（PDF/GEDCOM）、復旧バックアップPDF、写真添付（Cloud Storage の設計が必要）、
+縦書き折本レイアウトの作り込み（縦書きトグルはある）、ミニマップ、大規模ツリーの仮想化。
 
 フォーカスモード（中心人物のまわりだけを表示）は `src/features/tree-view/focus.ts` の
 `focusGraph` が担う。純粋関数なので、描画とは切り離してテストできる。

@@ -350,6 +350,142 @@ describe('監査ログ', () => {
   });
 });
 
+// --- 他家とのつながり（ダブル・ハンドシェイク） ------------------------------
+//
+// 仕様書 security-specs-v3 の「必須実装テストケース」に対応する。
+// B家（tree-2）を用意し、承認の前後で見え方が変わることを確かめる。
+
+const OTHER_TREE = 'tree-2';
+const OTHER_OWNER = 'other-owner-uid';
+const OTHER_DECEASED = 'other-deceased';
+const OTHER_LIVING = 'other-living';
+
+/** B家と、その中の故人・生存者を用意する。 */
+async function seedOtherTree() {
+  await seed(env, async (db) => {
+    await setDoc(doc(db, 'trees', OTHER_TREE), {
+      name: '佐藤家',
+      description: null,
+      createdBy: OTHER_OWNER,
+      roles: { [OTHER_OWNER]: 'owner' },
+      memberIds: [OTHER_OWNER],
+    });
+    await setDoc(doc(db, 'trees', OTHER_TREE, 'persons', OTHER_DECEASED), {
+      familyName: '佐藤',
+      givenName: '茂',
+      isLiving: false,
+      deletedAt: null,
+      updatedBy: OTHER_OWNER,
+    });
+    await setDoc(doc(db, 'trees', OTHER_TREE, 'persons', OTHER_LIVING), {
+      familyName: '佐藤',
+      givenName: '花子',
+      isLiving: true,
+      deletedAt: null,
+      updatedBy: OTHER_OWNER,
+    });
+    await setDoc(doc(db, 'trees', OTHER_TREE, 'unions', 'union-1'), {
+      partner1Id: OTHER_DECEASED,
+      partner2Id: OTHER_LIVING,
+      deletedAt: null,
+      updatedBy: OTHER_OWNER,
+    });
+  });
+}
+
+/** 承認時に Cloud Functions が配る認可の文書。 */
+async function seedGrant(treeId: string, uid: string) {
+  await seed(env, async (db) => {
+    await setDoc(doc(db, 'treeBridges', `${treeId}_${uid}`), {
+      grantForTreeId: treeId,
+      grantedUid: uid,
+      bridgeId: 'bridge-1',
+    });
+  });
+}
+
+const otherPerson = (db: ReturnType<typeof as>, personId: string) =>
+  doc(db, 'trees', OTHER_TREE, 'persons', personId);
+
+describe('他家とのつながり', () => {
+  beforeEach(seedOtherTree);
+
+  it('つながりが無ければ、他家は故人も生存者も読めない', async () => {
+    const db = as(env, OWNER);
+    await assertFails(getDoc(otherPerson(db, OTHER_DECEASED)));
+    await assertFails(getDoc(otherPerson(db, OTHER_LIVING)));
+  });
+
+  it('申請しただけ（未承認）では、まだ読めない', async () => {
+    // 承認前は認可の文書が配られないので、pending の申請があっても見えない
+    await seed(env, async (db) => {
+      await setDoc(doc(db, 'treeBridges', 'bridge-1'), {
+        requesterTreeId: TREE,
+        requesterPersonId: PERSON,
+        requesterUid: OWNER,
+        targetTreeId: null,
+        status: 'pending',
+      });
+    });
+
+    await assertFails(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
+  });
+
+  it('承認後は、他家の故人だけを読める', async () => {
+    await seedGrant(OTHER_TREE, OWNER);
+
+    await assertSucceeds(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
+  });
+
+  it('承認後でも、他家の生存者は読めない', async () => {
+    await seedGrant(OTHER_TREE, OWNER);
+
+    await assertFails(getDoc(otherPerson(as(env, OWNER), OTHER_LIVING)));
+  });
+
+  it('承認後も、他家のデータは書き換えられない', async () => {
+    await seedGrant(OTHER_TREE, OWNER);
+
+    await assertFails(
+      updateDoc(otherPerson(as(env, OWNER), OTHER_DECEASED), { givenName: '書換', updatedBy: OWNER }),
+    );
+  });
+
+  it('関係（誰と誰がつながっているか）は読める。線が途切れると図にならないため', async () => {
+    await seedGrant(OTHER_TREE, OWNER);
+
+    await assertSucceeds(getDoc(doc(as(env, OWNER), 'trees', OTHER_TREE, 'unions', 'union-1')));
+  });
+
+  it('解除（認可の削除）で、ただちに読めなくなる', async () => {
+    await seedGrant(OTHER_TREE, OWNER);
+    await assertSucceeds(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
+
+    await seed(env, async (db) => {
+      await deleteDoc(doc(db, 'treeBridges', `${OTHER_TREE}_${OWNER}`));
+    });
+
+    await assertFails(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
+  });
+
+  it('つながりはクライアントから作れない（自分に許可を配れない）', async () => {
+    await assertFails(
+      setDoc(doc(as(env, OWNER), 'treeBridges', `${OTHER_TREE}_${OWNER}`), {
+        grantForTreeId: OTHER_TREE,
+        grantedUid: OWNER,
+      }),
+    );
+  });
+
+  it('他人に配られた認可は読めない', async () => {
+    await seedGrant(OTHER_TREE, OWNER);
+
+    await assertFails(
+      getDoc(doc(as(env, OUTSIDER), 'treeBridges', `${OTHER_TREE}_${OWNER}`)),
+    );
+  });
+});
+
 describe('未定義のパス', () => {
   it('ルールに無いコレクションは読み書きできない', async () => {
     const db = as(env, OWNER);

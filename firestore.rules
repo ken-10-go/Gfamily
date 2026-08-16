@@ -51,6 +51,16 @@ service cloud.firestore {
       return request.resource.data.updatedBy == request.auth.uid;
     }
 
+    // 他家とのつながり（ブリッジ）が成立しているか。
+    //
+    // 承認時に Cloud Functions が /treeBridges/{treeId}_{uid} を配り、解除時に消す。
+    // ルールからは exists() 1回で判定できるので、読み取りが増えない。
+    // ここで「相手ツリーのメンバー一覧」を引くと読み取りが跳ね上がるため、この形にしている。
+    function hasBridgeTo(treeId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/treeBridges/$(treeId + '_' + request.auth.uid));
+    }
+
     match /trees/{treeId} {
       allow get: if isSignedIn() && request.auth.uid in resource.data.roles;
 
@@ -94,7 +104,10 @@ service cloud.firestore {
       }
 
       match /persons/{personId} {
-        allow read: if isMember(treeId);
+        // 自分のツリーなら全員を読める。
+        // つながっている他家からは「故人だけ」。生存者の機微情報は渡さない、が仕様の核。
+        allow read: if isMember(treeId)
+          || (hasBridgeTo(treeId) && resource.data.isLiving == false);
         // 削除はソフト削除（deletedAt）で行うため、update で足りる
         allow create, update: if canEdit(treeId)
           && actorIsSelf()
@@ -102,14 +115,17 @@ service cloud.firestore {
         allow delete: if isOwner(treeId);
       }
 
+      // 関係そのもの（誰と誰がつながっているか）は、つながった家からも読める。
+      // 人物の中身は故人しか読めないので、生存者は「名前も分からない点」として扱われる。
+      // ここを隠すと相手の家系図で線が途切れ、合同表示が図として成り立たなくなる。
       match /parentChild/{linkId} {
-        allow read: if isMember(treeId);
+        allow read: if isMember(treeId) || hasBridgeTo(treeId);
         allow create, update: if canEdit(treeId) && actorIsSelf();
         allow delete: if isOwner(treeId);
       }
 
       match /unions/{unionId} {
-        allow read: if isMember(treeId);
+        allow read: if isMember(treeId) || hasBridgeTo(treeId);
         allow create, update: if canEdit(treeId) && actorIsSelf();
         allow delete: if isOwner(treeId);
       }
@@ -127,6 +143,22 @@ service cloud.firestore {
         allow read: if isMember(treeId);
         allow write: if false;
       }
+    }
+
+    // --- 他家とのつながり ---------------------------------------------------
+    //
+    // 申請・承認・解除はすべて Cloud Functions（Admin SDK）が行う。
+    // クライアントに書かせると、自分で自分に閲覧許可を配れてしまう。
+    match /treeBridges/{bridgeId} {
+      // 自分に配られた認可、または自分が関わるツリーの申請だけを読める
+      allow read: if isSignedIn() && (
+        resource.data.get('grantedUid', '') == request.auth.uid
+        || (resource.data.get('requesterTreeId', null) != null
+            && isMember(resource.data.requesterTreeId))
+        || (resource.data.get('targetTreeId', null) != null
+            && isMember(resource.data.targetTreeId))
+      );
+      allow write: if false;
     }
 
     // 上記に当てはまらないパスはすべて拒否

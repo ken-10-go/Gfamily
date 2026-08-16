@@ -68,20 +68,27 @@ export function TreeDetailPage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focus, setFocus] = useState<FocusState>({ centerId: '', ...DEFAULT_FOCUS_OPTIONS });
+  /** つながっている家も合わせて描くか。相手の故人だけが載る */
+  const [combined, setCombined] = useState(false);
+  const [combinedGraph, setCombinedGraph] = useState<TreeGraph | null>(null);
+  const [hasBridge, setHasBridge] = useState(false);
 
   const { settings, update: updateSetting } = useViewSettings(treeId);
   const metrics = useMemo(() => cardMetrics(settings), [settings]);
 
   const reload = useCallback(async () => {
     try {
-      const [nextTree, nextRole, nextGraph] = await Promise.all([
+      const [nextTree, nextRole, nextGraph, bridges] = await Promise.all([
         api.getTree(treeId),
         api.getMyRole(treeId),
         api.loadTreeGraph(treeId),
+        // つながりが1つも無ければ合同表示の出番はない。読み取りも増やさない
+        api.listBridges(treeId).catch(() => []),
       ]);
       setTree(nextTree);
       setRole(nextRole);
       setGraph(nextGraph);
+      setHasBridge(bridges.some((bridge) => bridge.status === 'accepted'));
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '読み込みに失敗しました');
@@ -94,6 +101,30 @@ export function TreeDetailPage() {
     setLoading(true);
     void reload();
   }, [reload]);
+
+  // 合同表示に切り替えたときだけ、相手の家を読みに行く
+  useEffect(() => {
+    if (!combined) {
+      setCombinedGraph(null);
+      return;
+    }
+
+    let cancelled = false;
+    void api
+      .loadMergedGraph(treeId)
+      .then((merged) => {
+        if (!cancelled) setCombinedGraph(merged);
+      })
+      .catch((caught: unknown) => {
+        if (cancelled) return;
+        setError(caught instanceof Error ? caught.message : '合同表示を読み込めませんでした');
+        setCombined(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [combined, treeId, graph]);
 
   // 「⋯」の外側を触ったら閉じる
   useEffect(() => {
@@ -110,15 +141,20 @@ export function TreeDetailPage() {
     };
   }, [moreOpen]);
 
-  // 権限があっても、ロック中は編集させない（閲覧中の誤操作を防ぐ）
-  const canEdit = (role === 'owner' || role === 'editor') && !settings.locked;
-  const personOf = (id: string) => graph.persons.find((p) => p.id === id) ?? null;
+  // 権限があっても、ロック中は編集させない（閲覧中の誤操作を防ぐ）。
+  // 合同表示は他家の人物が混ざるため、まるごと閲覧専用にする。
+  const canEdit = (role === 'owner' || role === 'editor') && !settings.locked && !combined;
 
-  // 描画に渡す家系図。フォーカス中は中心人物のまわりだけに絞る。
-  // 検索やメニューの人物探しは絞り込み前の graph を見るので、範囲外の人にもたどり着ける。
+  // 描画のもとになる家系図。合同表示のときは他家ぶんも入る。
+  // 人物を引くのもこちらから行う（合同表示では ID が「ツリーID:人物ID」になるため）。
+  const baseGraph = combined ? (combinedGraph ?? EMPTY_GRAPH) : graph;
+  const personOf = (id: string) => baseGraph.persons.find((p) => p.id === id) ?? null;
+
+  // フォーカス中は中心人物のまわりだけに絞る。
+  // 検索やメニューの人物探しは絞り込み前を見るので、範囲外の人にもたどり着ける。
   const visibleGraph = useMemo(
-    () => (focus.centerId ? focusGraph(graph, focus.centerId, focus) : graph),
-    [graph, focus],
+    () => (focus.centerId ? focusGraph(baseGraph, focus.centerId, focus) : baseGraph),
+    [baseGraph, focus],
   );
 
   /** 中心人物を決めてフォーカスを始める。 */
@@ -304,7 +340,7 @@ export function TreeDetailPage() {
   // 読みでも引けるようにする。旧姓を覚えている人を探す場面もあるので姓の履歴も対象にする。
   const keyword = search.trim().toLowerCase();
   const matches = keyword
-    ? graph.persons.filter((person) =>
+    ? baseGraph.persons.filter((person) =>
         [
           displayName(person),
           displayNameKana(person),
@@ -347,6 +383,7 @@ export function TreeDetailPage() {
         {role && <span className="badge badge--wide">{ROLE_LABELS[role]}</span>}
         {settings.locked && <span className="badge">ロック中</span>}
         {focus.centerId && <span className="badge">絞り込み中</span>}
+        {combined && <span className="badge">合同表示</span>}
 
         <div className="tree-page__actions">
           <button
@@ -358,6 +395,17 @@ export function TreeDetailPage() {
           >
             🔍
           </button>
+
+          {hasBridge && (
+            <button
+              type="button"
+              className={combined ? 'button button--primary' : 'button'}
+              onClick={() => setCombined((on) => !on)}
+              title="つながっている家も合わせて表示する（相手の故人のみ）"
+            >
+              🤝<span className="hide-narrow">{combined ? '自家のみ' : '両家合同'}</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -409,6 +457,14 @@ export function TreeDetailPage() {
                   onClick={() => setMoreOpen(false)}
                 >
                   メンバー
+                </Link>
+                <Link
+                  to={`/trees/${treeId}/bridges`}
+                  role="menuitem"
+                  className="person-menu__item"
+                  onClick={() => setMoreOpen(false)}
+                >
+                  家どうしのつながり
                 </Link>
                 <Link
                   to={`/trees/${treeId}/history`}
@@ -498,7 +554,7 @@ export function TreeDetailPage() {
         <DialogContent
           dialog={dialog}
           treeId={treeId}
-          graph={graph}
+          graph={baseGraph}
           canEdit={canEdit}
           settings={{ settings, updateSetting }}
           onClose={() => setDialog(null)}

@@ -1,6 +1,7 @@
 import { Link, Route, Routes } from 'react-router-dom';
 
 import { VersionBadge } from '@/features/app/VersionBadge';
+import { BridgesPage } from '@/features/bridges/BridgesPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { useAuth } from '@/features/auth/useAuth';
@@ -47,6 +48,14 @@ export default function App() {
           element={
             <RequireAuth>
               <HistoryPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/trees/:treeId/bridges"
+          element={
+            <RequireAuth>
+              <BridgesPage />
             </RequireAuth>
           }
         />

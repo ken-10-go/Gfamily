@@ -32,8 +32,14 @@ async function requireOwner(treeId: string, uid: string): Promise<void> {
   }
   const roles = (snapshot.get('roles') ?? {}) as Record<string, TreeRole>;
   if (roles[uid] !== 'owner') {
-    throw new HttpsError('permission-denied', '招待を操作する権限がありません');
+    throw new HttpsError('permission-denied', 'この操作を行う権限がありません');
   }
+}
+
+/** ツリーのメンバー全員の uid。ブリッジの閲覧許可を配るのに使う。 */
+async function memberIdsOf(treeId: string): Promise<string[]> {
+  const snapshot = await db.doc(`trees/${treeId}`).get();
+  return (snapshot.get('memberIds') ?? []) as string[];
 }
 
 /**
@@ -256,6 +262,243 @@ async function findValidInvitation(token: string): Promise<DocumentSnapshot | nu
   }
 
   return invitation;
+}
+
+
+// --- 他家とのつながり（ダブル・ハンドシェイク） ------------------------------
+//
+// A家とB家は既定では完全に別のデータ空間にいる。婚姻や養子縁組で系図がつながる
+// ときだけ、双方のオーナーが承認して初めて「相手の故人だけを見られる」状態にする。
+// 承認前・解除後は一切見えない。
+//
+// ルール側から1回の exists() で判定できるよう、承認時に
+// /treeBridges/{treeId}_{uid} という認可用の文書を配る（grant と呼ぶ）。
+// 解除時はこれを物理削除するので、権限は即座に失効する。
+
+interface BridgeData {
+  requesterTreeId: string;
+  requesterPersonId: string;
+  requesterUid: string;
+  targetTreeId: string;
+  targetPersonId: string;
+  bridgeType: 'marriage' | 'adoptive';
+  status: 'pending' | 'accepted' | 'rejected';
+}
+
+const grantId = (treeId: string, uid: string) => `${treeId}_${uid}`;
+
+/**
+ * 接続を申請し、相手に渡す合言葉（トークン）を1度だけ返す。
+ * 招待と同じく、DB にはハッシュしか保存しない。
+ */
+export const createBridgeInvitation = onCall({ region: REGION }, async (request) => {
+  const uid = requireUid(request.auth);
+  const { treeId, personId, bridgeType, validDays } = (request.data ?? {}) as {
+    treeId?: string;
+    personId?: string;
+    bridgeType?: 'marriage' | 'adoptive';
+    validDays?: number;
+  };
+
+  if (!treeId || !personId) {
+    throw new HttpsError('invalid-argument', '接続の起点となる人物を指定してください');
+  }
+  if (bridgeType !== 'marriage' && bridgeType !== 'adoptive') {
+    throw new HttpsError('invalid-argument', '接続の種類が正しくありません');
+  }
+  const days = validDays ?? 7;
+  if (!Number.isInteger(days) || days < 1 || days > MAX_VALID_DAYS) {
+    throw new HttpsError('invalid-argument', `有効期限は1〜${MAX_VALID_DAYS}日で指定してください`);
+  }
+
+  await requireOwner(treeId, uid);
+
+  const person = await db.doc(`trees/${treeId}/persons/${personId}`).get();
+  if (!person.exists || person.get('deletedAt')) {
+    throw new HttpsError('not-found', '起点の人物が見つかりません');
+  }
+
+  const token = randomBytes(32).toString('hex');
+
+  await db.collection('treeBridges').add({
+    tokenHash: hashToken(token),
+    requesterTreeId: treeId,
+    requesterPersonId: personId,
+    requesterUid: uid,
+    // 相手は承認時に決まる。申請の時点では分からない
+    targetTreeId: null,
+    targetPersonId: null,
+    bridgeType,
+    status: 'pending',
+    expiresAt: Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000),
+    createdAt: FieldValue.serverTimestamp(),
+    acceptedAt: null,
+  });
+
+  return { token };
+});
+
+/** 受け取った合言葉の中身を見る。承認する前に、どの家の誰との接続かを確かめるため。 */
+export const previewBridgeInvitation = onCall({ region: REGION }, async (request) => {
+  requireUid(request.auth);
+  const { token } = (request.data ?? {}) as { token?: string };
+  if (!token) {
+    throw new HttpsError('invalid-argument', 'トークンがありません');
+  }
+
+  const bridge = await findValidBridge(token);
+  if (!bridge) return null;
+
+  const treeId = bridge.get('requesterTreeId') as string;
+  const [tree, person] = await Promise.all([
+    db.doc(`trees/${treeId}`).get(),
+    db.doc(`trees/${treeId}/persons/${bridge.get('requesterPersonId')}`).get(),
+  ]);
+
+  return {
+    treeName: (tree.get('name') as string | undefined) ?? '',
+    personName: [person.get('familyName'), person.get('givenName')].filter(Boolean).join(' '),
+    bridgeType: bridge.get('bridgeType') as 'marriage' | 'adoptive',
+  };
+});
+
+/**
+ * 接続を承認する。ここで初めて双方に「相手の故人を読める」許可が生まれる。
+ * 承認できるのは接続先ツリーのオーナーだけ。
+ */
+export const acceptBridgeConnection = onCall({ region: REGION }, async (request) => {
+  const uid = requireUid(request.auth);
+  const { token, treeId, personId } = (request.data ?? {}) as {
+    token?: string;
+    treeId?: string;
+    personId?: string;
+  };
+
+  if (!token || !treeId || !personId) {
+    throw new HttpsError('invalid-argument', '接続先の人物を指定してください');
+  }
+
+  await requireOwner(treeId, uid);
+
+  const bridge = await findValidBridge(token);
+  if (!bridge) {
+    throw new HttpsError('not-found', '接続の合言葉が無効か、有効期限が切れています');
+  }
+
+  const data = bridge.data() as BridgeData;
+  if (data.requesterTreeId === treeId) {
+    throw new HttpsError('failed-precondition', '同じ家系図どうしはつなげません');
+  }
+
+  const person = await db.doc(`trees/${treeId}/persons/${personId}`).get();
+  if (!person.exists || person.get('deletedAt')) {
+    throw new HttpsError('not-found', '接続先の人物が見つかりません');
+  }
+
+  const [requesterMembers, targetMembers] = await Promise.all([
+    memberIdsOf(data.requesterTreeId),
+    memberIdsOf(treeId),
+  ]);
+
+  await db.runTransaction(async (tx) => {
+    const current = await tx.get(bridge.ref);
+    if (current.get('status') !== 'pending') {
+      throw new HttpsError('failed-precondition', 'この申請はすでに処理済みです');
+    }
+
+    tx.update(bridge.ref, {
+      targetTreeId: treeId,
+      targetPersonId: personId,
+      targetUid: uid,
+      status: 'accepted',
+      acceptedAt: FieldValue.serverTimestamp(),
+      // 承認後にトークンを残す理由がない。使い回しも防ぐ
+      tokenHash: FieldValue.delete(),
+    });
+
+    // 相手ツリーの故人を読むための許可を、双方のメンバー全員に配る
+    for (const member of targetMembers) {
+      tx.set(db.doc(`treeBridges/${grantId(data.requesterTreeId, member)}`), {
+        grantForTreeId: data.requesterTreeId,
+        grantedUid: member,
+        bridgeId: bridge.id,
+      });
+    }
+    for (const member of requesterMembers) {
+      tx.set(db.doc(`treeBridges/${grantId(treeId, member)}`), {
+        grantForTreeId: treeId,
+        grantedUid: member,
+        bridgeId: bridge.id,
+      });
+    }
+  });
+
+  return { bridgeId: bridge.id, treeId: data.requesterTreeId };
+});
+
+/**
+ * 接続を解除する。どちらのオーナーからでも切れる。
+ * 認可用の文書を物理削除するので、相手の画面からも即座に見えなくなる。
+ */
+export const revokeBridge = onCall({ region: REGION }, async (request) => {
+  const uid = requireUid(request.auth);
+  const { bridgeId } = (request.data ?? {}) as { bridgeId?: string };
+  if (!bridgeId) {
+    throw new HttpsError('invalid-argument', '接続が指定されていません');
+  }
+
+  const bridge = await db.doc(`treeBridges/${bridgeId}`).get();
+  if (!bridge.exists) {
+    throw new HttpsError('not-found', '接続が見つかりません');
+  }
+
+  const data = bridge.data() as BridgeData;
+  const isRequesterOwner = await isOwnerOf(data.requesterTreeId, uid);
+  const isTargetOwner = data.targetTreeId ? await isOwnerOf(data.targetTreeId, uid) : false;
+  if (!isRequesterOwner && !isTargetOwner) {
+    throw new HttpsError('permission-denied', 'この接続を解除する権限がありません');
+  }
+
+  const [requesterMembers, targetMembers] = await Promise.all([
+    memberIdsOf(data.requesterTreeId),
+    data.targetTreeId ? memberIdsOf(data.targetTreeId) : Promise.resolve([]),
+  ]);
+
+  const batch = db.batch();
+  batch.delete(bridge.ref);
+  for (const member of targetMembers) {
+    batch.delete(db.doc(`treeBridges/${grantId(data.requesterTreeId, member)}`));
+  }
+  for (const member of requesterMembers) {
+    if (!data.targetTreeId) continue;
+    batch.delete(db.doc(`treeBridges/${grantId(data.targetTreeId, member)}`));
+  }
+  await batch.commit();
+
+  return { ok: true };
+});
+
+async function isOwnerOf(treeId: string, uid: string): Promise<boolean> {
+  const snapshot = await db.doc(`trees/${treeId}`).get();
+  const roles = (snapshot.get('roles') ?? {}) as Record<string, TreeRole>;
+  return roles[uid] === 'owner';
+}
+
+async function findValidBridge(token: string): Promise<DocumentSnapshot | null> {
+  const found = await db
+    .collection('treeBridges')
+    .where('tokenHash', '==', hashToken(token))
+    .limit(1)
+    .get();
+
+  const bridge = found.docs[0];
+  if (!bridge) return null;
+
+  const expiresAt = bridge.get('expiresAt') as Timestamp | undefined;
+  if (!expiresAt || expiresAt.toMillis() < Date.now()) return null;
+  if (bridge.get('status') !== 'pending') return null;
+
+  return bridge;
 }
 
 // --- 監査ログ ---------------------------------------------------------------

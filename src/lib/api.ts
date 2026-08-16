@@ -20,20 +20,21 @@ import { httpsCallable } from 'firebase/functions';
 
 import { generateSalt } from '@/lib/crypto';
 import { getDb, getFirebaseAuth, getFns } from '@/lib/firebase';
-import type {
-  AuditLog,
-  CardPosition,
-  Invitation,
-  InvitationPreview,
-  ParentChild,
-  ParentKind,
-  Person,
-  PersonInput,
-  Tree,
-  TreeGraph,
-  TreeRole,
-  Union,
-  UnionStatus,
+import {
+  EMPTY_PERSON,
+  type AuditLog,
+  type CardPosition,
+  type Invitation,
+  type InvitationPreview,
+  type ParentChild,
+  type ParentKind,
+  type Person,
+  type PersonInput,
+  type Tree,
+  type TreeGraph,
+  type TreeRole,
+  type Union,
+  type UnionStatus,
 } from '@/types/models';
 
 /** 現在のユーザーID。未ログインで呼ばれたら書き込みを試みる前に落とす。 */
@@ -509,6 +510,226 @@ export async function acceptInvitation(token: string): Promise<string> {
   const call = httpsCallable<{ token: string }, { treeId: string }>(getFns(), 'acceptInvitation');
   const result = await call({ token });
   return result.data.treeId;
+}
+
+// --- 他家とのつながり（ブリッジ） --------------------------------------------
+
+export interface Bridge {
+  id: string;
+  requesterTreeId: string;
+  requesterPersonId: string;
+  targetTreeId: string | null;
+  targetPersonId: string | null;
+  bridgeType: 'marriage' | 'adoptive';
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string | null;
+  acceptedAt: string | null;
+}
+
+export interface BridgePreview {
+  treeName: string;
+  personName: string;
+  bridgeType: 'marriage' | 'adoptive';
+}
+
+function toBridge(snapshot: QueryDocumentSnapshot<DocumentData>): Bridge {
+  const data = snapshot.data();
+  return {
+    id: snapshot.id,
+    requesterTreeId: data.requesterTreeId,
+    requesterPersonId: data.requesterPersonId,
+    targetTreeId: data.targetTreeId ?? null,
+    targetPersonId: data.targetPersonId ?? null,
+    bridgeType: data.bridgeType ?? 'marriage',
+    status: data.status ?? 'pending',
+    createdAt: toIso(data.createdAt),
+    acceptedAt: toIso(data.acceptedAt),
+  };
+}
+
+/**
+ * このツリーが関わるつながりを集める。
+ * 申請した側・された側の2方向を別々に引く（Firestore の or 検索は使わない）。
+ */
+export async function listBridges(treeId: string): Promise<Bridge[]> {
+  const bridges = collection(getDb(), 'treeBridges');
+  const [asRequester, asTarget] = await Promise.all([
+    getDocs(query(bridges, where('requesterTreeId', '==', treeId))),
+    getDocs(query(bridges, where('targetTreeId', '==', treeId))),
+  ]);
+
+  const all = [...asRequester.docs, ...asTarget.docs].map(toBridge);
+  // 同じ文書が両方に出ることはないが、念のため id で重複を潰す
+  return [...new Map(all.map((bridge) => [bridge.id, bridge])).values()];
+}
+
+/** 接続を申請し、相手に渡す合言葉を返す。この値はこの1回しか取得できない。 */
+export async function createBridgeInvitation(
+  treeId: string,
+  personId: string,
+  bridgeType: Bridge['bridgeType'],
+  validDays = 7,
+): Promise<string> {
+  const call = httpsCallable<
+    { treeId: string; personId: string; bridgeType: string; validDays: number },
+    { token: string }
+  >(getFns(), 'createBridgeInvitation');
+
+  const result = await call({ treeId, personId, bridgeType, validDays });
+  return result.data.token;
+}
+
+export async function previewBridgeInvitation(token: string): Promise<BridgePreview | null> {
+  const call = httpsCallable<{ token: string }, BridgePreview | null>(
+    getFns(),
+    'previewBridgeInvitation',
+  );
+  const result = await call({ token });
+  return result.data;
+}
+
+/** 接続を承認する。自分のツリーの、どの人物とつなぐかを指定する。 */
+export async function acceptBridgeConnection(
+  token: string,
+  treeId: string,
+  personId: string,
+): Promise<void> {
+  const call = httpsCallable<
+    { token: string; treeId: string; personId: string },
+    { bridgeId: string }
+  >(getFns(), 'acceptBridgeConnection');
+  await call({ token, treeId, personId });
+}
+
+export async function revokeBridge(bridgeId: string): Promise<void> {
+  const call = httpsCallable<{ bridgeId: string }, { ok: boolean }>(getFns(), 'revokeBridge');
+  await call({ bridgeId });
+}
+
+/** 合同表示での人物ID。どのツリーの誰かが一目で分かる形にする。 */
+export const mergedId = (treeId: string, personId: string) => `${treeId}:${personId}`;
+
+/** 合同表示のIDを元に戻す。編集はできないので、主に表示の判定に使う。 */
+export function splitMergedId(id: string): { treeId: string; personId: string } | null {
+  const at = id.indexOf(':');
+  return at < 0 ? null : { treeId: id.slice(0, at), personId: id.slice(at + 1) };
+}
+
+/**
+ * つながっている家をまとめて1つの家系図として読み込む。
+ *
+ * 他家から読めるのは故人だけ（ルールで制限）。関係は読めるので、
+ * 相手の生存者は「（非公開）」のカードとして置き、線がつながるようにする。
+ * 隠すのは中身であって、つながりの形ではない。
+ */
+export async function loadMergedGraph(treeId: string): Promise<TreeGraph> {
+  const own = await loadTreeGraph(treeId);
+  const bridges = (await listBridges(treeId)).filter((bridge) => bridge.status === 'accepted');
+
+  const merged: TreeGraph = {
+    persons: own.persons.map((person) => ({ ...person, id: mergedId(treeId, person.id) })),
+    parentChild: own.parentChild.map((pc) => ({
+      ...pc,
+      parentId: mergedId(treeId, pc.parentId),
+      childId: mergedId(treeId, pc.childId),
+    })),
+    unions: own.unions.map((union) => ({
+      ...union,
+      partner1Id: mergedId(treeId, union.partner1Id),
+      partner2Id: mergedId(treeId, union.partner2Id),
+    })),
+  };
+
+  for (const bridge of bridges) {
+    const otherTreeId =
+      bridge.requesterTreeId === treeId ? bridge.targetTreeId : bridge.requesterTreeId;
+    if (!otherTreeId) continue;
+
+    const other = await loadForeignGraph(otherTreeId);
+    merged.persons.push(...other.persons);
+    merged.parentChild.push(...other.parentChild);
+    merged.unions.push(...other.unions);
+
+    // 接続の起点どうしを結ぶ。ここが2つの家をつなぐ1本になる
+    if (bridge.targetTreeId && bridge.targetPersonId) {
+      const a = mergedId(bridge.requesterTreeId, bridge.requesterPersonId);
+      const b = mergedId(bridge.targetTreeId, bridge.targetPersonId);
+
+      if (bridge.bridgeType === 'marriage') {
+        merged.unions.push({
+          id: `bridge:${bridge.id}`,
+          partner1Id: a,
+          partner2Id: b,
+          status: 'married',
+          startDate: null,
+          endDate: null,
+          deletedAt: null,
+        });
+      } else {
+        // 養子縁組は「申請した側の人物が親」として扱う
+        merged.parentChild.push({
+          id: `bridge:${bridge.id}`,
+          parentId: a,
+          childId: b,
+          kind: 'adoptive',
+          deletedAt: null,
+        });
+      }
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * つながっている他家から読める範囲を読む。
+ *
+ * 人物は故人だけ。ルールが「故人に限る」条件で許可しているので、
+ * クエリ側も同じ条件で絞らないと読み取り自体が拒否される。
+ */
+async function loadForeignGraph(treeId: string): Promise<TreeGraph> {
+  const [persons, parentChild, unions] = await Promise.all([
+    getDocs(query(sub(treeId, 'persons'), where('isLiving', '==', false))),
+    getDocs(sub(treeId, 'parentChild')),
+    getDocs(sub(treeId, 'unions')),
+  ]);
+
+  const alive = <T extends { deletedAt: string | null }>(items: T[]) =>
+    items.filter((item) => !item.deletedAt);
+
+  const foreignPersons = alive(persons.docs.map(toPerson)).map((person) => ({
+    ...person,
+    id: mergedId(treeId, person.id),
+  }));
+  const foreignParentChild = alive(parentChild.docs.map(toParentChild)).map((pc) => ({
+    ...pc,
+    parentId: mergedId(treeId, pc.parentId),
+    childId: mergedId(treeId, pc.childId),
+  }));
+  const foreignUnions = alive(unions.docs.map(toUnion)).map((union) => ({
+    ...union,
+    partner1Id: mergedId(treeId, union.partner1Id),
+    partner2Id: mergedId(treeId, union.partner2Id),
+  }));
+
+  // 関係だけが見えていて本人を読めない人＝相手の生存者。伏せたカードとして置く
+  const known = new Set(foreignPersons.map((person) => person.id));
+  const referenced = new Set<string>();
+  for (const pc of foreignParentChild) {
+    referenced.add(pc.parentId);
+    referenced.add(pc.childId);
+  }
+  for (const union of foreignUnions) {
+    referenced.add(union.partner1Id);
+    referenced.add(union.partner2Id);
+  }
+
+  for (const id of referenced) {
+    if (known.has(id)) continue;
+    foreignPersons.push({ ...EMPTY_PERSON, id, givenName: '（非公開）' });
+  }
+
+  return { persons: foreignPersons, parentChild: foreignParentChild, unions: foreignUnions };
 }
 
 // --- 変更履歴 ---------------------------------------------------------------
