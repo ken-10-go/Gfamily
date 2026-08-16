@@ -58,11 +58,16 @@ jobs:
           echo "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-key.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-key.json" >> "$GITHUB_ENV"
 
-      # Hosting・セキュリティルール・インデックス・Functions をまとめて反映する。
-      # Functions のデプロイには Blaze プランが必要。
+      # Hosting とセキュリティルール・インデックスだけを反映する。
+      #
+      # Functions は意図的に外している。CI からデプロイするには鍵に
+      # Cloud Functions 管理者・Service Account User・Artifact Registry・Cloud Run・
+      # Eventarc といった広い権限が必要になり、公開リポジトリに置く鍵としては強すぎる。
+      # Functions（招待の発行/受諾・監査ログのトリガー）は変更頻度が低いため、
+      # functions/ を変えたときだけ手元から手動でデプロイする。README を参照。
       - name: Deploy
         run: >
           npx firebase-tools deploy
-          --only hosting,firestore,functions
+          --only hosting,firestore
           --project "${{ vars.VITE_FIREBASE_PROJECT_ID }}"
           --non-interactive

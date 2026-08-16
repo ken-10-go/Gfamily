@@ -121,8 +121,8 @@ Firebase を設定しなくてもツリービューの描画だけは確認で�
 
 ## デプロイ
 
-`main` への push で [deploy.yml](.github/workflows/deploy.yml) が Hosting・ルール・
-インデックス・Functions をまとめて反映します。事前に以下を登録してください。
+`main` への push で [deploy.yml](.github/workflows/deploy.yml) が **Hosting とルール・インデックス**を
+反映します。事前に以下を登録してください。
 
 **Settings → Secrets and variables → Actions → Variables**（公開前提の値）
 
@@ -136,6 +136,19 @@ Firebase を設定しなくてもツリービューの描画だけは確認で�
 
 デプロイ後、**Authentication → Settings → 承認済みドメイン**に公開URLのドメインを追加してください。
 ログインリンクが機能しなくなります。
+
+### Cloud Functions は手動デプロイ
+
+`functions/` を変更したときは、手元から反映します。
+
+```bash
+npx firebase-tools deploy --only functions --project family-505409
+```
+
+CI に含めていないのは、Functions のデプロイに Cloud Functions 管理者・Service Account User・
+Artifact Registry・Cloud Run・Eventarc といった広い権限が要り、
+公開リポジトリの Secrets に置く鍵としては強すぎるためです。
+招待の発行/受諾と監査ログのトリガーだけなので、変更頻度は高くありません。
 
 ### PR プレビュー
 
