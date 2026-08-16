@@ -351,20 +351,26 @@ export function computeLayout(
 
   const nodes: LayoutNode[] = persons.map((person) => {
     const generation = generations.get(person.id) ?? 0;
-    const auto = { x: (centerX.get(person.id) ?? 0) - minX, y: generation * ROW };
     const placed = manual(person);
 
-    // 手で置いた位置があればそちらを使う。自動レイアウトの結果より優先する。
+    /*
+     * 手で置けるのは横だけ。縦は必ず世代の行に置く。
+     *
+     * 縦まで自由にすると、カードの大きさを変えたり表示項目を増やしたりして
+     * 行の高さが変わったときに、保存済みの座標が古い行の高さのまま取り残され、
+     * 世代がそろわなくなる。世代をまたいで置けてしまうと関係線も破綻する。
+     * 「どの世代か」はデータ（親子関係）が決めることで、置き場所の話ではない。
+     */
     return {
       person,
-      x: placed?.x ?? auto.x,
-      y: placed?.y ?? auto.y,
+      x: placed?.x ?? (centerX.get(person.id) ?? 0) - minX,
+      y: generation * ROW,
       generation,
       placedByHand: placed !== null,
     };
   });
 
-  attachChildrenToParents(nodes, families, metrics);
+  attachChildrenToParents(nodes, families);
 
   const width = Math.max(...nodes.map((n) => n.x)) + metrics.nodeWidth / 2;
   const height = Math.max(...nodes.map((n) => n.y)) + metrics.nodeHeight;
@@ -398,11 +404,7 @@ export function computeLayout(
  * こちらで一律に寄せると、再婚のように同じ親から複数のきょうだいが下がる場合に
  * 別の家族の子と重なってしまう（重ならない保証は reserve が持っている）。
  */
-function attachChildrenToParents(
-  nodes: LayoutNode[],
-  families: FamilyUnit[],
-  metrics: LayoutMetrics,
-): void {
+function attachChildrenToParents(nodes: LayoutNode[], families: FamilyUnit[]): void {
   const byId = new Map(nodes.map((node) => [node.person.id, node]));
   const present = (ids: string[]) =>
     ids.map((id) => byId.get(id)).filter((node): node is LayoutNode => Boolean(node));
@@ -427,11 +429,9 @@ function attachChildrenToParents(
     const dx =
       (Math.min(...parentXs) + Math.max(...parentXs)) / 2 -
       (Math.min(...childXs) + Math.max(...childXs)) / 2;
-    const y = Math.max(...parents.map((parent) => parent.y)) + metrics.nodeHeight + metrics.vGap;
 
     for (const child of children) {
       child.x += dx;
-      child.y = y;
       moved.add(child.person.id);
     }
   }

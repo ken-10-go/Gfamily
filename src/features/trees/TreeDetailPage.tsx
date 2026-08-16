@@ -329,6 +329,25 @@ export function TreeDetailPage() {
     setDialog(null);
   }
 
+  /** ツリー全体を自動配置に戻す。手で置いた座標をまとめて捨てる。 */
+  async function handleResetAllPositions() {
+    const placed = graph.persons.filter((person) => person.position !== null).length;
+    if (placed === 0) {
+      setError('手で置いたカードはありません（すでに全員が自動配置です）');
+      return;
+    }
+    if (!window.confirm(`手で置いた ${placed} 人の位置を捨てて、全員を自動配置に戻しますか？`)) {
+      return;
+    }
+
+    try {
+      await api.clearAllPositions(treeId);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '自動配置に戻せませんでした');
+    }
+  }
+
   /** 手で置いた位置を捨てて、自動配置に戻す。 */
   async function handleResetPosition(personId: string) {
     try {
@@ -462,6 +481,19 @@ export function TreeDetailPage() {
                 >
                   表示設定
                 </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="person-menu__item"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      void handleResetAllPositions();
+                    }}
+                  >
+                    全体を自動配置に戻す
+                  </button>
+                )}
                 <Link
                   to={`/trees/${treeId}/members`}
                   role="menuitem"

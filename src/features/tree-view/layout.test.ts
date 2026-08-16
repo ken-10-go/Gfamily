@@ -573,7 +573,7 @@ describe('computeLayout', () => {
     expect(nodeOf(layout, 'unknown').x).toBeLessThan(nodeOf(layout, 'female').x);
   });
 
-  it('手で置いた位置は自動レイアウトより優先される', () => {
+  it('手で置けるのは横だけで、縦は必ず世代の行に置く', () => {
     const layout = computeLayout(
       graph({
         persons: [
@@ -586,18 +586,19 @@ describe('computeLayout', () => {
     );
 
     const moved = nodeOf(layout, 'moved');
-    expect({ x: moved.x, y: moved.y }).toEqual({ x: 640, y: 320 });
+    expect(moved.x).toBe(640);
+    // 縦は世代の行のまま。カードの大きさを変えても世代がそろう
+    expect(moved.y).toBe(nodeOf(layout, 'auto').y);
     expect(moved.placedByHand).toBe(true);
     expect(nodeOf(layout, 'auto').placedByHand).toBe(false);
   });
 
-  it('手で置いたカードも含めて図の大きさを測る', () => {
+  it('手で置いたカードも含めて図の横幅を測る', () => {
     const layout = computeLayout(
       graph({ persons: [person('a'), person('far', { position: { x: 1200, y: 900 } })] }),
     );
 
     expect(layout.width).toBeGreaterThanOrEqual(1200);
-    expect(layout.height).toBeGreaterThanOrEqual(900);
   });
 
   it('家族単位に親子の種別を持たせる（線の描き分けに使う）', () => {
@@ -689,9 +690,9 @@ describe('computeLayout', () => {
     );
 
     const child = nodeOf(layout, '新しい子');
-    // 夫婦の中央、1世代ぶん下
+    // 夫婦の中央、1世代ぶん下（縦は世代の行）
     expect(child.x).toBeCloseTo(1000, 5);
-    expect(child.y).toBeCloseTo(400 + NODE_HEIGHT + V_GAP, 5);
+    expect(child.y).toBeCloseTo(NODE_HEIGHT + V_GAP, 5);
     // 自動配置のままなので、あとから並べ直せる
     expect(child.placedByHand).toBe(false);
   });
@@ -728,7 +729,8 @@ describe('computeLayout', () => {
     );
 
     const child = nodeOf(layout, '据え置きの子');
-    expect({ x: child.x, y: child.y }).toEqual({ x: 100, y: 500 });
+    expect(child.x).toBe(100);
+    expect(child.y).toBe(NODE_HEIGHT + V_GAP);
   });
 
   it('親を動かしたぶんは孫にも伝わる', () => {

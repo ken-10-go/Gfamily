@@ -42,6 +42,8 @@ interface CardDrag {
   dy: number;
   moved: boolean;
   threshold: number;
+  /** この時刻を過ぎるまでは動かさない。指での誤操作を防ぐ長押し */
+  readyAt: number;
 }
 
 /**
@@ -50,6 +52,15 @@ interface CardDrag {
  * 「押したのにメニューが出ない」状態になる。
  */
 const DRAG_THRESHOLD = { mouse: 6, touch: 14 };
+
+/**
+ * 指で動かすときに必要な長押しの時間（ミリ秒）。
+ *
+ * 画面をなぞっただけでカードが動いてしまうと、意図せず配置が保存され、
+ * 「勝手に固定された」ように見える。仕様書（4.2）も長押しからの並べ替えとしている。
+ * マウスは狙いが正確なので、すぐ動かせる。
+ */
+const TOUCH_HOLD_MS = 400;
 
 /**
  * 2回目のタップをダブルタップとみなす間隔（ミリ秒）。
@@ -177,6 +188,7 @@ export function TreeCanvas({
   function startDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
     if (!draggable || placeholderTarget(personId)) return;
 
+    const byTouch = event.pointerType !== 'mouse';
     event.currentTarget.setPointerCapture(event.pointerId);
     setDrag({
       personId,
@@ -186,7 +198,8 @@ export function TreeCanvas({
       dx: 0,
       dy: 0,
       moved: false,
-      threshold: event.pointerType === 'mouse' ? DRAG_THRESHOLD.mouse : DRAG_THRESHOLD.touch,
+      threshold: byTouch ? DRAG_THRESHOLD.touch : DRAG_THRESHOLD.mouse,
+      readyAt: performance.now() + (byTouch ? TOUCH_HOLD_MS : 0),
     });
   }
 
@@ -195,6 +208,13 @@ export function TreeCanvas({
 
     const dx = event.clientX - drag.startClientX;
     const dy = event.clientY - drag.startClientY;
+
+    // 長押しの前に指が動いたら、それは画面をなぞる操作。カードは動かさない
+    if (performance.now() < drag.readyAt) {
+      if (Math.hypot(dx, dy) > drag.threshold) setDrag(null);
+      return;
+    }
+
     const moved = drag.moved || Math.hypot(dx, dy) > drag.threshold;
     setDrag({ ...drag, dx, dy, moved });
   }
@@ -247,11 +267,11 @@ export function TreeCanvas({
     setDrag(null);
 
     if (node && onMovePerson) {
-      // 落とした位置を格子に合わせて確定する。
-      // 縦は世代の行に吸着するので、関係線が水平につながる。
+      // 横だけを格子に合わせて確定する。
+      // 縦は世代の行に決まっていて動かせないので、送らない（y は行の値をそのまま返す）。
       onMovePerson(personId, {
         x: snapTo(node.x + drag.dx / viewport.scale, grid.x),
-        y: snapTo(node.y + drag.dy / viewport.scale, grid.y),
+        y: node.y,
       });
     }
   }
@@ -311,7 +331,8 @@ export function TreeCanvas({
               draggable={draggable}
               dragOffset={
                 drag?.moved && drag.personId === node.person.id
-                  ? { x: drag.dx / viewport.scale, y: drag.dy / viewport.scale }
+                  ? // 縦は世代で決まるので、見た目も横にしか動かさない
+                    { x: drag.dx / viewport.scale, y: 0 }
                   : null
               }
               onSelect={handleTap}

@@ -319,6 +319,31 @@ export async function setSiblingOrder(treeId: string, orderedIds: string[]): Pro
   await batch.commit();
 }
 
+/**
+ * ツリー全体を自動配置に戻す。
+ *
+ * 手で置いた座標をすべて捨てる。カードの大きさや表示項目を変えると
+ * 昔の座標が今の図と合わなくなるため、まとめて戻せる入口を用意する。
+ * 並び順（siblingOrder）は配置とは別の意味を持つので触らない。
+ */
+export async function clearAllPositions(treeId: string): Promise<number> {
+  const uid = requireUid();
+  const snapshot = await getDocs(sub(treeId, 'persons'));
+  const placed = snapshot.docs.filter((entry) => entry.get('position'));
+  if (placed.length === 0) return 0;
+
+  // Firestore のバッチは1回500件まで。大きな家系図でも通るように分ける
+  for (let from = 0; from < placed.length; from += 400) {
+    const batch = writeBatch(getDb());
+    for (const entry of placed.slice(from, from + 400)) {
+      batch.update(entry.ref, { position: null, updatedBy: uid, updatedAt: serverTimestamp() });
+    }
+    await batch.commit();
+  }
+
+  return placed.length;
+}
+
 /** 手動の並び順を捨てて、生年順の自動整列に戻す。 */
 export async function clearSiblingOrder(treeId: string, personIds: string[]): Promise<void> {
   const uid = requireUid();
