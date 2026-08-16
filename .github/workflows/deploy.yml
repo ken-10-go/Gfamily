@@ -25,6 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # ルールに変更があったかを push の前後で比べるため、履歴ごと取る
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -76,14 +79,40 @@ jobs:
           echo "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-key.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-key.json" >> "$GITHUB_ENV"
 
-      # 画面（Hosting）と、アクセス制御まわり（ルール・インデックス）を反映する。
+      # 画面は毎回反映する。ここを先に済ませておけば、
+      # このあとのルール反映でつまずいても画面だけは最新になる。
       #
       # Functions は自動化しない。デプロイに Cloud Functions 管理者・Service Account User・
       # Artifact Registry・Cloud Run・Eventarc といった広い権限が要り、
       # 公開リポジトリの Secrets に置く鍵としては強すぎるため。手順は README を参照。
-      - name: Deploy
+      - name: Deploy hosting
         run: >
           npx firebase-tools deploy
-          --only hosting,firestore
+          --only hosting
+          --project "${{ vars.VITE_FIREBASE_PROJECT_ID }}"
+          --non-interactive
+
+      # ルールとインデックスは、変更があったときだけ反映する。
+      # 毎回投げると、画面だけ直した push でもアクセス制御まわりの権限が要る。
+      # 前後を比べられないとき（ブランチの作成時など）は反映しない。
+      - name: Detect rules changes
+        id: rules
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          changed=false
+          if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            if git diff --name-only "$BEFORE" "$GITHUB_SHA" \
+              | grep -qE '^(firestore\.rules|firestore\.indexes\.json)$'; then
+              changed=true
+            fi
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Firestore rules and indexes
+        if: steps.rules.outputs.changed == 'true'
+        run: >
+          npx firebase-tools deploy
+          --only firestore
           --project "${{ vars.VITE_FIREBASE_PROJECT_ID }}"
           --non-interactive

@@ -145,9 +145,21 @@ PR やマージを待たずに本番へ出るので、スマホから直した�
 デプロイ後、**Authentication → Settings → 承認済みドメイン**に公開URLのドメインを追加してください。
 ログインリンクが機能しなくなります。
 
-サービスアカウントには Hosting に加えて **Firebase Rules 管理者**と
-**Cloud Datastore インデックス管理者**の権限が要ります。権限が足りないと
-デプロイの段階で失敗します（画面だけ反映して止まることはありません）。
+ルール・インデックスの反映は、`firestore.rules` か `firestore.indexes.json` を
+変更した push のときだけ走ります。画面だけ直した push では投げません。
+
+そのため、サービスアカウントには Hosting の権限に加えて以下が要ります。
+**足りていない場合、Hosting は反映されたうえでルールの反映だけが失敗します**
+（画面が古いまま止まることはありません）。
+
+- Firebase Rules 管理者（`roles/firebaserules.admin`）
+- Cloud Datastore インデックス管理者（`roles/datastore.indexAdmin`）
+- Service Usage コンシューマ（`roles/serviceusage.serviceUsageConsumer`）
+  … デプロイ前に Firestore API の有効化を確認するために要る
+
+付与は Google Cloud コンソール → IAM と管理 → IAM で、
+`FIREBASE_SERVICE_ACCOUNT` に使ったサービスアカウントに対して行います。
+付与しないうちは、ルールを変えたときだけ手元から反映してください（下記）。
 
 ### Functions だけは手動デプロイ
 
