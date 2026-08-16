@@ -121,8 +121,8 @@ Firebase を設定しなくてもツリービューの描画だけは確認で�
 
 ## デプロイ
 
-`main` への push で [deploy.yml](.github/workflows/deploy.yml) が **Hosting とルール・インデックス**を
-反映します。事前に以下を登録してください。
+`main` への push で [deploy.yml](.github/workflows/deploy.yml) が **Hosting（画面）**を反映します。
+事前に以下を登録してください。
 
 **Settings → Secrets and variables → Actions → Variables**（公開前提の値）
 
@@ -137,18 +137,31 @@ Firebase を設定しなくてもツリービューの描画だけは確認で�
 デプロイ後、**Authentication → Settings → 承認済みドメイン**に公開URLのドメインを追加してください。
 ログインリンクが機能しなくなります。
 
-### Cloud Functions は手動デプロイ
+### ルール・インデックス・Functions は手動デプロイ
 
-`functions/` を変更したときは、手元から反映します。
+自動化しているのは Hosting だけです。以下を変更したときは手元から反映してください。
+
+`firestore.rules` / `firestore.indexes.json` を変更したとき（**必ずテストを通してから**）:
+
+```bash
+npm run test:rules && npx firebase-tools deploy --only firestore --project family-505409
+```
+
+`functions/` を変更したとき:
 
 ```bash
 npx firebase-tools deploy --only functions --project family-505409
 ```
 
-CI に含めていないのは、Functions のデプロイに Cloud Functions 管理者・Service Account User・
-Artifact Registry・Cloud Run・Eventarc といった広い権限が要り、
-公開リポジトリの Secrets に置く鍵としては強すぎるためです。
-招待の発行/受諾と監査ログのトリガーだけなので、変更頻度は高くありません。
+自動化しない理由:
+
+- **ルール**は権限制御の中核で、反映前に `npm run test:rules` の確認が要る（Java が必要）。
+  誤ったルールを自動で本番へ出すと、家族以外がデータを読める状態になりかねない
+- **Functions** のデプロイには Cloud Functions 管理者・Service Account User・
+  Artifact Registry・Cloud Run・Eventarc といった広い権限が要り、
+  公開リポジトリの Secrets に置く鍵としては強すぎる
+
+どちらも変更頻度は高くありません。
 
 ### PR プレビュー
 
