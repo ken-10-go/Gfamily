@@ -612,6 +612,51 @@ describe('computeLayout', () => {
     expect(layout.height).toBeGreaterThanOrEqual(900);
   });
 
+  it('新しい世代の最初の子でも、親の真下に置かれる', () => {
+    // 祖父母の下に父がいて、その父に子を1人追加した状態。
+    // 子の世代にはまだ誰もいないので、素朴に「空いている左端」へ置くと
+    // 図の左端に飛んでしまう。
+    const layout = computeLayout(
+      graph({
+        persons: ['祖父', '祖母', '父', '叔父', '母', '新しい子'].map((id) => person(id)),
+        parentChild: [
+          link('祖父', '父'),
+          link('祖母', '父'),
+          link('祖父', '叔父'),
+          link('祖母', '叔父'),
+          link('父', '新しい子'),
+          link('母', '新しい子'),
+        ],
+        unions: [union('祖父', '祖母'), union('父', '母')],
+      }),
+    );
+
+    const child = nodeOf(layout, '新しい子');
+    expect(child.x).toBeCloseTo((nodeOf(layout, '父').x + nodeOf(layout, '母').x) / 2, 5);
+    // 図の左端（最初に置かれる位置）ではない
+    expect(child.x).toBeGreaterThan(Math.min(...layout.nodes.map((n) => n.x)));
+    expectNoOverlap(layout);
+  });
+
+  it('きょうだいのうち片方だけに子がいても、その親の真下に置かれる', () => {
+    const layout = computeLayout(
+      graph({
+        persons: ['祖父', '祖母', '父', '叔父', '孫'].map((id) => person(id)),
+        parentChild: [
+          link('祖父', '父'),
+          link('祖母', '父'),
+          link('祖父', '叔父'),
+          link('祖母', '叔父'),
+          link('叔父', '孫'),
+        ],
+        unions: [union('祖父', '祖母')],
+      }),
+    );
+
+    expect(nodeOf(layout, '孫').x).toBeCloseTo(nodeOf(layout, '叔父').x, 5);
+    expectNoOverlap(layout);
+  });
+
   it('手で置いた親の真下に、自動配置の子をぶら下げる', () => {
     const layout = computeLayout(
       graph({

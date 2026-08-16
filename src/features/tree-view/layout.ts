@@ -178,11 +178,53 @@ export function computeLayout(
     centerX.set(personId, reserve(generation, 1) + SLOT / 2);
   }
 
+  /** 親が全員すでに置かれているなら、その中央。1人でも未配置なら undefined。 */
+  function desiredCenterOfPlacedParents(parentIds: string[]): number | undefined {
+    const xs = parentIds.map((id) => centerX.get(id)).filter((x): x is number => x !== undefined);
+    if (xs.length === 0 || xs.length !== parentIds.length) return undefined;
+    return (Math.min(...xs) + Math.max(...xs)) / 2;
+  }
+
+  /**
+   * 親の真下を希望位置にして、子のぶんの場所をまとめて確保する。
+   *
+   * 対象は「まだ置かれておらず、自分自身は親でもない子」だけ。
+   * 自分の子を持つ人は、その家族ごと配置する経路（placeGroup）に任せる。
+   * 世代がそろっている子だけをまとめるのは、reserve が世代ごとに場所を管理するため。
+   */
+  function reserveChildrenUnder(group: SiblingGroup, center: number): void {
+    const simple = group.childIds.filter(
+      (id) =>
+        !centerX.has(id) &&
+        !groupsWhereParent.get(id)?.some((own) => !placedGroups.has(own.key)),
+    );
+    if (simple.length === 0) return;
+
+    const generation = generations.get(simple[0]) ?? 0;
+    const sameRow = simple.filter((id) => (generations.get(id) ?? 0) === generation);
+
+    const left = reserve(generation, sameRow.length, center);
+    sameRow.forEach((id, index) => {
+      centerX.set(id, left + index * SLOT + SLOT / 2);
+    });
+  }
+
   function placeGroup(group: SiblingGroup): void {
     if (placedGroups.has(group.key)) return;
     placedGroups.add(group.key);
 
-    // 子を先に配置し、その中央に親を置く（下から上へ組み上げる）
+    // 子を先に配置し、その中央に親を置く（下から上へ組み上げる）。
+    //
+    // ただし親がすでに置かれている場合は、この「あとから親を中央へ」が効かない。
+    // 何もしないと子はその世代の空いている左端に並ぶだけなので、
+    // 新しい世代の最初の子を追加したときに図の左端へ飛んでしまう。
+    // 親が決まっているなら、その真下を希望位置にして子を並べる。
+    // 実際にどこへ置くかは reserve が決めるので、先客がいれば右へずれ、重なりはしない。
+    const underParents = desiredCenterOfPlacedParents(group.parentIds);
+    if (underParents !== undefined) {
+      reserveChildrenUnder(group, underParents);
+    }
+
     const childCenters: number[] = [];
     for (const childId of group.childIds) {
       placePerson(childId);
@@ -217,6 +259,57 @@ export function computeLayout(
       unplaced.forEach((id, index) => {
         centerX.set(id, left + index * SLOT + SLOT / 2);
       });
+    }
+
+    alignChildrenUnderParents(group);
+  }
+
+  /**
+   * 親の真下に子が来ていなければ、子（とその下の家系）を右へ寄せてそろえる。
+   *
+   * 親を子の中央に置こうとしても、その世代の左側がすでに埋まっていれば
+   * reserve が親を右へ押し出すため、親子が縦にそろわない。
+   * 押し出されたぶんだけ子を追いかけさせる。
+   *
+   * 動かすのは右だけ。左は先に置いたカードがいるかもしれず、重ねてしまうため。
+   */
+  function alignChildrenUnderParents(group: SiblingGroup): void {
+    const parentXs = group.parentIds
+      .map((id) => centerX.get(id))
+      .filter((x): x is number => x !== undefined);
+    const childXs = group.childIds
+      .map((id) => centerX.get(id))
+      .filter((x): x is number => x !== undefined);
+    if (parentXs.length === 0 || childXs.length === 0) return;
+
+    const dx =
+      (Math.min(...parentXs) + Math.max(...parentXs)) / 2 -
+      (Math.min(...childXs) + Math.max(...childXs)) / 2;
+    if (dx <= 0) return;
+
+    // 子だけを動かすと孫が置いていかれるので、下の家系ごと動かす
+    const queue = [...group.childIds];
+    const shifted = new Set<string>();
+
+    while (queue.length > 0) {
+      const id = queue.pop() as string;
+      if (shifted.has(id)) continue;
+      shifted.add(id);
+
+      const x = centerX.get(id);
+      if (x === undefined) continue;
+
+      const moved = x + dx;
+      centerX.set(id, moved);
+      // 動かした先を「使用済み」として記録する。次に同じ世代へ置く人が重ならない。
+      const generation = generations.get(id) ?? 0;
+      cursor.set(generation, Math.max(cursor.get(generation) ?? 0, moved + SLOT / 2));
+
+      for (const own of groupsWhereParent.get(id) ?? []) {
+        // 子だけでなく連れ合いも一緒に動かす。片方だけ動かすと夫婦が離れ、
+        // 隣のカードに重なってしまう。
+        queue.push(...own.childIds, ...own.parentIds);
+      }
     }
   }
 
@@ -264,7 +357,7 @@ export function computeLayout(
     };
   });
 
-  attachChildrenToPlacedParents(nodes, families, metrics);
+  attachChildrenToParents(nodes, families, metrics);
 
   const width = Math.max(...nodes.map((n) => n.x)) + metrics.nodeWidth / 2;
   const height = Math.max(...nodes.map((n) => n.y)) + metrics.nodeHeight;
@@ -285,18 +378,20 @@ export function computeLayout(
 }
 
 /**
- * 手で置いた親の下に、自動配置の子をぶら下げ直す。
+ * 手で置いた親の下へ、自動配置の子を寄せ直す。並び（左右の順と間隔）は保つ。
  *
- * 自動配置の座標は「全員を自動で並べたら」の位置なので、親を手で動かしていると
- * 子だけが元の場所に取り残される。新しく子を追加したときに、親から遠く離れた場所に
- * 出てきてしまうのがこれ。親の位置を基準に、子の並び（左右の順と間隔）は保ったまま
- * 真下へ寄せる。
+ * 自動配置の座標は「全員を自動で並べたら」の位置なので、親を手で動かすと
+ * 子だけが元の場所に取り残される。
  *
- * 上の世代から順に処理し、寄せた子はその子（孫）を寄せるときの基準にもなる。
+ * 上の世代から順に処理するので、寄せた位置は孫より下にも伝わる。
  * 親を動かすと、その下の家系がまとまってついてくる。
  * 手で置いた子は動かさない。置いた本人の意図を上書きしないため。
+ *
+ * 自動配置どうしの親子は、ここではなく placeGroup の側でそろえる。
+ * こちらで一律に寄せると、再婚のように同じ親から複数のきょうだいが下がる場合に
+ * 別の家族の子と重なってしまう（重ならない保証は reserve が持っている）。
  */
-function attachChildrenToPlacedParents(
+function attachChildrenToParents(
   nodes: LayoutNode[],
   families: FamilyUnit[],
   metrics: LayoutMetrics,
@@ -310,7 +405,7 @@ function attachChildrenToPlacedParents(
     return levels.length > 0 ? Math.min(...levels) : 0;
   };
 
-  // 寄せ直した子。孫を寄せるときの基準になる（手で置いた人と同じ扱い）。
+  // 寄せ直した子は、孫を寄せるときの基準になる（手で置いた人と同じ扱い）
   const moved = new Set<string>();
 
   for (const family of [...families].sort((a, b) => generationOf(a) - generationOf(b))) {
