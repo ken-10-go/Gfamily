@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from 'react-router-dom';
 
+import { VersionBadge } from '@/features/app/VersionBadge';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { useAuth } from '@/features/auth/useAuth';
@@ -65,15 +66,19 @@ function AppHeader() {
       <Link to="/" className="app__brand">
         家系図
       </Link>
-      {user && (
-        <div className="app__account">
-          {/* 狭い画面ではメールアドレスを畳む。横幅を取るわりに常時は要らない */}
-          <span className="app__email hide-narrow">{user.email}</span>
-          <button type="button" className="button" onClick={() => void signOut()}>
-            ログアウト
-          </button>
-        </div>
-      )}
+      <div className="app__account">
+        {user && (
+          <>
+            {/* 狭い画面ではメールアドレスを畳む。横幅を取るわりに常時は要らない */}
+            <span className="app__email hide-narrow">{user.email}</span>
+            <button type="button" className="button" onClick={() => void signOut()}>
+              ログアウト
+            </button>
+          </>
+        )}
+        {/* どの画面でも右上に出す。開いているビルドを確かめるための目印 */}
+        <VersionBadge />
+      </div>
     </header>
   );
 }

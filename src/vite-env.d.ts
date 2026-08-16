@@ -16,3 +16,11 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/**
+ * ビルド時に vite.config.ts が埋め込む値。画面右上のバージョン表示に使う。
+ * commit は空になることがある（git の無い環境でのビルド）。
+ */
+declare const __APP_COMMIT__: string;
+declare const __APP_REPOSITORY__: string;
+declare const __APP_BUILT_AT__: string;
