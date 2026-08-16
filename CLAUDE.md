@@ -12,7 +12,6 @@ Vitest + Testing Library + Firestore エミュレータ / ESLint flat config + P
 家系図描画は自前のレイアウト計算 + SVG。D3.js / React Flow は使っていない。
 
 > 当初は Supabase で実装していたが、無料枠でプロジェクトが自動休止する点を避けて Firebase に移行した。
-> 要件定義書 2.2 の表は Supabase 推奨のままなので、記述と実装が食い違っている点に注意。
 
 ## ディレクトリ
 
