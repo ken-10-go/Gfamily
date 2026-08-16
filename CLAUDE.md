@@ -59,8 +59,11 @@ Firebase なしで描画を見たいときは `/demo`（DEV ビルドのみ）�
 - **削除はソフト削除（`deletedAt`）。** 物理削除の権限はオーナーにしか無い。ゴミ箱から復元できる。
 - **招待と監査ログはクライアントから書けない。** Cloud Functions（Admin SDK）経由のみ。
 - **ルールを変更したら `src/test/rules/firestore.test.ts` を必ず更新・実行する。**
-- **自動デプロイは Hosting だけ。** `main` への push で GitHub Actions が画面を反映する。
-  ルール・インデックス・Functions は手元から手動で反映する（理由と手順は README のデプロイ節）。
+- **`main` と `claude/**` への push で本番へ自動デプロイされる。** GitHub Actions が
+  Hosting（画面）と Firestore のルール・インデックスを反映する。PR やマージは要らない。
+  デプロイ前に typecheck・lint・`npm test`・`npm run test:rules`・build が走り、
+  1つでも落ちれば反映されない。裏を返すと、通れば未レビューでも本番に出る。
+  Functions だけは権限の都合で手動デプロイ（理由と手順は README のデプロイ節）。
 
 ## 制約
 

@@ -17,7 +17,7 @@
 | 認証 / DB | Firebase Authentication + Cloud Firestore |
 | サーバー処理 | Cloud Functions（招待の発行・受諾、変更履歴の記録） |
 | 家系図描画 | 自前のレイアウト計算 + SVG |
-| ホスティング | Firebase Hosting（GitHub Actions で自動デプロイ） |
+| ホスティング | Firebase Hosting（GitHub Actions で自動デプロイ。Firestore のルールも同時に反映） |
 | Lint / Format | ESLint（flat config）+ Prettier |
 | テスト | Vitest + Testing Library + Firestore エミュレータ |
 
@@ -121,7 +121,15 @@ Firebase を設定しなくてもツリービューの描画だけは確認で�
 
 ## デプロイ
 
-`main` への push で [deploy.yml](.github/workflows/deploy.yml) が **Hosting（画面）**を反映します。
+`main` と `claude/**` ブランチへの push で [deploy.yml](.github/workflows/deploy.yml) が
+**Hosting（画面）と Firestore のルール・インデックス**を反映します。
+PR やマージを待たずに本番へ出るので、スマホから直した内容もそのまま家族に届きます。
+
+デプロイの前に typecheck・lint・ユニットテスト・**ルールのテスト**・build が走り、
+どれか1つでも落ちればデプロイ手順まで進みません。裏を返すと、検査さえ通れば
+レビュー前の変更でも本番に出ます。試したいだけの変更は別名のブランチ
+（`claude/` 以外）に置いてください。
+
 事前に以下を登録してください。
 
 **Settings → Secrets and variables → Actions → Variables**（公開前提の値）
@@ -137,31 +145,27 @@ Firebase を設定しなくてもツリービューの描画だけは確認で�
 デプロイ後、**Authentication → Settings → 承認済みドメイン**に公開URLのドメインを追加してください。
 ログインリンクが機能しなくなります。
 
-### ルール・インデックス・Functions は手動デプロイ
+サービスアカウントには Hosting に加えて **Firebase Rules 管理者**と
+**Cloud Datastore インデックス管理者**の権限が要ります。権限が足りないと
+デプロイの段階で失敗します（画面だけ反映して止まることはありません）。
 
-自動化しているのは Hosting だけです。以下を変更したときは手元から反映してください。
+### Functions だけは手動デプロイ
 
-`firestore.rules` / `firestore.indexes.json` を変更したとき（**必ずテストを通してから**）:
-
-```bash
-npm run test:rules && npx firebase-tools deploy --only firestore --project family-505409
-```
-
-`functions/` を変更したとき:
+`functions/` を変更したときは手元から反映してください。
 
 ```bash
 npx firebase-tools deploy --only functions --project family-505409
 ```
 
-自動化しない理由:
+自動化しない理由: Functions のデプロイには Cloud Functions 管理者・Service Account User・
+Artifact Registry・Cloud Run・Eventarc といった広い権限が要り、
+公開リポジトリの Secrets に置く鍵としては強すぎるためです。変更頻度も高くありません。
 
-- **ルール**は権限制御の中核で、反映前に `npm run test:rules` の確認が要る（Java が必要）。
-  誤ったルールを自動で本番へ出すと、家族以外がデータを読める状態になりかねない
-- **Functions** のデプロイには Cloud Functions 管理者・Service Account User・
-  Artifact Registry・Cloud Run・Eventarc といった広い権限が要り、
-  公開リポジトリの Secrets に置く鍵としては強すぎる
+手元からルールだけを反映したいときは、これまでどおり次のコマンドが使えます。
 
-どちらも変更頻度は高くありません。
+```bash
+npm run test:rules && npx firebase-tools deploy --only firestore --project family-505409
+```
 
 ### PR プレビュー
 
@@ -176,10 +180,11 @@ PR を作ると [preview.yml](.github/workflows/preview.yml) が Hosting のプ�
 
 [claude.ai/code](https://claude.ai/code) の Claude Code on the web からこのリポジトリを開くと、
 クラウド上で編集・テストを実行してブランチを push できます。
-PR プレビューで確認 → マージ → `deploy.yml` が本番へ反映、という流れになります。
+`claude/**` ブランチへ push した時点で `deploy.yml` が本番へ反映します
+（PR を作った場合は、マージ前にプレビューURL でも確認できます）。
 
 クラウド側には `.env` が無いため、`npm run dev` と `firebase deploy` は動きません
-（typecheck・lint・ユニットテストは動きます）。実データを触る確認と手動デプロイは手元で行ってください。
+（typecheck・lint・ユニットテストは動きます）。実データを触る確認と Functions のデプロイは手元で行ってください。
 
 ## セキュリティ方針
 

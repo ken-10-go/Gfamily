@@ -1,13 +1,21 @@
 name: Deploy to Firebase
 
+# 作業ブランチへの push でも本番へ反映する。
+# PR を作ってマージするまで画面が更新されないと、スマホから直した内容が
+# いつまでも家族に届かないため。関門は下の検査（typecheck / lint / テスト / build）で、
+# どれか1つでも落ちればデプロイ手順まで進まない。
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'claude/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# 別のブランチから同時に走っても、あとから始めたほうを待たせる。
+# 途中で止めると中途半端な状態が本番に残るので cancel はしない。
 concurrency:
   group: firebase-deploy
   cancel-in-progress: false
@@ -23,11 +31,16 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Firestore エミュレータ（ルールのテスト）の実行に必要
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
       - run: npm ci
       - run: npm ci --prefix functions
 
       # 壊れたものを自動で本番へ出さないための関門。
-      # ルールのテストは Java が要るため ci.yml に任せ、ここでは走らせない。
       - name: Typecheck
         run: npm run typecheck && npm run typecheck --prefix functions
 
@@ -36,6 +49,11 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      # ルールも自動で反映するので、権限制御が壊れていないことをここで必ず確かめる。
+      # このテストが落ちたらデプロイはしない。
+      - name: Security rules tests
+        run: npm run test:rules
 
       - name: Build
         env:
@@ -58,18 +76,14 @@ jobs:
           echo "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-key.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-key.json" >> "$GITHUB_ENV"
 
-      # Hosting だけを反映する。ルール・インデックス・Functions は手動デプロイ。
+      # 画面（Hosting）と、アクセス制御まわり（ルール・インデックス）を反映する。
       #
-      # ルールは権限制御の中核で、変更前に `npm run test:rules` を通す必要がある
-      # （Java が要るためこのジョブでは走らせていない）。自動で本番へ出すより、
-      # テストを確認したうえで意図的に反映するほうが安全。
-      # Functions のデプロイには Cloud Functions 管理者・Service Account User・
+      # Functions は自動化しない。デプロイに Cloud Functions 管理者・Service Account User・
       # Artifact Registry・Cloud Run・Eventarc といった広い権限が要り、
-      # 公開リポジトリの Secrets に置く鍵としては強すぎる。
-      # どちらの手順も README を参照。
+      # 公開リポジトリの Secrets に置く鍵としては強すぎるため。手順は README を参照。
       - name: Deploy
         run: >
           npx firebase-tools deploy
-          --only hosting
+          --only hosting,firestore
           --project "${{ vars.VITE_FIREBASE_PROJECT_ID }}"
           --non-interactive
