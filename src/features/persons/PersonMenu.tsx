@@ -14,6 +14,7 @@ export type PersonAction =
   | 'connect-spouse'
   | 'connect-child'
   | 'focus'
+  | 'center'
   | 'reset-position'
   | 'delete';
 
@@ -45,6 +46,7 @@ const ITEMS: MenuItem[] = [
   { action: 'connect-parent', label: '既存の人物を親にする', editOnly: true },
   { action: 'connect-spouse', label: '既存の人物を配偶者にする', editOnly: true },
   { action: 'connect-child', label: '既存の人物を子にする', editOnly: true },
+  { action: 'center', label: '画面の中央に寄せる' },
   { action: 'focus', label: 'この人を中心に絞り込む' },
   {
     action: 'reset-position',

@@ -46,6 +46,12 @@ interface CardDrag {
 const DRAG_THRESHOLD = { mouse: 6, touch: 14 };
 
 /**
+ * 2回目のタップをダブルタップとみなす間隔（ミリ秒）。
+ * 端末の標準（300ms 前後）に合わせる。長くすると、続けて別の人を選ぶ操作と紛れる。
+ */
+const DOUBLE_TAP_MS = 320;
+
+/**
  * 全体表示のときに、これ以上は縮めない倍率。
  * 狭い画面で無理に全部を収めると文字が読めなくなるので、読める大きさで止めてパンしてもらう。
  */
@@ -74,6 +80,15 @@ interface TreeCanvasProps {
   /** ドラッグで置いた位置の確定。格子に合わせた座標が渡る。 */
   onMovePerson?: (personId: string, position: CardPosition) => void;
   /**
+   * ダブルタップで画面の中央に寄せたとき。
+   * 1回目のタップで開いたメニューを閉じるために使う。
+   */
+  onCenterPerson?: (personId: string) => void;
+  /** 外（メニューなど）からの「中央に寄せて」の指示。人物IDを渡す */
+  centerRequest?: string | null;
+  /** 寄せ終わったことを伝える。同じ人をもう一度指定できるようにするため */
+  onCenterDone?: () => void;
+  /**
    * 手で置いた位置を無視して自動配置で描く。絞り込み表示のときに使う。
    * 一部だけを描くと手動の座標が意味を持たないため、カードの移動もできなくする。
    */
@@ -88,6 +103,9 @@ export function TreeCanvas({
   onSelectPerson,
   canReorder = false,
   onMovePerson,
+  onCenterPerson,
+  centerRequest = null,
+  onCenterDone,
   ignoreManualPositions = false,
 }: TreeCanvasProps) {
   // 空の配偶者カードはレイアウト計算の前に足す。枠のぶんの場所が確保され、実在のカードと重ならない
@@ -109,7 +127,9 @@ export function TreeCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [drag, setDrag] = useState<CardDrag | null>(null);
-  const { viewport, isPanning, zoomBy, fitTo, handlers } = usePanZoom();
+  const { viewport, isPanning, zoomBy, fitTo, centerOn, handlers } = usePanZoom();
+  /** 直前のタップ。同じカードを続けて叩いたらダブルタップとして扱う */
+  const lastTapRef = useRef<{ personId: string; at: number } | null>(null);
   const grid = useMemo(() => gridFor(metrics), [metrics]);
 
   useLayoutEffect(() => {
@@ -137,6 +157,17 @@ export function TreeCanvas({
     [layout.nodes],
   );
 
+  // メニューから指示された人物を中央へ寄せる
+  useEffect(() => {
+    if (!centerRequest || size.width === 0) return;
+
+    const node = positionById.get(centerRequest);
+    if (node) centerOn(node.x, node.y + metrics.nodeHeight / 2, size.width, size.height);
+    onCenterDone?.();
+    // 指示が変わったときだけ動かす。位置の再計算では動かさない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centerRequest, size.width, size.height]);
+
   function startDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
     if (!draggable || placeholderTarget(personId)) return;
 
@@ -162,21 +193,49 @@ export function TreeCanvas({
     setDrag({ ...drag, dx, dy, moved });
   }
 
+  /**
+   * ダブルタップなら、その人を画面の中央へ寄せる。
+   *
+   * 大きな家系図では見たい人がすぐ画面の外へ出るので、
+   * 「叩いたら真ん中に来る」を入口にする（仕様書 UI デザインガイド 4.1）。
+   */
+  function handleTap(personId: string, anchor: CardAnchor): void {
+    const previous = lastTapRef.current;
+    const now = performance.now();
+
+    if (previous && previous.personId === personId && now - previous.at < DOUBLE_TAP_MS) {
+      lastTapRef.current = null;
+
+      const node = positionById.get(personId);
+      if (node) {
+        centerOn(node.x, node.y + metrics.nodeHeight / 2, size.width, size.height);
+        onCenterPerson?.(personId);
+      }
+      return;
+    }
+
+    lastTapRef.current = { personId, at: now };
+    onSelectPerson(personId, anchor);
+  }
+
   function endDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
     const anchor = { x: event.clientX, y: event.clientY };
 
     // ドラッグ対象でないカード（閲覧のみ・ロック中）はここを通る。選択だけ行う。
     if (!drag || drag.pointerId !== event.pointerId) {
-      onSelectPerson(personId, anchor);
+      handleTap(personId, anchor);
       return;
     }
 
     // つまんだだけで動かしていなければ、クリックとして選択する
     if (!drag.moved) {
       setDrag(null);
-      onSelectPerson(personId, anchor);
+      handleTap(personId, anchor);
       return;
     }
+
+    // 動かしたらタップの連続は途切れる
+    lastTapRef.current = null;
 
     const node = positionById.get(personId);
     setDrag(null);
@@ -248,7 +307,13 @@ export function TreeCanvas({
                   ? { x: drag.dx / viewport.scale, y: drag.dy / viewport.scale }
                   : null
               }
-              onSelect={onSelectPerson}
+              onSelect={handleTap}
+              onCenter={(id) => {
+                const node = positionById.get(id);
+                if (!node) return;
+                centerOn(node.x, node.y + metrics.nodeHeight / 2, size.width, size.height);
+                onCenterPerson?.(id);
+              }}
               onPointerDown={startDrag}
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
@@ -330,6 +395,7 @@ function PersonCard({
   draggable,
   dragOffset,
   onSelect,
+  onCenter,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -347,6 +413,8 @@ function PersonCard({
   /** ドラッグ中の見た目の追従量（レイアウト座標）。動かしていなければ null。 */
   dragOffset: CardPosition | null;
   onSelect: (id: string, anchor: CardAnchor) => void;
+  /** キーボードから中央へ寄せる（マウスのダブルクリックにあたる操作） */
+  onCenter: (id: string) => void;
   onPointerDown: (personId: string, event: React.PointerEvent<SVGGElement>) => void;
   onPointerMove: (event: React.PointerEvent<SVGGElement>) => void;
   onPointerUp: (personId: string, event: React.PointerEvent<SVGGElement>) => void;
@@ -404,6 +472,11 @@ function PersonCard({
           event.preventDefault();
           const box = (event.currentTarget as SVGGElement).getBoundingClientRect();
           onSelect(person.id, { x: box.left, y: box.bottom });
+        }
+        // 画面の中央へ寄せる。ダブルタップと同じ操作をキーボードからも行えるように
+        if (event.key === 'c' || event.key === 'C') {
+          event.preventDefault();
+          onCenter(person.id);
         }
       }}
       tabIndex={0}

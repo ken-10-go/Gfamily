@@ -66,6 +66,8 @@ export function TreeDetailPage() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  /** 画面の中央に寄せたい人物。TreeCanvas 側が受け取って動かし、寄せ終わったら消す */
+  const [centerRequest, setCenterRequest] = useState<string | null>(null);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focus, setFocus] = useState<FocusState>({ centerId: '', ...DEFAULT_FOCUS_OPTIONS });
   /** つながっている家も合わせて描くか。相手の故人だけが載る */
@@ -209,6 +211,9 @@ export function TreeDetailPage() {
         break;
       case 'add-parents':
         setDialog({ kind: 'add-parents', personId });
+        break;
+      case 'center':
+        setCenterRequest(personId);
         break;
       case 'focus':
         startFocus(personId);
@@ -534,6 +539,10 @@ export function TreeDetailPage() {
           onSelectPerson={openMenu}
           canReorder={canEdit}
           onMovePerson={handleMovePerson}
+          // ダブルタップで中央に寄せたら、1回目のタップで開いたメニューは引っ込める
+          onCenterPerson={() => setMenu(null)}
+          centerRequest={centerRequest}
+          onCenterDone={() => setCenterRequest(null)}
           // 絞り込み中は自動配置で描く。手で置いた座標は家系図の全体を前提にした値で、
           // 一部だけを取り出すとカードが遠くに取り残されるため。
           ignoreManualPositions={Boolean(focus.centerId)}
