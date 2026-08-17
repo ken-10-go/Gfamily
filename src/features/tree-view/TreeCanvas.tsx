@@ -16,6 +16,8 @@ import {
   verticalSegments,
   type Segment,
 } from '@/features/tree-view/hops';
+import { collapseHouses, collapsedHouseTarget } from '@/features/tree-view/collapse';
+import { resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget, withSpousePlaceholders } from '@/features/tree-view/placeholders';
 import {
   isOutsideSiblingRow,
@@ -151,6 +153,11 @@ interface TreeCanvasProps {
    * 渡さなくても血のつながりから自動で判定するので、省略してよい。
    */
   houses?: House[];
+  /**
+   * 1枚に畳んで表示する家の識別子。中身の人物は消えて「◯◯家（n人）」の
+   * カード1枚になり、外へのつながりだけが残る。畳んだカードを叩くと開く。
+   */
+  collapsedHouses?: ReadonlySet<string>;
 }
 
 const NO_DIMMED: ReadonlySet<string> = new Set<string>();
@@ -172,11 +179,17 @@ export function TreeCanvas({
   onFocusPerson,
   sceneKey = 'all',
   houses,
+  collapsedHouses = NO_DIMMED,
 }: TreeCanvasProps) {
+  // 畳むのは配偶者の枠より前。畳んだ家の人に空の枠を出しても意味がないため
+  const opened = useMemo(
+    () => collapseHouses(graph, resolveHouses(graph, houses ?? []), collapsedHouses),
+    [graph, houses, collapsedHouses],
+  );
   // 空の配偶者カードはレイアウト計算の前に足す。枠のぶんの場所が確保され、実在のカードと重ならない
   const drawn = useMemo(
-    () => (settings.showSpousePlaceholder && canReorder ? withSpousePlaceholders(graph) : graph),
-    [graph, settings.showSpousePlaceholder, canReorder],
+    () => (settings.showSpousePlaceholder && canReorder ? withSpousePlaceholders(opened) : opened),
+    [opened, settings.showSpousePlaceholder, canReorder],
   );
   const layout = useMemo(
     () => computeLayout(drawn, metrics, { ignoreManualPositions, houses }),
@@ -273,7 +286,7 @@ export function TreeCanvas({
   }, [centerRequest, size.width, size.height]);
 
   function startDrag(personId: string, event: React.PointerEvent<SVGGElement>) {
-    if (!draggable || placeholderTarget(personId)) return;
+    if (!draggable || placeholderTarget(personId) || collapsedHouseTarget(personId)) return;
 
     const byTouch = event.pointerType !== 'mouse';
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -314,6 +327,12 @@ export function TreeCanvas({
    * （仕様書 UI デザインガイド 4.1「フォーカス&カリング」）。
    */
   function handleTap(personId: string, anchor: CardAnchor): void {
+    // 畳んだ家のカードは「開く」だけ。中身が無いので絞り込みも中央寄せも意味がない
+    if (collapsedHouseTarget(personId)) {
+      onSelectPerson(personId, anchor);
+      return;
+    }
+
     const previous = lastTapRef.current;
     const now = performance.now();
 
@@ -473,6 +492,7 @@ export function TreeCanvas({
                 placeholderTarget(node.person.id) ? null : birthOrderLabel(graph, node.person)
               }
               placeholder={placeholderTarget(node.person.id) !== null}
+              house={collapsedHouseTarget(node.person.id) !== null}
               draggable={draggable}
               dragOffset={
                 drag?.moved && drag.personId === node.person.id
@@ -620,6 +640,7 @@ export function PersonCard({
   inLineage,
   distant,
   placeholder,
+  house,
   birthOrder,
   draggable,
   dragOffset,
@@ -640,6 +661,8 @@ export function PersonCard({
   distant: boolean;
   /** 実在しない「＋ 配偶者」の枠か */
   placeholder: boolean;
+  /** 畳んだ家の1枚（「◯◯家（3人）」）か */
+  house?: boolean;
   birthOrder: string | null;
   draggable: boolean;
   /** ドラッグ中の見た目の追従量（レイアウト座標）。動かしていなければ null。 */
@@ -709,6 +732,7 @@ export function PersonCard({
         inLineage ? 'person-card--lineage' : '',
         distant ? 'person-card--distant' : '',
         placeholder ? 'person-card--placeholder' : '',
+        house ? 'person-card--house' : '',
         person.isLiving ? '' : 'person-card--deceased',
         draggable ? 'person-card--draggable' : '',
         dragOffset ? 'person-card--dragging' : '',

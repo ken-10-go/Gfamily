@@ -1009,6 +1009,17 @@ textarea {
   font-weight: 400;
 }
 
+/* 畳んだ家の1枚。中に何人も居ることが分かるよう、重ねた紙のように見せる */
+.person-card--house .person-card__box {
+  fill: var(--surface-alt, var(--surface));
+  stroke: var(--accent, var(--border));
+  stroke-width: 2;
+}
+
+.person-card--house .person-card__name {
+  font-weight: 700;
+}
+
 /* 選んだ人からさかのぼる筋。枠と線を金色の太線でつなぐ */
 .person-card--lineage .person-card__box {
   stroke: var(--lineage);

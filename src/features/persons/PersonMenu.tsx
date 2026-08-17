@@ -21,6 +21,7 @@ export type PersonAction =
   | 'raise-generation'
   | 'lower-generation'
   | 'reset-generation'
+  | 'collapse-house'
   | 'delete';
 
 interface PersonMenuProps {
@@ -66,6 +67,7 @@ const MORE_ITEMS: MenuItem[] = [
   { action: 'connect-child', label: '既存の人物を子にする', editOnly: true },
   { action: 'center', label: '画面の中央に寄せる' },
   { action: 'focus', label: 'この人を中心に絞り込む' },
+  { action: 'collapse-house', label: 'この家を1枚に畳む' },
   {
     action: 'reset-position',
     label: '自動配置に戻す',

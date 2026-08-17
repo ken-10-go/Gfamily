@@ -76,6 +76,11 @@ export interface ViewSettings {
   showSpousePlaceholder: boolean;
   /** 編集操作を止める。閲覧中の誤操作を防ぐ */
   locked: boolean;
+  /**
+   * 1枚に畳んで表示する家の識別子。
+   * 見た目の好みなので、他の表示設定と同じく端末に持つ（データには触らない）。
+   */
+  collapsedHouses: string[];
 }
 
 export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
@@ -90,6 +95,7 @@ export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   highlightLineage: true,
   showSpousePlaceholder: false,
   locked: false,
+  collapsedHouses: [],
 };
 
 /** カードの寸法。縦書きと UI サイズで縦横比が変わる。 */
@@ -173,6 +179,9 @@ export function migrateSettings(stored: Partial<ViewSettings> & LegacySettings):
     // 既定を変えたときに置いていかれないよう、新しい既定へ寄せる。
     merged.cardFields = [...DEFAULT_VIEW_SETTINGS.cardFields];
   }
+
+  // 別の版で保存された設定が混ざっても壊れないように、形だけ整える
+  if (!Array.isArray(merged.collapsedHouses)) merged.collapsedHouses = [];
 
   // 知らない項目や上限超えは捨てる（別の版で保存された設定が混ざっても壊れないように）
   merged.cardFields = merged.cardFields

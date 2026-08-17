@@ -10,7 +10,9 @@ import { PersonDialog } from '@/features/persons/PersonDialog';
 import { PersonForm } from '@/features/persons/PersonForm';
 import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
+import { collapsedHouseTarget } from '@/features/tree-view/collapse';
 import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
+import { resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget } from '@/features/tree-view/placeholders';
 import { FocusBar, type FocusState } from '@/features/tree-view/FocusBar';
 import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
@@ -171,6 +173,28 @@ export function TreeDetailPage() {
     [baseGraph, focus],
   );
 
+  /** 1枚に畳んでいる家。表示の好みなので端末の設定に持つ */
+  const collapsedHouses = useMemo(
+    () => new Set(settings.collapsedHouses),
+    [settings.collapsedHouses],
+  );
+
+  /** その人の属する家を1枚に畳む。 */
+  function collapseHouseOf(personId: string) {
+    const houseId = resolveHouses(baseGraph, houses).get(personId)?.id;
+    if (!houseId || collapsedHouses.has(houseId)) return;
+
+    updateSetting('collapsedHouses', [...settings.collapsedHouses, houseId]);
+  }
+
+  /** 畳んだ家のカードを叩いたら開く。 */
+  function expandHouse(houseId: string) {
+    updateSetting(
+      'collapsedHouses',
+      settings.collapsedHouses.filter((id) => id !== houseId),
+    );
+  }
+
   /** 中心人物を決めてフォーカスを始める。 */
   function startFocus(personId: string) {
     setFocus((current) => ({ ...current, centerId: personId }));
@@ -203,6 +227,13 @@ export function TreeDetailPage() {
   }
 
   function openMenu(personId: string, anchor: CardAnchor) {
+    // 畳んだ家の1枚。中に人物が居ないので、メニューではなく「開く」に割り当てる
+    const houseId = collapsedHouseTarget(personId);
+    if (houseId) {
+      expandHouse(houseId);
+      return;
+    }
+
     // 「＋ 配偶者」の空カードは実在しないので、そのまま配偶者の追加を開く
     const placeholderFor = placeholderTarget(personId);
     if (placeholderFor) {
@@ -245,6 +276,9 @@ export function TreeDetailPage() {
         break;
       case 'focus':
         startFocus(personId);
+        break;
+      case 'collapse-house':
+        collapseHouseOf(personId);
         break;
       case 'reset-position':
         void handleResetPosition(personId);
@@ -581,6 +615,19 @@ export function TreeDetailPage() {
                   >
                     表示設定
                   </button>
+                  {collapsedHouses.size > 0 && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="person-menu__item"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        updateSetting('collapsedHouses', []);
+                      }}
+                    >
+                      畳んだ家をすべて開く（{collapsedHouses.size}）
+                    </button>
+                  )}
                   {canEdit && (
                     <button
                       type="button"
@@ -693,6 +740,7 @@ export function TreeDetailPage() {
             dimmed={distantIds}
             sceneKey={focus.centerId || 'all'}
             houses={houses}
+            collapsedHouses={collapsedHouses}
             centerRequest={centerRequest}
             onCenterDone={() => setCenterRequest(null)}
             // 絞り込み中は自動配置で描く。手で置いた座標は家系図の全体を前提にした値で、
