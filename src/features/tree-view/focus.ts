@@ -44,12 +44,71 @@ export function focusGraph(
   centerId: string,
   options: FocusOptions = DEFAULT_FOCUS_OPTIONS,
 ): TreeGraph {
+  const scope = focusScope(graph, centerId, options);
+  if (!scope) return { persons: [], parentChild: [], unions: [] };
+
+  const { persons, parentChild, unions, included } = scope;
+
+  return {
+    persons: persons.filter((person) => included.has(person.id)),
+    parentChild: parentChild.filter((pc) => included.has(pc.parentId) && included.has(pc.childId)),
+    unions: unions.filter((u) => included.has(u.partner1Id) && included.has(u.partner2Id)),
+  };
+}
+
+/**
+ * 絞り込みの端にいる人物を返す。
+ *
+ * 「ここで切れているが、その先にもまだ家系が続いている」と分かるように薄く描く。
+ * 端とみなすのは、指定した世代数ちょうどまで離れている人と、
+ * 血縁ではなく配偶者として足された人（そこから先はたどっていない）。
+ *
+ * 中心人物が見つからないときは空集合。純粋関数。
+ */
+export function focusBoundary(
+  graph: TreeGraph,
+  centerId: string,
+  options: FocusOptions = DEFAULT_FOCUS_OPTIONS,
+): Set<string> {
+  const scope = focusScope(graph, centerId, options);
+  if (!scope) return new Set();
+
+  const up = Math.max(0, options.ancestors);
+  const down = Math.max(0, options.descendants);
+  const boundary = new Set<string>();
+
+  for (const [id, offset] of scope.offsets) {
+    if (id === centerId) continue;
+    if (offset === -up || offset === down) boundary.add(id);
+  }
+
+  // 配偶者としてだけ入った人は、そこから先をたどっていないので端として扱う
+  for (const id of scope.included) {
+    if (!scope.offsets.has(id)) boundary.add(id);
+  }
+
+  return boundary;
+}
+
+/**
+ * 絞り込みの探索を1か所にまとめる。
+ * `offsets` は血縁でたどった距離（親が -1、子が +1）。配偶者として足した人は持たない。
+ */
+function focusScope(
+  graph: TreeGraph,
+  centerId: string,
+  options: FocusOptions,
+): {
+  persons: TreeGraph['persons'];
+  parentChild: TreeGraph['parentChild'];
+  unions: TreeGraph['unions'];
+  included: Set<string>;
+  offsets: Map<string, number>;
+} | null {
   const persons = graph.persons.filter((p) => !p.deletedAt);
   const personIds = new Set(persons.map((p) => p.id));
 
-  if (!personIds.has(centerId)) {
-    return { persons: [], parentChild: [], unions: [] };
-  }
+  if (!personIds.has(centerId)) return null;
 
   const parentChild = graph.parentChild.filter(
     (pc) => !pc.deletedAt && personIds.has(pc.parentId) && personIds.has(pc.childId),
@@ -69,7 +128,7 @@ export function focusGraph(
   const down = Math.max(0, options.descendants);
 
   // 幅優先で広げる。訪問済みを持つので、循環したデータでも止まる。
-  const included = new Set<string>([centerId]);
+  const offsets = new Map<string, number>([[centerId, 0]]);
   const queue: { id: string; offset: number }[] = [{ id: centerId, offset: 0 }];
 
   while (queue.length > 0) {
@@ -77,20 +136,22 @@ export function focusGraph(
 
     if (offset - 1 >= -up) {
       for (const parentId of parentsOf.get(id) ?? []) {
-        if (included.has(parentId)) continue;
-        included.add(parentId);
+        if (offsets.has(parentId)) continue;
+        offsets.set(parentId, offset - 1);
         queue.push({ id: parentId, offset: offset - 1 });
       }
     }
 
     if (offset + 1 <= down) {
       for (const childId of childrenOf.get(id) ?? []) {
-        if (included.has(childId)) continue;
-        included.add(childId);
+        if (offsets.has(childId)) continue;
+        offsets.set(childId, offset + 1);
         queue.push({ id: childId, offset: offset + 1 });
       }
     }
   }
+
+  const included = new Set(offsets.keys());
 
   if (options.includeSpouses) {
     // 血縁でたどった人物の配偶者を足す。足した配偶者からは広げない。
@@ -101,11 +162,5 @@ export function focusGraph(
     }
   }
 
-  return {
-    persons: persons.filter((person) => included.has(person.id)),
-    parentChild: parentChild.filter(
-      (pc) => included.has(pc.parentId) && included.has(pc.childId),
-    ),
-    unions: unions.filter((u) => included.has(u.partner1Id) && included.has(u.partner2Id)),
-  };
+  return { persons, parentChild, unions, included, offsets };
 }

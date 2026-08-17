@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { focusGraph } from '@/features/tree-view/focus';
-import { EMPTY_PERSON, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
+import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
+import {
+  EMPTY_PERSON,
+  type ParentChild,
+  type Person,
+  type TreeGraph,
+  type Union,
+} from '@/types/models';
 
 function person(id: string, overrides: Partial<Person> = {}): Person {
   return {
@@ -13,7 +19,11 @@ function person(id: string, overrides: Partial<Person> = {}): Person {
   };
 }
 
-function link(parentId: string, childId: string, overrides: Partial<ParentChild> = {}): ParentChild {
+function link(
+  parentId: string,
+  childId: string,
+  overrides: Partial<ParentChild> = {},
+): ParentChild {
   return {
     id: `${parentId}->${childId}`,
     parentId,
@@ -174,13 +184,47 @@ describe('focusGraph', () => {
       unions: [],
     };
 
-    expect(ids(focusGraph(cyclic, 'a', { ancestors: 5, descendants: 5, includeSpouses: false })))
-      .toEqual(['a', 'b']);
+    expect(
+      ids(focusGraph(cyclic, 'a', { ancestors: 5, descendants: 5, includeSpouses: false })),
+    ).toEqual(['a', 'b']);
   });
 
   it('入力の家系図を書き換えない', () => {
     const before = JSON.stringify(sample);
     focusGraph(sample, '本人');
     expect(JSON.stringify(sample)).toBe(before);
+  });
+});
+
+describe('focusBoundary', () => {
+  const boundary = (centerId: string, options: Parameters<typeof focusBoundary>[2]) =>
+    [...focusBoundary(sample, centerId, options)].sort();
+
+  it('指定した世代数ちょうどまで離れた人を端とする', () => {
+    const result = boundary('本人', { ancestors: 1, descendants: 1, includeSpouses: false });
+
+    // 上下1世代なので、親の世代（父・母・後妻）と子の世代（子）が端になる。
+    // 妹・異母弟・配偶者は本人と同じ世代なので端ではない
+    // （配偶者は子の親としてたどり着くため、血縁の距離は 0 になる）。
+    expect(result).toEqual(['子', '父', '母', '後妻'].sort());
+  });
+
+  it('中心人物は端に含めない', () => {
+    expect(boundary('本人', { ancestors: 0, descendants: 0, includeSpouses: false })).toEqual([]);
+  });
+
+  it('配偶者として足しただけの人は、そこから先をたどっていないので端とする', () => {
+    const result = boundary('本人', { ancestors: 2, descendants: 0, includeSpouses: true });
+
+    // 祖父母は上限の2世代でちょうど端。配偶者は血縁でたどっていないので端。
+    expect(result).toContain('祖父');
+    expect(result).toContain('祖母');
+    expect(result).toContain('配偶者');
+    // 父・母は途中の世代なので端ではない
+    expect(result).not.toContain('父');
+  });
+
+  it('中心人物が見つからなければ空', () => {
+    expect(boundary('いない人', DEFAULT_FOCUS_OPTIONS)).toEqual([]);
   });
 });

@@ -110,7 +110,24 @@ interface TreeCanvasProps {
    * 一部だけを描くと手動の座標が意味を持たないため、カードの移動もできなくする。
    */
   ignoreManualPositions?: boolean;
+  /**
+   * 薄く描く人物。絞り込みの端にいて「この先にもまだ続く」ことを示すのに使う。
+   * 操作はふつうにできる。見え方だけを弱める。
+   */
+  dimmed?: ReadonlySet<string>;
+  /**
+   * ダブルタップしたとき。中央へ寄せると同時に、その人を中心に絞り込む。
+   * 中央へ寄せるだけでよければ渡さなくてよい。
+   */
+  onFocusPerson?: (personId: string) => void;
+  /**
+   * 描いている図の識別子。変わると図をフェードで入れ替える。
+   * 絞り込みの中心が変わったときに「別の眺めになった」と分かるようにするために使う。
+   */
+  sceneKey?: string;
 }
+
+const NO_DIMMED: ReadonlySet<string> = new Set<string>();
 
 export function TreeCanvas({
   graph,
@@ -124,6 +141,9 @@ export function TreeCanvas({
   centerRequest = null,
   onCenterDone,
   ignoreManualPositions = false,
+  dimmed = NO_DIMMED,
+  onFocusPerson,
+  sceneKey = 'all',
 }: TreeCanvasProps) {
   // 空の配偶者カードはレイアウト計算の前に足す。枠のぶんの場所が確保され、実在のカードと重ならない
   const drawn = useMemo(
@@ -220,10 +240,11 @@ export function TreeCanvas({
   }
 
   /**
-   * ダブルタップなら、その人を画面の中央へ寄せる。
+   * ダブルタップなら、その人を中心に絞り込んで画面の中央へ寄せる。
    *
-   * 大きな家系図では見たい人がすぐ画面の外へ出るので、
-   * 「叩いたら真ん中に来る」を入口にする（仕様書 UI デザインガイド 4.1）。
+   * 大きな家系図では見たい人がすぐ画面の外へ出るうえ、遠い親戚まで描かれて読みにくい。
+   * 「叩いたら真ん中に来て、まわりだけになる」を入口にする
+   * （仕様書 UI デザインガイド 4.1「フォーカス&カリング」）。
    */
   function handleTap(personId: string, anchor: CardAnchor): void {
     const previous = lastTapRef.current;
@@ -231,6 +252,14 @@ export function TreeCanvas({
 
     if (previous && previous.personId === personId && now - previous.at < DOUBLE_TAP_MS) {
       lastTapRef.current = null;
+
+      if (onFocusPerson) {
+        // 絞り込むと図そのものが組み直されるので、今の座標へ寄せても意味がない。
+        // 寄せ直しは、新しい図が出てから centerRequest 経由で行う。
+        onFocusPerson(personId);
+        onCenterPerson?.(personId);
+        return;
+      }
 
       const node = positionById.get(personId);
       if (node) {
@@ -292,7 +321,12 @@ export function TreeCanvas({
         aria-label="家系図"
         {...handlers}
       >
-        <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
+        {/* key を変えて作り直すことで、図が入れ替わったことをフェードで示す */}
+        <g
+          key={sceneKey}
+          className="tree-canvas__scene"
+          transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
+        >
           {/* 動かしている間だけ格子を出して、置きたい位置を狙いやすくする */}
           {drag?.moved && <GridLines grid={grid} width={layout.width} height={layout.height} />}
 
@@ -304,6 +338,7 @@ export function TreeCanvas({
                 b={positionById.get(couple.partner2Id)}
                 metrics={metrics}
                 status={couple.status}
+                dimmed={dimmed.has(couple.partner1Id) && dimmed.has(couple.partner2Id)}
               />
             ))}
             {layout.families.map((family) => (
@@ -314,6 +349,7 @@ export function TreeCanvas({
                 childKinds={family.childKinds}
                 metrics={metrics}
                 lineage={lineage}
+                dimmed={dimmed}
               />
             ))}
           </g>
@@ -326,7 +362,10 @@ export function TreeCanvas({
               settings={settings}
               selected={node.person.id === selectedPersonId}
               inLineage={lineage.has(node.person.id)}
-              birthOrder={placeholderTarget(node.person.id) ? null : birthOrderLabel(graph, node.person)}
+              distant={dimmed.has(node.person.id)}
+              birthOrder={
+                placeholderTarget(node.person.id) ? null : birthOrderLabel(graph, node.person)
+              }
               placeholder={placeholderTarget(node.person.id) !== null}
               draggable={draggable}
               dragOffset={
@@ -380,13 +419,7 @@ export function TreeCanvas({
  * 家系図としてふつうの「実線＝実の親子」だけの図では出さない。
  * 縁組や離婚など、線の違いに意味がある家系図のときにだけ添える。
  */
-function LineLegend({
-  families,
-  couples,
-}: {
-  families: FamilyUnit[];
-  couples: CoupleLink[];
-}) {
+function LineLegend({ families, couples }: { families: FamilyUnit[]; couples: CoupleLink[] }) {
   const hasAdoptive = families.some((family) =>
     Object.values(family.childKinds).some((kind) => kind !== 'biological'),
   );
@@ -476,6 +509,7 @@ function PersonCard({
   settings,
   selected,
   inLineage,
+  distant,
   placeholder,
   birthOrder,
   draggable,
@@ -492,6 +526,8 @@ function PersonCard({
   selected: boolean;
   /** 選んだ人物からさかのぼる直系の筋にいるか */
   inLineage: boolean;
+  /** 絞り込みの端にいて、この先にもまだ家系が続くか */
+  distant: boolean;
   /** 実在しない「＋ 配偶者」の枠か */
   placeholder: boolean;
   birthOrder: string | null;
@@ -541,6 +577,7 @@ function PersonCard({
         `person-card--${person.gender}`,
         selected ? 'person-card--selected' : '',
         inLineage ? 'person-card--lineage' : '',
+        distant ? 'person-card--distant' : '',
         placeholder ? 'person-card--placeholder' : '',
         person.isLiving ? '' : 'person-card--deceased',
         draggable ? 'person-card--draggable' : '',
@@ -647,11 +684,14 @@ function CoupleLine({
   b,
   metrics,
   status,
+  dimmed,
 }: {
   a?: LayoutNode;
   b?: LayoutNode;
   metrics: LayoutMetrics;
   status: UnionStatus;
+  /** 端の人物どうしの線。カードと同じだけ薄くする */
+  dimmed: boolean;
 }) {
   if (!a || !b) return null;
 
@@ -666,7 +706,7 @@ function CoupleLine({
   const offsets = status === 'married' || status === 'widowed' ? [-2, 2] : [0];
 
   return (
-    <g className="link-group">
+    <g className={dimmed ? 'link-group link-group--distant' : 'link-group'}>
       {offsets.map((offset) => (
         <line
           key={offset}
@@ -692,6 +732,7 @@ function FamilyLines({
   childKinds,
   metrics,
   lineage,
+  dimmed,
 }: {
   parents: (LayoutNode | undefined)[];
   children: (LayoutNode | undefined)[];
@@ -700,14 +741,15 @@ function FamilyLines({
   metrics: LayoutMetrics;
   /** 直系の筋にいる人物。親と子の両方が入っている線だけを強調する */
   lineage: Set<string>;
+  /** 絞り込みの端にいる人物。つながる線もカードと同じだけ薄くする */
+  dimmed: ReadonlySet<string>;
 }) {
   const presentParents = parents.filter((p): p is LayoutNode => Boolean(p));
   const presentChildren = children.filter((c): c is LayoutNode => Boolean(c));
 
   if (presentParents.length === 0 || presentChildren.length === 0) return null;
 
-  const parentX =
-    presentParents.reduce((sum, parent) => sum + parent.x, 0) / presentParents.length;
+  const parentX = presentParents.reduce((sum, parent) => sum + parent.x, 0) / presentParents.length;
   const parentBottom = Math.max(...presentParents.map((p) => p.y)) + metrics.nodeHeight;
   const childTop = Math.min(...presentChildren.map((c) => c.y));
   const busY = childTop - metrics.vGap / 2;
@@ -722,8 +764,11 @@ function FamilyLines({
   const highlighted = parentInLineage && lineageChildren.length > 0;
   const linkClass = (on: boolean) => (on ? 'link link--lineage' : 'link');
 
+  // 親が全員そろって端にいるなら、この家族の線ごと薄くする
+  const parentsDistant = presentParents.every((parent) => dimmed.has(parent.person.id));
+
   return (
-    <g className="link-group">
+    <g className={parentsDistant ? 'link-group link-group--distant' : 'link-group'}>
       <line
         x1={parentX}
         y1={parentBottom}

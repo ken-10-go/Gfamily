@@ -882,6 +882,36 @@ textarea {
   stroke-width: 3;
 }
 
+/*
+ * 絞り込みの端にいる人。
+ * 「ここで切れているが、その先にも家系は続く」と伝えるために薄くする。
+ * 押せなくなるわけではないので、消さずに残す。
+ */
+.person-card--distant,
+.link-group--distant {
+  opacity: 0.45;
+}
+
+/* 絞り込みを切り替えたとき、図がふっと入れ替わるようにする */
+@keyframes tree-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tree-canvas__scene {
+  animation: tree-fade-in 220ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tree-canvas__scene {
+    animation: none;
+  }
+}
+
 .person-card__box {
   fill: var(--neutral);
   stroke: var(--border);

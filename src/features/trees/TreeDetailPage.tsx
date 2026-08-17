@@ -10,7 +10,7 @@ import { PersonDialog } from '@/features/persons/PersonDialog';
 import { PersonForm } from '@/features/persons/PersonForm';
 import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
-import { DEFAULT_FOCUS_OPTIONS, focusGraph } from '@/features/tree-view/focus';
+import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
 import { placeholderTarget } from '@/features/tree-view/placeholders';
 import { FocusBar, type FocusState } from '@/features/tree-view/FocusBar';
 import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
@@ -160,10 +160,30 @@ export function TreeDetailPage() {
     [baseGraph, focus],
   );
 
+  // 絞り込みの端にいる人物。薄く描いて「この先にも続く」ことを示す
+  const distantIds = useMemo(
+    () => (focus.centerId ? focusBoundary(baseGraph, focus.centerId, focus) : new Set<string>()),
+    [baseGraph, focus],
+  );
+
   /** 中心人物を決めてフォーカスを始める。 */
   function startFocus(personId: string) {
     setFocus((current) => ({ ...current, centerId: personId }));
     setFocusOpen(true);
+  }
+
+  /**
+   * ダブルタップされた人を中心に絞り込む。同じ人をもう一度叩いたら全体へ戻す。
+   *
+   * 絞り込むと図が組み直されるので、新しい図が出てから中央へ寄せ直す。
+   */
+  function toggleFocus(personId: string) {
+    if (focus.centerId === personId) {
+      setFocus((current) => ({ ...current, centerId: '' }));
+      return;
+    }
+    startFocus(personId);
+    setCenterRequest(personId);
   }
 
   function toggleFocusBar() {
@@ -611,6 +631,9 @@ export function TreeDetailPage() {
             onMovePerson={handleMovePerson}
             // ダブルタップで中央に寄せたら、1回目のタップで開いたメニューは引っ込める
             onCenterPerson={() => setMenu(null)}
+            onFocusPerson={toggleFocus}
+            dimmed={distantIds}
+            sceneKey={focus.centerId || 'all'}
             centerRequest={centerRequest}
             onCenterDone={() => setCenterRequest(null)}
             // 絞り込み中は自動配置で描く。手で置いた座標は家系図の全体を前提にした値で、
