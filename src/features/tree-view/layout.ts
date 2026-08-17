@@ -542,7 +542,18 @@ function buildSiblingGroups(
 }
 
 /**
- * 世代を決める。親より必ず1つ下、配偶者とは同じ世代になるまで緩和を繰り返す。
+ * 世代を決める。
+ *
+ * 3つの決まりを、変化が止まるまで交互に当てる:
+ *   1. 子は親より必ず1つ下
+ *   2. 夫婦は同じ段（低いほうへそろえる）
+ *   3. **親は子のすぐ上まで下りる**
+ *
+ * 3 が無いと、婚姻で子が下へ引っ張られたときに親だけが上に取り残される。
+ * 例: 佐々巳 → 敏行 の1世代しかないのに、敏行が婚姻で2段目へ下がると、
+ * 佐々巳は0段目のまま。同じ立場の 榮（子が2段目）より1段高く浮いて見える。
+ * どの決まりも段の数を増やす向きにしか動かず、経路の長さで頭打ちになるので必ず止まる。
+ *
  * データに循環があっても止まるよう、反復回数に上限を設ける。
  */
 function computeGenerations(
@@ -553,15 +564,24 @@ function computeGenerations(
   const generations = new Map(persons.map((p) => [p.id, 0]));
   const maxIterations = persons.length + 2;
 
+  // 親 → その子たち。3 の「子のすぐ上」を出すのに使う
+  const childrenOf = new Map<string, string[]>();
+  for (const pc of parentChild) {
+    childrenOf.set(pc.parentId, [...(childrenOf.get(pc.parentId) ?? []), pc.childId]);
+  }
+
   for (let i = 0; i < maxIterations; i++) {
     let changed = false;
 
-    for (const pc of parentChild) {
-      const want = (generations.get(pc.parentId) ?? 0) + 1;
-      if (want > (generations.get(pc.childId) ?? 0)) {
-        generations.set(pc.childId, want);
+    const lower = (id: string, to: number) => {
+      if (to > (generations.get(id) ?? 0)) {
+        generations.set(id, to);
         changed = true;
       }
+    };
+
+    for (const pc of parentChild) {
+      lower(pc.childId, (generations.get(pc.parentId) ?? 0) + 1);
     }
 
     for (const union of unions) {
@@ -569,18 +589,73 @@ function computeGenerations(
         generations.get(union.partner1Id) ?? 0,
         generations.get(union.partner2Id) ?? 0,
       );
-      for (const id of [union.partner1Id, union.partner2Id]) {
-        if ((generations.get(id) ?? 0) < level) {
-          generations.set(id, level);
-          changed = true;
-        }
-      }
+      lower(union.partner1Id, level);
+      lower(union.partner2Id, level);
+    }
+
+    // いちばん上の子のすぐ上まで、親を下ろす
+    for (const [parentId, children] of childrenOf) {
+      const highest = Math.min(...children.map((id) => generations.get(id) ?? 0));
+      lower(parentId, highest - 1);
     }
 
     if (!changed) break;
   }
 
-  return generations;
+  return normalize(applyGenerationShifts(generations, persons, parentChild));
+}
+
+/**
+ * 一番上の段が 0 になるようにそろえる。
+ *
+ * 手で段を上げると負の値になりうる。y は `世代 × 行の高さ` で決まるので、
+ * そのままだと図の上へはみ出して、全体表示にも入らなくなる。
+ * X を左端0に寄せているのと同じ考え方。
+ */
+function normalize(generations: Map<string, number>): Map<string, number> {
+  if (generations.size === 0) return generations;
+
+  const top = Math.min(...generations.values());
+  if (top === 0) return generations;
+
+  return new Map([...generations].map(([id, generation]) => [id, generation - top]));
+}
+
+/**
+ * 手でずらした段を反映する。
+ *
+ * 動かすのは指定した本人だけ（配偶者は「夫婦は同じ段」の規則で結果的について来る）。
+ * ただし **親が子と同じ段か、それより下に来る指定は無効にする**。
+ * 上下が入れ替わると、親子の線が逆向きに引かれて図として読めなくなるため。
+ * 無効にするのはその指定だけで、他の人の指定は生かす。
+ */
+function applyGenerationShifts(
+  generations: Map<string, number>,
+  persons: Person[],
+  parentChild: ParentChild[],
+): Map<string, number> {
+  const shifted = new Map(generations);
+  let anyShift = false;
+
+  for (const person of persons) {
+    const shift = person.generationShift ?? 0;
+    if (shift === 0) continue;
+
+    shifted.set(person.id, (generations.get(person.id) ?? 0) + shift);
+    anyShift = true;
+  }
+
+  if (!anyShift) return generations;
+
+  // 親子の上下が壊れる指定だけを、元の段へ戻す
+  for (const pc of parentChild) {
+    if ((shifted.get(pc.parentId) ?? 0) < (shifted.get(pc.childId) ?? 0)) continue;
+
+    shifted.set(pc.parentId, generations.get(pc.parentId) ?? 0);
+    shifted.set(pc.childId, generations.get(pc.childId) ?? 0);
+  }
+
+  return shifted;
 }
 
 /**

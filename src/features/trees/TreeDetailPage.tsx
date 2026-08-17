@@ -247,6 +247,15 @@ export function TreeDetailPage() {
       case 'reset-sibling-order':
         void handleResetSiblingOrder(personId);
         break;
+      case 'raise-generation':
+        void handleShiftGeneration(personId, -1);
+        break;
+      case 'lower-generation':
+        void handleShiftGeneration(personId, 1);
+        break;
+      case 'reset-generation':
+        void handleShiftGeneration(personId, 0, true);
+        break;
       case 'connect-parent':
       case 'connect-spouse':
       case 'connect-child':
@@ -420,6 +429,27 @@ export function TreeDetailPage() {
       await reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '並び順の保存に失敗しました');
+    }
+  }
+
+  /**
+   * 段（世代の行）を手で上下させる。`absolute` なら自動に戻す。
+   *
+   * 動かすのは本人だけ。配偶者は「夫婦は同じ段」の規則で結果的について来る。
+   * 親が子より下に来る指定はレイアウト側で無効になるので、ここでは止めない
+   * （保存しても図が壊れず、戻せば元どおりになる）。
+   */
+  async function handleShiftGeneration(personId: string, delta: number, absolute = false) {
+    const person = personOf(personId);
+    if (!person) return;
+
+    const next = absolute ? 0 : (person.generationShift ?? 0) + delta;
+
+    try {
+      await api.setGenerationShift(treeId, personId, next);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '段を変えられませんでした');
     }
   }
 

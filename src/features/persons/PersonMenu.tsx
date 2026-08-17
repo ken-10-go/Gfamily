@@ -18,6 +18,9 @@ export type PersonAction =
   | 'center'
   | 'reset-position'
   | 'reset-sibling-order'
+  | 'raise-generation'
+  | 'lower-generation'
+  | 'reset-generation'
   | 'delete';
 
 interface PersonMenuProps {
@@ -76,6 +79,14 @@ const MORE_ITEMS: MenuItem[] = [
     label: '並び順を生年順に戻す',
     editOnly: true,
     when: (person) => person.siblingOrder !== null,
+  },
+  { action: 'raise-generation', label: '1つ上の段へ', editOnly: true },
+  { action: 'lower-generation', label: '1つ下の段へ', editOnly: true },
+  {
+    action: 'reset-generation',
+    label: '段を自動に戻す',
+    editOnly: true,
+    when: (person) => (person.generationShift ?? 0) !== 0,
   },
 ];
 

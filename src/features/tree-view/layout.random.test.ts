@@ -133,6 +133,35 @@ describe('ランダムな家系図', () => {
     expect(failures).toEqual([]);
   });
 
+  it('親はどの子よりも必ず上の段にいて、段を飛ばさない', () => {
+    const failures: string[] = [];
+
+    for (const seed of seeds) {
+      const layout = computeLayout(randomGraph(seed));
+      const generationOf = new Map(layout.nodes.map((n) => [n.person.id, n.generation]));
+
+      for (const family of layout.families) {
+        const parents = family.parentIds.map((id) => generationOf.get(id) ?? 0);
+        const children = family.childIds.map((id) => generationOf.get(id) ?? 0);
+        if (parents.length === 0 || children.length === 0) continue;
+
+        const lowestParent = Math.max(...parents);
+        const highestChild = Math.min(...children);
+
+        if (lowestParent >= highestChild) {
+          failures.push(`seed=${seed}: ${family.key} の親が子より下にいる`);
+        } else if (highestChild - lowestParent > 1) {
+          // 親が取り残されて浮いている状態。子のすぐ上まで下りているはず
+          failures.push(
+            `seed=${seed}: ${family.key} の親が ${highestChild - lowestParent} 段も上にいる`,
+          );
+        }
+      }
+    }
+
+    expect(failures).toEqual([]);
+  });
+
   it('縦の位置は必ず世代の行に乗る', () => {
     const row = NODE_HEIGHT + V_GAP;
     const failures: string[] = [];

@@ -422,6 +422,134 @@ describe('computeLayout', () => {
     expect(nodeOf(layout, 'z-old-parent').x).toBeLessThan(nodeOf(layout, 'a-new-parent').x);
   });
 
+  it('婚姻で子が下がったとき、その親も一緒に下りてくる', () => {
+    /*
+     * 佐々巳 → 敏行 は1世代しかないが、敏行が順子（3世代目）と結婚して下へ引かれる。
+     * 親を引き下ろす規則が無いと、佐々巳だけが最上段に取り残されて浮いて見える。
+     */
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('リカ'),
+          person('榮'),
+          person('サツエ'),
+          person('佐々巳'),
+          person('ユリ子'),
+          person('順子'),
+          person('敏行'),
+        ],
+        parentChild: [
+          link('リカ', 'サツエ'),
+          link('榮', '順子'),
+          link('サツエ', '順子'),
+          link('佐々巳', '敏行'),
+          link('ユリ子', '敏行'),
+        ],
+        unions: [union('榮', 'サツエ'), union('佐々巳', 'ユリ子'), union('敏行', '順子')],
+      }),
+    );
+
+    const generationOf = (id: string) => nodeOf(layout, id).generation;
+
+    // 同じ立場（子が同じ段にいる親）どうしは、同じ段に並ぶ
+    expect(generationOf('佐々巳')).toBe(generationOf('榮'));
+    expect(generationOf('ユリ子')).toBe(generationOf('サツエ'));
+    // 親は子のすぐ上。段を飛ばさない
+    expect(generationOf('敏行') - generationOf('佐々巳')).toBe(1);
+    // 曽祖母だけが1段上に残る
+    expect(generationOf('リカ')).toBe(generationOf('サツエ') - 1);
+  });
+
+  it('親は必ず子より上に置かれる', () => {
+    const layout = computeLayout(
+      graph({
+        persons: ['祖', '親', '子', '孫', '婿'].map((id) => person(id)),
+        parentChild: [link('祖', '親'), link('親', '子'), link('子', '孫'), link('婿', '孫')],
+        unions: [union('婿', '子')],
+      }),
+    );
+
+    for (const family of layout.families) {
+      for (const parentId of family.parentIds) {
+        for (const childId of family.childIds) {
+          expect(nodeOf(layout, parentId).generation).toBeLessThan(
+            nodeOf(layout, childId).generation,
+          );
+        }
+      }
+    }
+  });
+
+  it('手で指定した段のぶんだけ、その人を上下させる', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [person('親'), person('子'), person('孫', { generationShift: 1 })],
+        parentChild: [link('親', '子'), link('子', '孫')],
+      }),
+    );
+
+    // 孫だけが1段下がる。親と子はそのまま
+    expect(nodeOf(layout, '親').generation).toBe(0);
+    expect(nodeOf(layout, '子').generation).toBe(1);
+    expect(nodeOf(layout, '孫').generation).toBe(3);
+    // 縦は必ず世代の行に乗る
+    expect(nodeOf(layout, '孫').y).toBe(3 * (NODE_HEIGHT + V_GAP));
+  });
+
+  it('動かすのは本人だけ。子孫は連れて行かない', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [person('親', { generationShift: -2 }), person('子'), person('孫')],
+        parentChild: [link('親', '子'), link('子', '孫')],
+      }),
+    );
+
+    // 上へ2段ぶん空くので、全体が下へずれて一番上が 0 になる
+    expect(nodeOf(layout, '親').generation).toBe(0);
+    expect(nodeOf(layout, '子').generation).toBe(3);
+    expect(nodeOf(layout, '孫').generation).toBe(4);
+  });
+
+  it('上へ動かして図がはみ出しても、一番上の段が0になるようにそろえる', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [person('単独', { generationShift: -3 })],
+      }),
+    );
+
+    expect(nodeOf(layout, '単独').generation).toBe(0);
+    expect(nodeOf(layout, '単独').y).toBe(0);
+  });
+
+  it('親が子と同じ段や下に来る指定は、無効にして自動へ戻す', () => {
+    const layout = computeLayout(
+      graph({
+        // 親を2段下げると子を追い越してしまう
+        persons: [person('親', { generationShift: 2 }), person('子')],
+        parentChild: [link('親', '子')],
+      }),
+    );
+
+    expect(nodeOf(layout, '親').generation).toBe(0);
+    expect(nodeOf(layout, '子').generation).toBe(1);
+  });
+
+  it('壊れる指定を無効にしても、他の人の指定は生きる', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('親', { generationShift: 5 }),
+          person('子'),
+          person('無関係', { generationShift: 2 }),
+        ],
+        parentChild: [link('親', '子')],
+      }),
+    );
+
+    expect(nodeOf(layout, '親').generation).toBe(0);
+    expect(nodeOf(layout, '無関係').generation).toBe(2);
+  });
+
   it('3世代を正しい深さに配置する', () => {
     const layout = computeLayout(
       graph({

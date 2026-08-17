@@ -9,21 +9,11 @@ export type UnionStatus = 'married' | 'divorced' | 'widowed' | 'partner';
  * 戸籍上の区別を残せるよう、実子・普通養子・特別養子・婿養子・連れ子を分けている。
  */
 export type ParentKind =
-  | 'biological'
-  | 'adoptive'
-  | 'special_adoptive'
-  | 'son_in_law_adoptive'
-  | 'step'
-  | 'foster';
+  'biological' | 'adoptive' | 'special_adoptive' | 'son_in_law_adoptive' | 'step' | 'foster';
 
 /** 改姓の理由。戸籍をたどるときに「なぜ変わったか」が重要になる。 */
 export type SurnameChangeReason =
-  | 'birth'
-  | 'marriage'
-  | 'divorce'
-  | 'adoption'
-  | 'branch'
-  | 'other';
+  'birth' | 'marriage' | 'divorce' | 'adoption' | 'branch' | 'other';
 
 /**
  * 入力された和暦そのもの。
@@ -95,6 +85,15 @@ export interface Person {
    * 戸籍の記載順に合わせたい場合など、自動の年長者順を上書きするために使う。
    */
   siblingOrder: number | null;
+  /**
+   * 段（世代の行）を手で何段ずらすか。0 か null なら自動のまま。
+   *
+   * 婚姻や養子縁組で家系がつながると、自動で決めた段が実感と食い違うことがある。
+   * 絶対の段ではなく「ずらす量」で持つのは、人物を足したときに自動側が動いても
+   * 手の指定が意味を保つようにするため。
+   * 親が子より下に来る指定は、レイアウト側で無効にする。
+   */
+  generationShift: number | null;
   /**
    * カードを手で置いた位置。null なら自動レイアウトに従う。
    * ドラッグで移動すると、格子に合わせた座標がここに入る。
@@ -172,6 +171,7 @@ export const EMPTY_PERSON: Person = {
   ...EMPTY_PERSON_INPUT,
   id: '',
   siblingOrder: null,
+  generationShift: null,
   position: null,
   deletedAt: null,
 };
@@ -309,9 +309,7 @@ export function lifespanLabel(
 }
 
 /** ふりがなを含めた表示用の読み。検索の対象にも使う。 */
-export function displayNameKana(
-  person: Pick<Person, 'familyNameKana' | 'givenNameKana'>,
-): string {
+export function displayNameKana(person: Pick<Person, 'familyNameKana' | 'givenNameKana'>): string {
   return [person.familyNameKana, person.givenNameKana].filter(Boolean).join(' ');
 }
 

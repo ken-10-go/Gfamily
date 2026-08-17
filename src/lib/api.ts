@@ -184,6 +184,7 @@ function toPerson(snapshot: QueryDocumentSnapshot<DocumentData>): Person {
     isLiving: data.isLiving ?? true,
     birthOrder: data.birthOrder ?? null,
     siblingOrder: typeof data.siblingOrder === 'number' ? data.siblingOrder : null,
+    generationShift: typeof data.generationShift === 'number' ? data.generationShift : null,
     position:
       data.position && typeof data.position.x === 'number' && typeof data.position.y === 'number'
         ? { x: data.position.x, y: data.position.y }
@@ -341,6 +342,24 @@ export async function clearAllPositions(treeId: string): Promise<number> {
   }
 
   return placed.length;
+}
+
+/**
+ * 段（世代の行）を手で何段ずらすかを保存する。0 を渡すと自動に戻る。
+ *
+ * 動かすのは本人だけ。親が子より下に来る指定はレイアウト側で無効になる。
+ */
+export async function setGenerationShift(
+  treeId: string,
+  personId: string,
+  shift: number,
+): Promise<void> {
+  const uid = requireUid();
+  await updateDoc(doc(getDb(), 'trees', treeId, 'persons', personId), {
+    generationShift: shift === 0 ? null : shift,
+    updatedBy: uid,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /** 手動の並び順を捨てて、生年順の自動整列に戻す。 */
