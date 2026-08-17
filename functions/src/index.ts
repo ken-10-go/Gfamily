@@ -4,7 +4,11 @@ import { initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
-import { onDocumentWritten, type FirestoreEvent, type Change } from 'firebase-functions/v2/firestore';
+import {
+  onDocumentWritten,
+  type FirestoreEvent,
+  type Change,
+} from 'firebase-functions/v2/firestore';
 import type { DocumentSnapshot } from 'firebase-admin/firestore';
 
 initializeApp();
@@ -264,8 +268,13 @@ async function findValidInvitation(token: string): Promise<DocumentSnapshot | nu
   return invitation;
 }
 
-
 // --- 他家とのつながり（ダブル・ハンドシェイク） ------------------------------
+//
+// ⚠ この節の4つの関数は、いまアプリから呼ばれていない（デプロイもされていない）。
+//   管理すべき家族の単位を決めるまでのあいだ、つながりは src/lib/api.ts の
+//   connectTree / previewTree / revokeBridge がクライアントから直接作っている。
+//   締め直すときの戻り先がここなので、消さずに残してある。
+//   手順は firestore.rules の treeBridges のコメントを参照。
 //
 // A家とB家は既定では完全に別のデータ空間にいる。婚姻や養子縁組で系図がつながる
 // ときだけ、双方のオーナーが承認して初めて「相手の故人だけを見られる」状態にする。
@@ -509,7 +518,12 @@ async function findValidBridge(token: string): Promise<DocumentSnapshot | null> 
 function auditTrigger(collection: string) {
   return onDocumentWritten(
     { region: REGION, document: `trees/{treeId}/${collection}/{docId}` },
-    async (event: FirestoreEvent<Change<DocumentSnapshot> | undefined, { treeId: string; docId: string }>) => {
+    async (
+      event: FirestoreEvent<
+        Change<DocumentSnapshot> | undefined,
+        { treeId: string; docId: string }
+      >,
+    ) => {
       const before = event.data?.before;
       const after = event.data?.after;
       const beforeData = before?.exists ? before.data() : undefined;

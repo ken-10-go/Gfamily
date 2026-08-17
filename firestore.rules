@@ -62,7 +62,9 @@ service cloud.firestore {
     }
 
     match /trees/{treeId} {
-      allow get: if isSignedIn() && request.auth.uid in resource.data.roles;
+      // つながっている家の名前とメンバー一覧は、合同表示のために読める必要がある
+      allow get: if (isSignedIn() && request.auth.uid in resource.data.roles)
+        || hasBridgeTo(treeId);
 
       // 一覧は必ず memberIds の array-contains で絞る前提。
       // 他人のツリーを含むクエリはこのルールに阻まれて丸ごと失敗する。
@@ -105,9 +107,12 @@ service cloud.firestore {
 
       match /persons/{personId} {
         // 自分のツリーなら全員を読める。
-        // つながっている他家からは「故人だけ」。生存者の機微情報は渡さない、が仕様の核。
-        allow read: if isMember(treeId)
-          || (hasBridgeTo(treeId) && resource.data.isLiving == false);
+        //
+        // ⚠ 暫定：つながっている他家からも全員を読める。
+        // 本来は `&& resource.data.isLiving == false` を付けて故人だけに絞る
+        // （生存者の情報を他家へ渡さない、が仕様の核）。
+        // treeBridges のコメントに書いた手順で締め直すこと。
+        allow read: if isMember(treeId) || hasBridgeTo(treeId);
         // 削除はソフト削除（deletedAt）で行うため、update で足りる
         allow create, update: if canEdit(treeId)
           && actorIsSelf()
@@ -116,7 +121,6 @@ service cloud.firestore {
       }
 
       // 関係そのもの（誰と誰がつながっているか）は、つながった家からも読める。
-      // 人物の中身は故人しか読めないので、生存者は「名前も分からない点」として扱われる。
       // ここを隠すと相手の家系図で線が途切れ、合同表示が図として成り立たなくなる。
       match /parentChild/{linkId} {
         allow read: if isMember(treeId) || hasBridgeTo(treeId);
@@ -147,8 +151,22 @@ service cloud.firestore {
 
     // --- 他家とのつながり ---------------------------------------------------
     //
-    // 申請・承認・解除はすべて Cloud Functions（Admin SDK）が行う。
-    // クライアントに書かせると、自分で自分に閲覧許可を配れてしまう。
+    // ⚠⚠ 暫定：ここだけセキュリティを外している ⚠⚠
+    //
+    // 本来は申請・承認・解除をすべて Cloud Functions（Admin SDK）が行い、
+    // クライアントからは書けない（allow write: if false）。そうしないと、
+    // 自分で自分に閲覧許可を配れてしまい、相手の承認なしに他家を読めるからだ。
+    //
+    // 管理すべき家族の単位を決めるまでのあいだ、まず動く状態にすることを優先して
+    // クライアントからの書き込みを許している。この状態では、
+    // **ログインしていれば誰でも、相手の承認なしに任意の家系図を読める。**
+    //
+    // 締め直すときにやること:
+    //   1. ここを allow write: if false に戻す
+    //   2. src/lib/api.ts の connectTree / previewTree / revokeBridge を
+    //      Cloud Functions 呼び出しに戻す（functions/src/index.ts に実装が残してある）
+    //   3. 下の persons の read から isLiving の条件を復活させる
+    //   4. Functions を手元からデプロイする（README のデプロイ節）
     match /treeBridges/{bridgeId} {
       // 自分に配られた認可、または自分が関わるツリーの申請だけを読める
       allow read: if isSignedIn() && (
@@ -158,7 +176,7 @@ service cloud.firestore {
         || (resource.data.get('targetTreeId', null) != null
             && isMember(resource.data.targetTreeId))
       );
-      allow write: if false;
+      allow write: if isSignedIn();
     }
 
     // 上記に当てはまらないパスはすべて拒否

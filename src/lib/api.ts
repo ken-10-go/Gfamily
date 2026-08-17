@@ -21,7 +21,6 @@ import { httpsCallable } from 'firebase/functions';
 import { generateSalt } from '@/lib/crypto';
 import { getDb, getFirebaseAuth, getFns } from '@/lib/firebase';
 import {
-  EMPTY_PERSON,
   type AuditLog,
   type CardPosition,
   type Invitation,
@@ -588,47 +587,132 @@ export async function listBridges(treeId: string): Promise<Bridge[]> {
   return [...new Map(all.map((bridge) => [bridge.id, bridge])).values()];
 }
 
-/** 接続を申請し、相手に渡す合言葉を返す。この値はこの1回しか取得できない。 */
-export async function createBridgeInvitation(
+/**
+ * 閲覧の許可を表す文書のID。`{見せる側のツリー}_{見てよい人}`。
+ *
+ * ルールの `hasBridgeTo()` がこの1件の有無だけを見て、他家を読めるかを決める。
+ * Cloud Functions 側（`functions/src/index.ts` の grantId）と同じ形にしてある。
+ */
+const grantId = (treeId: string, uid: string) => `${treeId}_${uid}`;
+
+/**
+ * 相手のツリーを覗く前に、自分に閲覧の許可を出す。
+ *
+ * ⚠ 暫定。本来は「見せる側のオーナーが許可を配る」もので、自分で自分に配れてはいけない。
+ * 家族単位の管理を決めたら、この関数ごと Cloud Functions 側へ戻すこと。
+ */
+async function grantSelfAccess(otherTreeId: string): Promise<void> {
+  const uid = requireUid();
+  await setDoc(doc(getDb(), 'treeBridges', grantId(otherTreeId, uid)), {
+    grantForTreeId: otherTreeId,
+    grantedUid: uid,
+    createdAt: serverTimestamp(),
+  });
+}
+
+/** つなぐ相手の家の名前と、そこに登録されている人物。相手を選ぶ画面で使う。 */
+export async function previewTree(
+  otherTreeId: string,
+): Promise<{ name: string; persons: Person[] }> {
+  await grantSelfAccess(otherTreeId);
+
+  const [tree, persons] = await Promise.all([
+    getDoc(doc(getDb(), 'trees', otherTreeId)),
+    getDocs(sub(otherTreeId, 'persons')),
+  ]);
+
+  if (!tree.exists()) throw new Error('そのIDの家系図は見つかりません');
+
+  return {
+    name: (tree.data().name as string) ?? '(名称未設定)',
+    persons: persons.docs.map(toPerson).filter((person) => !person.deletedAt),
+  };
+}
+
+/**
+ * 相手のツリーIDを指定して、その場でつなぐ。
+ *
+ * ⚠ 暫定。今は相手の承認を取らずにつながる（本人の判断でセキュリティを外している）。
+ * 本来は双方のオーナーが承認して初めてつながるべきで、
+ * `functions/src/index.ts` の acceptBridgeConnection がその実装。
+ * 家族単位の管理を決めたら、そちらへ戻す。
+ */
+export async function connectTree(
   treeId: string,
   personId: string,
+  otherTreeId: string,
+  otherPersonId: string,
   bridgeType: Bridge['bridgeType'],
-  validDays = 7,
-): Promise<string> {
-  const call = httpsCallable<
-    { treeId: string; personId: string; bridgeType: string; validDays: number },
-    { token: string }
-  >(getFns(), 'createBridgeInvitation');
-
-  const result = await call({ treeId, personId, bridgeType, validDays });
-  return result.data.token;
-}
-
-export async function previewBridgeInvitation(token: string): Promise<BridgePreview | null> {
-  const call = httpsCallable<{ token: string }, BridgePreview | null>(
-    getFns(),
-    'previewBridgeInvitation',
-  );
-  const result = await call({ token });
-  return result.data;
-}
-
-/** 接続を承認する。自分のツリーの、どの人物とつなぐかを指定する。 */
-export async function acceptBridgeConnection(
-  token: string,
-  treeId: string,
-  personId: string,
 ): Promise<void> {
-  const call = httpsCallable<
-    { token: string; treeId: string; personId: string },
-    { bridgeId: string }
-  >(getFns(), 'acceptBridgeConnection');
-  await call({ token, treeId, personId });
+  const uid = requireUid();
+  if (treeId === otherTreeId) throw new Error('同じ家系図どうしはつなげません');
+
+  // 双方のメンバー全員に許可を配る。相手の名簿を読むには、先に自分の許可が要る
+  await grantSelfAccess(otherTreeId);
+  const [own, other] = await Promise.all([
+    getDoc(doc(getDb(), 'trees', treeId)),
+    getDoc(doc(getDb(), 'trees', otherTreeId)),
+  ]);
+  if (!other.exists()) throw new Error('そのIDの家系図は見つかりません');
+
+  const ownMembers = (own.data()?.memberIds as string[] | undefined) ?? [uid];
+  const otherMembers = (other.data()?.memberIds as string[] | undefined) ?? [];
+
+  const batch = writeBatch(getDb());
+  for (const member of otherMembers) {
+    batch.set(doc(getDb(), 'treeBridges', grantId(treeId, member)), {
+      grantForTreeId: treeId,
+      grantedUid: member,
+      createdAt: serverTimestamp(),
+    });
+  }
+  for (const member of ownMembers) {
+    batch.set(doc(getDb(), 'treeBridges', grantId(otherTreeId, member)), {
+      grantForTreeId: otherTreeId,
+      grantedUid: member,
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  batch.set(doc(collection(getDb(), 'treeBridges')), {
+    requesterTreeId: treeId,
+    requesterPersonId: personId,
+    requesterUid: uid,
+    targetTreeId: otherTreeId,
+    targetPersonId: otherPersonId,
+    bridgeType,
+    status: 'accepted',
+    createdAt: serverTimestamp(),
+    acceptedAt: serverTimestamp(),
+  });
+
+  await batch.commit();
 }
 
+/** つながりを解除する。配った閲覧の許可もまとめて消す。 */
 export async function revokeBridge(bridgeId: string): Promise<void> {
-  const call = httpsCallable<{ bridgeId: string }, { ok: boolean }>(getFns(), 'revokeBridge');
-  await call({ bridgeId });
+  const ref = doc(getDb(), 'treeBridges', bridgeId);
+  const snapshot = await getDoc(ref);
+  if (!snapshot.exists()) return;
+
+  const bridge = snapshot.data();
+  const trees = [bridge.requesterTreeId, bridge.targetTreeId].filter(
+    (id): id is string => typeof id === 'string',
+  );
+
+  const members = await Promise.all(
+    trees.map(async (id) => {
+      const tree = await getDoc(doc(getDb(), 'trees', id));
+      return ((tree.data()?.memberIds as string[] | undefined) ?? []).map((uid) =>
+        grantId(id, uid),
+      );
+    }),
+  );
+
+  const batch = writeBatch(getDb());
+  for (const id of members.flat()) batch.delete(doc(getDb(), 'treeBridges', id));
+  batch.delete(ref);
+  await batch.commit();
 }
 
 /** 合同表示での人物ID。どのツリーの誰かが一目で分かる形にする。 */
@@ -642,10 +726,7 @@ export function splitMergedId(id: string): { treeId: string; personId: string } 
 
 /**
  * つながっている家をまとめて1つの家系図として読み込む。
- *
- * 他家から読めるのは故人だけ（ルールで制限）。関係は読めるので、
- * 相手の生存者は「（非公開）」のカードとして置き、線がつながるようにする。
- * 隠すのは中身であって、つながりの形ではない。
+ * つないだ相手の家系図は、存命の人も含めてそのまま見える。
  */
 export async function loadMergedGraph(treeId: string): Promise<TreeGraph> {
   const own = await loadTreeGraph(treeId);
@@ -706,15 +787,10 @@ export async function loadMergedGraph(treeId: string): Promise<TreeGraph> {
   return merged;
 }
 
-/**
- * つながっている他家から読める範囲を読む。
- *
- * 人物は故人だけ。ルールが「故人に限る」条件で許可しているので、
- * クエリ側も同じ条件で絞らないと読み取り自体が拒否される。
- */
+/** つながっている他家を読む。存命の人も含めて全員読む。 */
 async function loadForeignGraph(treeId: string): Promise<TreeGraph> {
   const [persons, parentChild, unions] = await Promise.all([
-    getDocs(query(sub(treeId, 'persons'), where('isLiving', '==', false))),
+    getDocs(sub(treeId, 'persons')),
     getDocs(sub(treeId, 'parentChild')),
     getDocs(sub(treeId, 'unions')),
   ]);
@@ -736,23 +812,6 @@ async function loadForeignGraph(treeId: string): Promise<TreeGraph> {
     partner1Id: mergedId(treeId, union.partner1Id),
     partner2Id: mergedId(treeId, union.partner2Id),
   }));
-
-  // 関係だけが見えていて本人を読めない人＝相手の生存者。伏せたカードとして置く
-  const known = new Set(foreignPersons.map((person) => person.id));
-  const referenced = new Set<string>();
-  for (const pc of foreignParentChild) {
-    referenced.add(pc.parentId);
-    referenced.add(pc.childId);
-  }
-  for (const union of foreignUnions) {
-    referenced.add(union.partner1Id);
-    referenced.add(union.partner2Id);
-  }
-
-  for (const id of referenced) {
-    if (known.has(id)) continue;
-    foreignPersons.push({ ...EMPTY_PERSON, id, givenName: '（非公開）' });
-  }
 
   return { persons: foreignPersons, parentChild: foreignParentChild, unions: foreignUnions };
 }

@@ -9,6 +9,7 @@ import {
   type LayoutMetrics,
   type LayoutNode,
 } from '@/features/tree-view/layout';
+import { crossingsOn, hopPath, verticalSegments, type Segment } from '@/features/tree-view/hops';
 import { placeholderTarget, withSpousePlaceholders } from '@/features/tree-view/placeholders';
 import {
   isOutsideSiblingRow,
@@ -233,6 +234,12 @@ export function TreeCanvas({
     [layout.nodes],
   );
 
+  // 縦線は1回だけ集めて、すべての横線で使い回す（交差したところに弧を出すため）
+  const verticals = useMemo(
+    () => verticalSegments(layout.families, positionById, metrics),
+    [layout.families, positionById, metrics],
+  );
+
   // メニューから指示された人物を中央へ寄せる
   useEffect(() => {
     if (!centerRequest || size.width === 0) return;
@@ -407,22 +414,26 @@ export function TreeCanvas({
             {layout.couples.map((couple) => (
               <CoupleLine
                 key={couple.id}
+                id={couple.id}
                 a={positionById.get(couple.partner1Id)}
                 b={positionById.get(couple.partner2Id)}
                 metrics={metrics}
                 status={couple.status}
                 dimmed={dimmed.has(couple.partner1Id) && dimmed.has(couple.partner2Id)}
+                verticals={verticals}
               />
             ))}
             {layout.families.map((family) => (
               <FamilyLines
                 key={family.key}
+                owner={family.key}
                 parents={family.parentIds.map((id) => positionById.get(id))}
                 children={family.childIds.map((id) => positionById.get(id))}
                 childKinds={family.childKinds}
                 metrics={metrics}
                 lineage={lineage}
                 dimmed={dimmed}
+                verticals={verticals}
               />
             ))}
           </g>
@@ -783,42 +794,41 @@ function GridLines({
  * 婚姻届のないパートナーは一本の実線、離婚は破線で表す（仕様書 3.5-3）。
  */
 function CoupleLine({
+  id,
   a,
   b,
   metrics,
   status,
   dimmed,
+  verticals,
 }: {
+  /** この線の持ち主。自分につながる縦線をまたがないために使う */
+  id: string;
   a?: LayoutNode;
   b?: LayoutNode;
   metrics: LayoutMetrics;
   status: UnionStatus;
   /** 端の人物どうしの線。カードと同じだけ薄くする */
   dimmed: boolean;
+  /** 図の中の縦線すべて。交差したところに弧を出す */
+  verticals: Segment[];
 }) {
   if (!a || !b) return null;
 
   const [left, right] = a.x <= b.x ? [a, b] : [b, a];
   const x1 = left.x + metrics.nodeWidth / 2;
   const x2 = right.x - metrics.nodeWidth / 2;
-  const y1 = left.y + metrics.nodeHeight / 2;
-  const y2 = right.y + metrics.nodeHeight / 2;
+  const y = left.y + metrics.nodeHeight / 2;
 
   const className = status === 'divorced' ? 'link link--divorced' : 'link link--couple';
   // 二重線は上下に2本引いて表す。線の太さを変えるより、和装の家系図の見た目に近い
   const offsets = status === 'married' || status === 'widowed' ? [-2, 2] : [0];
+  const crossings = crossingsOn({ x1, y1: y, x2, y2: y, owner: id }, verticals);
 
   return (
     <g className={dimmed ? 'link-group link-group--distant' : 'link-group'}>
       {offsets.map((offset) => (
-        <line
-          key={offset}
-          x1={x1}
-          y1={y1 + offset}
-          x2={x2}
-          y2={y2 + offset}
-          className={className}
-        />
+        <path key={offset} d={hopPath(y + offset, x1, x2, crossings)} className={className} />
       ))}
       <title>{UNION_STATUS_LABELS[status]}</title>
     </g>
@@ -830,13 +840,17 @@ function CoupleLine({
  * 親の下端 → 世代間の中間にある横棒（きょうだいバス） → 各子の上端、の3段で描く。
  */
 function FamilyLines({
+  owner,
   parents,
   children,
   childKinds,
   metrics,
   lineage,
   dimmed,
+  verticals,
 }: {
+  /** この家族の識別子。自分の幹や枝をまたがないために使う */
+  owner: string;
   parents: (LayoutNode | undefined)[];
   children: (LayoutNode | undefined)[];
   /** 子ごとの親子の種別。実子は実線、縁組は破線で描き分ける */
@@ -846,6 +860,8 @@ function FamilyLines({
   lineage: Set<string>;
   /** 絞り込みの端にいる人物。つながる線もカードと同じだけ薄くする */
   dimmed: ReadonlySet<string>;
+  /** 図の中の縦線すべて。交差したところに弧を出す */
+  verticals: Segment[];
 }) {
   const presentParents = parents.filter((p): p is LayoutNode => Boolean(p));
   const presentChildren = children.filter((c): c is LayoutNode => Boolean(c));
@@ -879,8 +895,17 @@ function FamilyLines({
         y2={busY}
         className={linkClass(highlighted)}
       />
+      {/* きょうだいの横棒。よその家の縦線とぶつかるところは弧でまたぐ */}
       {busRight - busLeft > 1 && (
-        <line x1={busLeft} y1={busY} x2={busRight} y2={busY} className="link" />
+        <path
+          d={hopPath(
+            busY,
+            busLeft,
+            busRight,
+            crossingsOn({ x1: busLeft, y1: busY, x2: busRight, y2: busY, owner }, verticals),
+          )}
+          className="link"
+        />
       )}
       {presentChildren.map((child) => {
         // 実子は一本の実線、養子・連れ子・里子などの縁組は破線（仕様書 3.5-3）

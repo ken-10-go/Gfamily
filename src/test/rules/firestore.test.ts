@@ -1,6 +1,21 @@
 // @vitest-environment node
-import { assertFails, assertSucceeds, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import {
+  assertFails,
+  assertSucceeds,
+  type RulesTestEnvironment,
+} from '@firebase/rules-unit-testing';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { as, asAnon, createTestEnv, seed } from './harness';
@@ -113,7 +128,9 @@ describe('閲覧者の権限', () => {
   });
 
   it('人物を編集できない', async () => {
-    await assertFails(updateDoc(personDoc(as(env, VIEWER)), { givenName: '改ざん', updatedBy: VIEWER }));
+    await assertFails(
+      updateDoc(personDoc(as(env, VIEWER)), { givenName: '改ざん', updatedBy: VIEWER }),
+    );
   });
 
   it('招待を読めない', async () => {
@@ -130,7 +147,11 @@ describe('閲覧者の権限', () => {
 describe('編集者の権限', () => {
   it('人物を追加できる', async () => {
     await assertSucceeds(
-      addDoc(personsCol(as(env, EDITOR)), { givenName: '花子', deletedAt: null, updatedBy: EDITOR }),
+      addDoc(personsCol(as(env, EDITOR)), {
+        givenName: '花子',
+        deletedAt: null,
+        updatedBy: EDITOR,
+      }),
     );
   });
 
@@ -268,9 +289,7 @@ describe('オーナーの権限', () => {
   });
 
   it('createdBy を書き換えられない', async () => {
-    await assertFails(
-      updateDoc(doc(as(env, OWNER), 'trees', TREE), { createdBy: OUTSIDER }),
-    );
+    await assertFails(updateDoc(doc(as(env, OWNER), 'trees', TREE), { createdBy: OUTSIDER }));
   });
 });
 
@@ -431,23 +450,22 @@ describe('他家とのつながり', () => {
     await assertFails(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
   });
 
-  it('承認後は、他家の故人だけを読める', async () => {
+  it('【暫定】つながると、他家は存命の人も含めて読める', async () => {
+    // 本来は故人だけ。締め直すときは OTHER_LIVING が読めないことを確かめる形に戻す
     await seedGrant(OTHER_TREE, OWNER);
 
     await assertSucceeds(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
-  });
-
-  it('承認後でも、他家の生存者は読めない', async () => {
-    await seedGrant(OTHER_TREE, OWNER);
-
-    await assertFails(getDoc(otherPerson(as(env, OWNER), OTHER_LIVING)));
+    await assertSucceeds(getDoc(otherPerson(as(env, OWNER), OTHER_LIVING)));
   });
 
   it('承認後も、他家のデータは書き換えられない', async () => {
     await seedGrant(OTHER_TREE, OWNER);
 
     await assertFails(
-      updateDoc(otherPerson(as(env, OWNER), OTHER_DECEASED), { givenName: '書換', updatedBy: OWNER }),
+      updateDoc(otherPerson(as(env, OWNER), OTHER_DECEASED), {
+        givenName: '書換',
+        updatedBy: OWNER,
+      }),
     );
   });
 
@@ -468,8 +486,13 @@ describe('他家とのつながり', () => {
     await assertFails(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
   });
 
-  it('つながりはクライアントから作れない（自分に許可を配れない）', async () => {
-    await assertFails(
+  /*
+   * ⚠ 暫定。本来は「クライアントからは作れない」ことを確かめるテストだった。
+   * 管理すべき家族の単位を決めたら、この2件を assertFails に戻し、
+   * firestore.rules の treeBridges を allow write: if false に戻すこと。
+   */
+  it('【暫定】つながりをクライアントから作れる（自分に許可を配れてしまう）', async () => {
+    await assertSucceeds(
       setDoc(doc(as(env, OWNER), 'treeBridges', `${OTHER_TREE}_${OWNER}`), {
         grantForTreeId: OTHER_TREE,
         grantedUid: OWNER,
@@ -477,12 +500,20 @@ describe('他家とのつながり', () => {
     );
   });
 
+  it('【暫定】自分に許可を配れば、無関係な家系図も読める', async () => {
+    const db = as(env, OUTSIDER);
+    await setDoc(doc(db, 'treeBridges', `${OTHER_TREE}_${OUTSIDER}`), {
+      grantForTreeId: OTHER_TREE,
+      grantedUid: OUTSIDER,
+    });
+
+    await assertSucceeds(getDoc(otherPerson(db, OTHER_LIVING)));
+  });
+
   it('他人に配られた認可は読めない', async () => {
     await seedGrant(OTHER_TREE, OWNER);
 
-    await assertFails(
-      getDoc(doc(as(env, OUTSIDER), 'treeBridges', `${OTHER_TREE}_${OWNER}`)),
-    );
+    await assertFails(getDoc(doc(as(env, OUTSIDER), 'treeBridges', `${OTHER_TREE}_${OWNER}`)));
   });
 });
 
