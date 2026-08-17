@@ -85,6 +85,8 @@ function readableScale(viewWidth: number): number {
 /** カード内の文字の配置。余白を詰めて、そのぶん文字を大きく取る。 */
 const CARD_PADDING_TOP = 16;
 const LINE_HEIGHT = 18;
+/** 縦書きのときの列の間隔。cardMetrics が幅を出すときの 1 列ぶんと合わせる。 */
+const VERTICAL_COLUMN = 16;
 
 export interface CardAnchor {
   x: number;
@@ -576,7 +578,8 @@ function fieldText(field: CardField, person: Person, birthOrder: string | null):
   }
 }
 
-function PersonCard({
+/** 1枚のカード。行の並びを単体で確かめられるよう export している。 */
+export function PersonCard({
   node,
   metrics,
   settings,
@@ -624,12 +627,18 @@ function PersonCard({
   const names = nameLines(person, settings);
   const age = settings.showAge ? ageLabel(person) : '';
 
+  /*
+   * 表示すると決めた項目の数だけ、中身が空でも行の枠を取る。
+   *
+   * 空の行を詰めてしまうと、ふりがなの無い人だけ氏名が上へ繰り上がり、
+   * 隣のカードと行がそろわなくなる（カードの高さは項目数から決めていて縮まないため）。
+   * 空の行は文字を描かないだけにして、位置は動かさない。
+   */
   // ふりがなだけは氏名の上に置く。読みは名前の一部という見え方にする。
-  const above = settings.cardFields.includes('kana') ? displayNameKana(person) : '';
+  const showKana = settings.cardFields.includes('kana');
   const below = settings.cardFields
     .filter((field) => field !== 'kana')
-    .map((field) => ({ field, text: fieldText(field, person, birthOrder) }))
-    .filter((row) => row.text);
+    .map((field) => ({ field, text: fieldText(field, person, birthOrder) }));
 
   /*
    * 年齢は生没年に添える（「1950– 75歳」）。年齢は生没年から出る値なので、
@@ -639,7 +648,7 @@ function PersonCard({
   const ageRow = below.findIndex((row) => row.field === 'lifespan' || row.field === 'meta');
 
   const rows: { text: string; className: string; age?: string }[] = [
-    ...(above ? [{ text: above, className: 'person-card__kana' }] : []),
+    ...(showKana ? [{ text: displayNameKana(person), className: 'person-card__kana' }] : []),
     ...names.map((text, index) => ({
       text,
       className: 'person-card__name',
@@ -652,8 +661,10 @@ function PersonCard({
     })),
   ];
 
-  // 読み上げでは、カードに出している補足行をそのまま読ませる
-  const ariaLabel = [displayName(person), ...below.map((row) => row.text)].join(' ');
+  // 読み上げでは、カードに出している補足行をそのまま読ませる（無音の行は読ませない）
+  const ariaLabel = [displayName(person), ...below.map((row) => row.text)]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <g
@@ -700,30 +711,35 @@ function PersonCard({
         className="person-card__box"
       />
 
+      {/* 中身の無い行は描かない。ただし添字は詰めないので、行の位置は動かない */}
       {settings.vertical
-        ? rows.map((row, index) => (
-            <text
-              key={index}
-              // 縦書きは右の列から始める
-              x={metrics.nodeWidth - 16 - index * 15}
-              y={12}
-              className={`${row.className} person-card__text--vertical`}
-            >
-              {row.text}
-            </text>
-          ))
-        : rows.map((row, index) => (
-            <text
-              key={index}
-              x={metrics.nodeWidth / 2}
-              y={CARD_PADDING_TOP + index * LINE_HEIGHT}
-              textAnchor="middle"
-              className={row.className}
-            >
-              {row.text}
-              {row.age && <tspan className="person-card__age"> {row.age}</tspan>}
-            </text>
-          ))}
+        ? rows.map((row, index) =>
+            row.text ? (
+              <text
+                key={index}
+                // 縦書きは右の列から始める
+                x={metrics.nodeWidth - 16 - index * VERTICAL_COLUMN}
+                y={12}
+                className={`${row.className} person-card__text--vertical`}
+              >
+                {row.text}
+              </text>
+            ) : null,
+          )
+        : rows.map((row, index) =>
+            row.text || row.age ? (
+              <text
+                key={index}
+                x={metrics.nodeWidth / 2}
+                y={CARD_PADDING_TOP + index * LINE_HEIGHT}
+                textAnchor="middle"
+                className={row.className}
+              >
+                {row.text}
+                {row.age && <tspan className="person-card__age"> {row.age}</tspan>}
+              </text>
+            ) : null,
+          )}
     </g>
   );
 }
