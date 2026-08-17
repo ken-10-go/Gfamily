@@ -10,6 +10,12 @@ import {
   type LayoutNode,
 } from '@/features/tree-view/layout';
 import { placeholderTarget, withSpousePlaceholders } from '@/features/tree-view/placeholders';
+import {
+  isOutsideSiblingRow,
+  siblingOrderAfterDrag,
+  swapPreview,
+  type SiblingSlot,
+} from '@/features/tree-view/reorder';
 import { usePanZoom } from '@/features/tree-view/usePanZoom';
 import {
   DEFAULT_VIEW_SETTINGS,
@@ -97,6 +103,11 @@ interface TreeCanvasProps {
   /** ドラッグで置いた位置の確定。格子に合わせた座標が渡る。 */
   onMovePerson?: (personId: string, position: CardPosition) => void;
   /**
+   * きょうだいの並べ替えの確定。左から右の順に並んだ人物IDが渡る。
+   * きょうだいの列の中で離したときは、座標ではなくこちらを送る。
+   */
+  onReorderSiblings?: (orderedIds: string[]) => void;
+  /**
    * ダブルタップで画面の中央に寄せたとき。
    * 1回目のタップで開いたメニューを閉じるために使う。
    */
@@ -137,6 +148,7 @@ export function TreeCanvas({
   onSelectPerson,
   canReorder = false,
   onMovePerson,
+  onReorderSiblings,
   onCenterPerson,
   centerRequest = null,
   onCenterDone,
@@ -168,6 +180,31 @@ export function TreeCanvas({
   /** 直前のタップ。同じカードを続けて叩いたらダブルタップとして扱う */
   const lastTapRef = useRef<{ personId: string; at: number } | null>(null);
   const grid = useMemo(() => gridFor(metrics), [metrics]);
+  /** カード1枚ぶんの幅（間隔込み）。列から外れたかの判定に使う */
+  const SLOT = metrics.nodeWidth + metrics.hGap;
+
+  /**
+   * その人が属するきょうだいの列。並べ替えの対象になる面々。
+   *
+   * 複数のグループにまたがることはない（きょうだいは親の組で決まる）ので、
+   * 最初に見つかったものを使う。空の配偶者枠は並べ替えの対象にしない。
+   */
+  const siblingsOfPerson = useMemo(() => {
+    const byPerson = new Map<string, string[]>();
+    for (const group of layout.siblingGroups) {
+      for (const childId of group.childIds) {
+        if (!byPerson.has(childId)) byPerson.set(childId, group.childIds);
+      }
+    }
+    return byPerson;
+  }, [layout.siblingGroups]);
+
+  function siblingSlotsOf(personId: string): SiblingSlot[] {
+    return (siblingsOfPerson.get(personId) ?? [])
+      .filter((id) => !placeholderTarget(id))
+      .map((id) => ({ id, x: positionById.get(id)?.x ?? 0 }))
+      .filter((slot) => positionById.has(slot.id));
+  }
 
   useLayoutEffect(() => {
     const element = containerRef.current;
@@ -294,16 +331,50 @@ export function TreeCanvas({
 
     const node = positionById.get(personId);
     setDrag(null);
+    if (!node) return;
 
-    if (node && onMovePerson) {
+    const droppedX = node.x + drag.dx / viewport.scale;
+    const siblings = siblingSlotsOf(personId);
+
+    /*
+     * きょうだいの列の中で離したなら、並べ替えとして扱う（仕様書 3つのコア・ジェスチャー ③）。
+     * 列から大きく外して離したときだけ、今までどおり座標として置く。
+     *
+     * 並べ替えでは座標を保存しない。順番はカードの大きさや表示項目が変わっても
+     * 意味を保つが、座標は保たないため。
+     */
+    if (!isOutsideSiblingRow(siblings, personId, droppedX, SLOT)) {
+      const ordered = siblingOrderAfterDrag(siblings, personId, droppedX);
+      if (ordered && onReorderSiblings) onReorderSiblings(ordered);
+      return;
+    }
+
+    if (onMovePerson) {
       // 横だけを格子に合わせて確定する。
       // 縦は世代の行に決まっていて動かせないので、送らない（y は行の値をそのまま返す）。
       onMovePerson(personId, {
-        x: snapTo(node.x + drag.dx / viewport.scale, grid.x),
+        x: snapTo(droppedX, grid.x),
         y: node.y,
       });
     }
   }
+
+  /*
+   * ドラッグ中に、すれ違っているきょうだいを1枚だけ動かして見せる。
+   * 図の全体を組み直さずに「ここへ入る」が伝わる。
+   */
+  const preview = (() => {
+    if (!drag?.moved) return null;
+
+    const node = positionById.get(drag.personId);
+    if (!node) return null;
+
+    return swapPreview(
+      siblingSlotsOf(drag.personId),
+      drag.personId,
+      node.x + drag.dx / viewport.scale,
+    );
+  })();
 
   if (personCount === 0) {
     return (
@@ -374,6 +445,8 @@ export function TreeCanvas({
                     { x: drag.dx / viewport.scale, y: 0 }
                   : null
               }
+              // すれ違った相手は、動かした人の元の場所へ入れ替わって見える
+              swapOffset={preview?.partnerId === node.person.id ? preview.dx : 0}
               onSelect={handleTap}
               onCenter={(id) => {
                 const node = positionById.get(id);
@@ -514,6 +587,7 @@ function PersonCard({
   birthOrder,
   draggable,
   dragOffset,
+  swapOffset,
   onSelect,
   onCenter,
   onPointerDown,
@@ -534,6 +608,8 @@ function PersonCard({
   draggable: boolean;
   /** ドラッグ中の見た目の追従量（レイアウト座標）。動かしていなければ null。 */
   dragOffset: CardPosition | null;
+  /** 並べ替えですれ違ったときに、譲る先へずらす量。すれ違っていなければ 0。 */
+  swapOffset: number;
   onSelect: (id: string, anchor: CardAnchor) => void;
   /** キーボードから中央へ寄せる（マウスのダブルクリックにあたる操作） */
   onCenter: (id: string) => void;
@@ -542,7 +618,7 @@ function PersonCard({
   onPointerUp: (personId: string, event: React.PointerEvent<SVGGElement>) => void;
 }) {
   const { person } = node;
-  const left = node.x - metrics.nodeWidth / 2 + (dragOffset?.x ?? 0);
+  const left = node.x - metrics.nodeWidth / 2 + (dragOffset?.x ?? 0) + swapOffset;
   const top = node.y + (dragOffset?.y ?? 0);
 
   const names = nameLines(person, settings);
@@ -582,6 +658,7 @@ function PersonCard({
         person.isLiving ? '' : 'person-card--deceased',
         draggable ? 'person-card--draggable' : '',
         dragOffset ? 'person-card--dragging' : '',
+        swapOffset !== 0 ? 'person-card--swapping' : '',
       ]
         .filter(Boolean)
         .join(' ')}

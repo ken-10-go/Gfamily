@@ -882,6 +882,16 @@ textarea {
   stroke-width: 3;
 }
 
+/* 並べ替えで場所を譲るカード。動く先が分かるよう、輪郭を立てて滑らせる */
+.person-card--swapping {
+  transition: transform 120ms ease-out;
+}
+
+.person-card--swapping .person-card__box {
+  stroke: var(--accent);
+  stroke-dasharray: 4 3;
+}
+
 /*
  * 絞り込みの端にいる人。
  * 「ここで切れているが、その先にも家系は続く」と伝えるために薄くする。

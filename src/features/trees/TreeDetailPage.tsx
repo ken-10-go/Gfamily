@@ -409,6 +409,20 @@ export function TreeDetailPage() {
     }
   }
 
+  /**
+   * ドラッグで並べ替えたきょうだいの順を保存する。
+   *
+   * 1人だけ動かしても前後関係が変わるので、その列の全員に 0,1,2… を振り直す。
+   */
+  async function handleReorderSiblings(orderedIds: string[]) {
+    try {
+      await api.setSiblingOrder(treeId, orderedIds);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '並び順の保存に失敗しました');
+    }
+  }
+
   /** ドラッグで置いたカードの位置を保存する。 */
   async function handleMovePerson(personId: string, position: CardPosition) {
     try {
@@ -629,6 +643,7 @@ export function TreeDetailPage() {
             onSelectPerson={openMenu}
             canReorder={canEdit}
             onMovePerson={handleMovePerson}
+            onReorderSiblings={handleReorderSiblings}
             // ダブルタップで中央に寄せたら、1回目のタップで開いたメニューは引っ込める
             onCenterPerson={() => setMenu(null)}
             onFocusPerson={toggleFocus}
