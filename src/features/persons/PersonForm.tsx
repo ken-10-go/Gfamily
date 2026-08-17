@@ -8,6 +8,7 @@ import {
   GENDER_LABELS,
   SURNAME_CHANGE_REASON_LABELS,
   type Gender,
+  type House,
   type Person,
   type PersonInput,
   type SurnameChangeReason,
@@ -27,6 +28,11 @@ interface PersonFormProps {
   derivedBirthOrder?: string | null;
   /** 人物の項目より前に差し込む欄。親の選択など、関係づけの指定に使う。 */
   extraFields?: ReactNode;
+  /**
+   * 選べる家。手で登録した家だけが並ぶ（自動判定の家は登録されるまで選べない）。
+   * 空なら所属の欄そのものを出さない。
+   */
+  houses?: House[];
   onSubmit: (input: PersonInput) => Promise<void>;
   onCancel: () => void;
   /**
@@ -54,6 +60,7 @@ export function PersonForm({
   defaultGender,
   derivedBirthOrder,
   extraFields,
+  houses = [],
   onSubmit,
   onCancel,
   onDelete,
@@ -79,6 +86,7 @@ export function PersonForm({
           birthDateUncertain: initial.birthDateUncertain,
           deathDateUncertain: initial.deathDateUncertain,
           encryptedData: initial.encryptedData,
+          houseIds: initial.houseIds,
         }
       : {
           ...EMPTY_PERSON_INPUT,
@@ -317,6 +325,33 @@ export function PersonForm({
         aria-labelledby={`${genderName}-tab-culture`}
         hidden={tab !== 'culture'}
       >
+        {houses.length > 0 && (
+          <fieldset className="field field--radios form__wide">
+            <legend className="field__label">属する家</legend>
+            <p className="note">
+              生家と婚家のように、複数の家に属してかまいません。
+              先頭に選んだ家が配置のまとまりに使われます。
+            </p>
+            {houses.map((house) => (
+              <label key={house.id} className="field__radio">
+                <input
+                  type="checkbox"
+                  checked={(input.houseIds ?? []).includes(house.id)}
+                  onChange={(event) =>
+                    update(
+                      'houseIds',
+                      event.target.checked
+                        ? [...(input.houseIds ?? []), house.id]
+                        : (input.houseIds ?? []).filter((id) => id !== house.id),
+                    )
+                  }
+                />
+                <span>{house.name}</span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+
         <label className="field">
           <span className="field__label">続柄</span>
           <select

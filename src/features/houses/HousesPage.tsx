@@ -90,10 +90,21 @@ export function HousesPage() {
     void run(() => api.deleteHouse(treeId, house.id), '解除できませんでした');
   }
 
-  function handleMove(person: Person, houseId: string) {
+  /** その人の、ある家への所属を付け外しする。1人が複数の家に属してよい。 */
+  function handleToggle(person: Person, houseId: string, belongs: boolean) {
+    const next = belongs
+      ? [...person.houseIds, houseId]
+      : person.houseIds.filter((id) => id !== houseId);
+
+    void run(() => api.setPersonHouses(treeId, [person.id], next), '所属を変えられませんでした');
+  }
+
+  /** 主たる家（配置のまとまりに使う家）を先頭へ持ってくる。 */
+  function handlePrimary(person: Person, houseId: string) {
+    const next = [houseId, ...person.houseIds.filter((id) => id !== houseId)];
     void run(
-      () => api.setPersonHouses(treeId, [person.id], houseId || null),
-      '所属を変えられませんでした',
+      () => api.setPersonHouses(treeId, [person.id], next),
+      '主たる家を変えられませんでした',
     );
   }
 
@@ -104,9 +115,16 @@ export function HousesPage() {
   const detected = detectHouses(graph);
   const persons = [...graph.persons].sort(compareForDisplay);
 
+  const houseName = (houseId: string) =>
+    houses.find((house) => house.id === houseId)?.name ?? '(不明な家)';
+
   /** その家に属する人。自動判定と手の指定の両方を通したあとの顔ぶれ。 */
   const membersOf = (houseId: string) =>
-    persons.filter((person) => assignment.get(person.id)?.id === houseId);
+    persons.filter(
+      (person) =>
+        person.houseIds.includes(houseId) ||
+        (person.houseIds.length === 0 && assignment.get(person.id)?.id === houseId),
+    );
 
   return (
     <main className="page">
@@ -192,32 +210,61 @@ export function HousesPage() {
         <>
           <h2>人物の所属</h2>
           <p className="note">
-            自動の判定と実感が食い違う人だけ、属する家を選び直してください。
-            「自動」に戻すと、また血のつながりから判定します。
+            1人が複数の家に属してかまいません（生家と婚家など）。
+            <strong>先頭の「主たる家」</strong>だけが配置のまとまりに使われます。
+            どれも選ばなければ、血のつながりから自動で判定します。
           </p>
 
           <ul className="card-list">
             {persons.map((person) => (
-              <li key={person.id} className="card-list__item card-list__header">
-                <span>
-                  {displayName(person)}
-                  {lifespanLabel(person) && (
-                    <span className="note"> （{lifespanLabel(person)}）</span>
-                  )}
-                </span>
-                <select
-                  value={person.houseId ?? ''}
-                  disabled={busy}
-                  aria-label={`${displayName(person)} の家`}
-                  onChange={(event) => handleMove(person, event.target.value)}
-                >
-                  <option value="">自動（{assignment.get(person.id)?.name ?? '—'}）</option>
-                  {houses.map((house) => (
-                    <option key={house.id} value={house.id}>
-                      {house.name}
-                    </option>
-                  ))}
-                </select>
+              <li key={person.id} className="card-list__item">
+                <div className="card-list__header">
+                  <strong>
+                    {displayName(person)}
+                    {lifespanLabel(person) && (
+                      <span className="note"> （{lifespanLabel(person)}）</span>
+                    )}
+                  </strong>
+                  <span className="note">
+                    {person.houseIds.length === 0
+                      ? `自動（${assignment.get(person.id)?.name ?? '—'}）`
+                      : `主たる家: ${houseName(person.houseIds[0])}`}
+                  </span>
+                </div>
+
+                <div className="field field--radios">
+                  {houses.map((house) => {
+                    const belongs = person.houseIds.includes(house.id);
+                    const primary = person.houseIds[0] === house.id;
+
+                    return (
+                      <span key={house.id} className="house-choice">
+                        <label className="field__radio">
+                          <input
+                            type="checkbox"
+                            checked={belongs}
+                            disabled={busy}
+                            onChange={(event) =>
+                              handleToggle(person, house.id, event.target.checked)
+                            }
+                          />
+                          <span>{house.name}</span>
+                        </label>
+                        {belongs && !primary && (
+                          <button
+                            type="button"
+                            className="link-button"
+                            disabled={busy}
+                            onClick={() => handlePrimary(person, house.id)}
+                          >
+                            主にする
+                          </button>
+                        )}
+                        {primary && <span className="badge">主</span>}
+                      </span>
+                    );
+                  })}
+                </div>
               </li>
             ))}
           </ul>

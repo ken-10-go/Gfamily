@@ -106,12 +106,14 @@ export interface Person {
    */
   generationShift: number | null;
   /**
-   * 属する家の指定。null なら血のつながりから自動で決める。
+   * 属する家の指定。空なら血のつながりから自動で決める。
    *
-   * 改姓や婿養子で自動の判定と実感が食い違うときだけ、人物ごとに上書きする。
-   * 家は配置のまとまりであり、将来は見せる範囲の単位にもなる。
+   * **1人が複数の家に属することを前提にする。** 嫁いだ人は生家と婚家の両方に
+   * 名を連ねるし、養子は実家と養家の両方に属する。
+   * 先頭の1つを「主たる家」として配置のまとまりに使い、残りは所属の記録として持つ。
+   * 改姓や婿養子で自動の判定と実感が食い違うときだけ、人物ごとに指定する。
    */
-  houseId: string | null;
+  houseIds: string[];
   /**
    * カードを手で置いた位置。null なら自動レイアウトに従う。
    * ドラッグで移動すると、格子に合わせた座標がここに入る。
@@ -157,6 +159,7 @@ export type PersonInput = Pick<
   | 'birthOrder'
   | 'surnameHistory'
   | 'encryptedData'
+  | 'houseIds'
 >;
 
 /** 何も入力していない状態の人物。フォームの初期値に使う。 */
@@ -179,6 +182,7 @@ export const EMPTY_PERSON_INPUT: PersonInput = {
   birthOrder: '',
   surnameHistory: [],
   encryptedData: null,
+  houseIds: [],
 };
 
 /**
@@ -190,7 +194,6 @@ export const EMPTY_PERSON: Person = {
   id: '',
   siblingOrder: null,
   generationShift: null,
-  houseId: null,
   position: null,
   deletedAt: null,
 };

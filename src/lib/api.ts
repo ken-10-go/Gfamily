@@ -187,7 +187,12 @@ function toPerson(snapshot: QueryDocumentSnapshot<DocumentData>): Person {
     birthOrder: data.birthOrder ?? null,
     siblingOrder: typeof data.siblingOrder === 'number' ? data.siblingOrder : null,
     generationShift: typeof data.generationShift === 'number' ? data.generationShift : null,
-    houseId: typeof data.houseId === 'string' ? data.houseId : null,
+    // houseId（単数）で保存された古いデータも読めるようにする
+    houseIds: Array.isArray(data.houseIds)
+      ? (data.houseIds as string[]).filter((id) => typeof id === 'string')
+      : typeof data.houseId === 'string'
+        ? [data.houseId]
+        : [],
     position:
       data.position && typeof data.position.x === 'number' && typeof data.position.y === 'number'
         ? { x: data.position.x, y: data.position.y }
@@ -258,6 +263,7 @@ function personPayload(input: PersonInput, uid: string) {
         reason: record.reason,
         note: blankToNull(record.note),
       })),
+    houseIds: input.houseIds ?? [],
     updatedBy: uid,
     updatedAt: serverTimestamp(),
   };
@@ -398,7 +404,7 @@ export async function createHouse(
     updatedAt: serverTimestamp(),
   });
 
-  if (memberIds.length > 0) await setPersonHouses(treeId, memberIds, created.id);
+  if (memberIds.length > 0) await setPersonHouses(treeId, memberIds, [created.id]);
   return created.id;
 }
 
@@ -416,20 +422,28 @@ export async function renameHouse(treeId: string, houseId: string, name: string)
  * 人物そのものは消さない。
  */
 export async function deleteHouse(treeId: string, houseId: string): Promise<void> {
-  const members = await getDocs(query(sub(treeId, 'persons'), where('houseId', '==', houseId)));
-  await setPersonHouses(
-    treeId,
-    members.docs.map((entry) => entry.id),
-    null,
+  // その家に属している人から、この家だけを外す（他の所属は残す）
+  const members = await getDocs(
+    query(sub(treeId, 'persons'), where('houseIds', 'array-contains', houseId)),
   );
+  for (const entry of members.docs) {
+    const rest = ((entry.get('houseIds') as string[] | undefined) ?? []).filter(
+      (id) => id !== houseId,
+    );
+    await setPersonHouses(treeId, [entry.id], rest);
+  }
   await deleteDoc(doc(getDb(), 'trees', treeId, 'houses', houseId));
 }
 
-/** 人物の所属する家を決める。null を渡すと自動判定に戻る。 */
+/**
+ * 人物の所属する家を決める。空の配列を渡すと自動判定に戻る。
+ *
+ * 1人が複数の家に属してよい（生家と婚家など）。先頭が主たる家で、配置に使う。
+ */
 export async function setPersonHouses(
   treeId: string,
   personIds: string[],
-  houseId: string | null,
+  houseIds: string[],
 ): Promise<void> {
   if (personIds.length === 0) return;
   const uid = requireUid();
@@ -439,7 +453,9 @@ export async function setPersonHouses(
     const batch = writeBatch(getDb());
     for (const personId of personIds.slice(from, from + 400)) {
       batch.update(doc(getDb(), 'trees', treeId, 'persons', personId), {
-        houseId,
+        houseIds,
+        // 単数で持っていた頃の値が残っていると、古い読み方をする画面で食い違う
+        houseId: null,
         updatedBy: uid,
         updatedAt: serverTimestamp(),
       });

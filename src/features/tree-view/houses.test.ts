@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bloodGroups,
   detectHouses,
+  houseMemberships,
   houseNameOf,
   houseSizes,
   resolveHouses,
@@ -131,6 +132,25 @@ describe('detectHouses', () => {
   });
 });
 
+describe('houseMemberships', () => {
+  it('1人が複数の家に属せる。先頭が主たる家になる', () => {
+    const houses: House[] = [
+      { id: 'h1', name: '後藤家（婚家）' },
+      { id: 'h2', name: '寺原家（生家）' },
+    ];
+    const graph: TreeGraph = {
+      ...sample,
+      persons: sample.persons.map((p) => (p.id === '順子' ? { ...p, houseIds: ['h1', 'h2'] } : p)),
+    };
+
+    expect(houseMemberships(graph, houses).get('順子')?.map((house) => house.name)).toEqual([
+      '後藤家（婚家）',
+      '寺原家（生家）',
+    ]);
+    expect(resolveHouses(graph, houses).get('順子')?.id).toBe('h1');
+  });
+});
+
 describe('resolveHouses', () => {
   it('指定が無ければ、自動で判定した家に入る', () => {
     const assignment = resolveHouses(sample);
@@ -145,7 +165,7 @@ describe('resolveHouses', () => {
     const houses: House[] = [{ id: 'h1', name: '後藤家（婚家）' }];
     const graph: TreeGraph = {
       ...sample,
-      persons: sample.persons.map((p) => (p.id === '順子' ? { ...p, houseId: 'h1' } : p)),
+      persons: sample.persons.map((p) => (p.id === '順子' ? { ...p, houseIds: ['h1'] } : p)),
     };
 
     const assignment = resolveHouses(graph, houses);
@@ -157,7 +177,7 @@ describe('resolveHouses', () => {
   it('消えた家を指していても壊れず、自動判定に戻る', () => {
     const graph: TreeGraph = {
       ...sample,
-      persons: sample.persons.map((p) => (p.id === '順子' ? { ...p, houseId: '消えた' } : p)),
+      persons: sample.persons.map((p) => (p.id === '順子' ? { ...p, houseIds: ['消えた'] } : p)),
     };
 
     expect(resolveHouses(graph, []).get('順子')?.name).toBe('寺原家');

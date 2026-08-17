@@ -10,7 +10,8 @@
  * 親子を両親ともたどってはいけない。子は父にも母にもつながっているので、
  * 両方たどると子を介して夫婦の生家どうしが1つになってしまう（寺原家＝後藤家）。
  * 名前は、その一群でいちばん多い姓から「◯◯家」とする。
- * 改姓や婿養子で実感と食い違うときは、人物ごとに `houseId` で上書きできる。
+ * 改姓や婿養子で実感と食い違うときは、人物ごとに `houseIds` で上書きできる。
+ * 1人が複数の家に属してよい（生家と婚家など）。先頭が主たる家。
  *
  * 純粋関数だけを置く。
  */
@@ -151,30 +152,50 @@ export interface HouseAssignment {
 }
 
 /**
- * 人物 → 属する家 の対応を作る。
+ * 人物 → 属する家（複数）の対応を作る。
  *
- * `Person.houseId` が保存された家を指していれば、それを優先する。
- * 指定が無い人は、血のつながりで自動判定した家に入る。
- * 指定が消えた家を指している場合は、指定が無いものとして扱う（データが壊れない）。
+ * 1人が複数の家に属してよい。嫁いだ人は生家と婚家の両方に名を連ねる。
+ * `Person.houseIds` に指定があればそれを使い、無ければ血のつながりで自動判定した家1つ。
+ * 消えた家を指している分は取り除く（データが壊れない）。指定が全部消えたら自動判定へ戻す。
+ */
+export function houseMemberships(
+  graph: TreeGraph,
+  houses: House[] = [],
+): Map<string, HouseAssignment[]> {
+  const byId = new Map(houses.map((house) => [house.id, house]));
+  const memberships = new Map<string, HouseAssignment[]>();
+
+  for (const detected of detectHouses(graph)) {
+    for (const id of detected.memberIds) {
+      memberships.set(id, [{ id: detected.key, name: detected.name, pinned: false }]);
+    }
+  }
+
+  for (const person of graph.persons) {
+    const pinned = person.houseIds
+      .map((id) => byId.get(id))
+      .filter((house): house is House => house !== undefined)
+      .map((house) => ({ id: house.id, name: house.name, pinned: true }));
+
+    if (pinned.length > 0) memberships.set(person.id, pinned);
+  }
+
+  return memberships;
+}
+
+/**
+ * 人物 → 主たる家 の対応を作る。配置のまとまりはこれで決める。
+ *
+ * 複数の家に属している人は、指定の先頭を主たる家とする。
  */
 export function resolveHouses(
   graph: TreeGraph,
   houses: House[] = [],
 ): Map<string, HouseAssignment> {
-  const byId = new Map(houses.map((house) => [house.id, house]));
   const assignment = new Map<string, HouseAssignment>();
 
-  for (const detected of detectHouses(graph)) {
-    for (const id of detected.memberIds) {
-      assignment.set(id, { id: detected.key, name: detected.name, pinned: false });
-    }
-  }
-
-  for (const person of graph.persons) {
-    const pinned = person.houseId ? byId.get(person.houseId) : undefined;
-    if (pinned) {
-      assignment.set(person.id, { id: pinned.id, name: pinned.name, pinned: true });
-    }
+  for (const [personId, list] of houseMemberships(graph, houses)) {
+    if (list.length > 0) assignment.set(personId, list[0]);
   }
 
   return assignment;

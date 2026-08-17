@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { useTreeKey } from '@/features/e2ee/useTreeKey';
+import { houseMemberships } from '@/features/tree-view/houses';
 import * as api from '@/lib/api';
 import type { SensitiveFields } from '@/lib/crypto';
 import { ageLabel, formatWithEra } from '@/lib/japanese-date';
@@ -13,6 +14,7 @@ import {
   PARENT_KIND_LABELS,
   SURNAME_CHANGE_REASON_LABELS,
   UNION_STATUS_LABELS,
+  type House,
   type ParentKind,
   type Person,
   type TreeGraph,
@@ -38,6 +40,8 @@ interface PersonDetailProps {
   treeId: string;
   graph: TreeGraph;
   person: Person;
+  /** 手で登録した家。所属を出すのに使う（未登録なら血のつながりから自動判定） */
+  houses?: House[];
   canEdit: boolean;
   onSelectPerson: (personId: string) => void;
   onChanged: () => Promise<void>;
@@ -48,6 +52,7 @@ export function PersonDetail({
   treeId,
   graph,
   person,
+  houses = [],
   canEdit,
   onSelectPerson,
   onChanged,
@@ -109,6 +114,7 @@ export function PersonDetail({
           />
         )}
         <Detail label="出生地" value={person.birthPlace} />
+        <Detail label="属する家" value={houseLabel(graph, person, houses)} />
         <Detail label="メモ" value={person.note} />
       </dl>
 
@@ -264,6 +270,23 @@ function dateLabel(value: string | null, era: Person['birthEra'], uncertain: boo
 /** 実子以外は種別を添える。実子はふつうなので、いちいち書かない。 */
 function withKind(name: string, kind: ParentKind): string {
   return kind === 'biological' ? name : `${name}（${PARENT_KIND_LABELS[kind]}）`;
+}
+
+/**
+ * 属する家。1人が複数の家に属してよいので、並べて出す。
+ * 先頭は配置のまとまりに使う「主たる家」なので、そう分かるように印を付ける。
+ * 手の指定が無ければ、血のつながりから自動で判定した家を出す。
+ */
+function houseLabel(graph: TreeGraph, person: Person, houses: House[]): string {
+  const belongs = houseMemberships(graph, houses).get(person.id) ?? [];
+  if (belongs.length === 0) return '';
+
+  return belongs
+    .map((house, index) => {
+      if (!house.pinned) return `${house.name}（自動）`;
+      return index === 0 && belongs.length > 1 ? `${house.name}（主）` : house.name;
+    })
+    .join('・');
 }
 
 function Detail({ label, value }: { label: string; value: string | null | undefined }) {

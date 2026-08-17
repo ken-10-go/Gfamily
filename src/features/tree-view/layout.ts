@@ -86,7 +86,7 @@ export interface SiblingGroup {
 
 export interface LayoutOptions {
   /**
-   * 保存された家。人物の `houseId` と突き合わせて、家ごとの帯を作るのに使う。
+   * 保存された家。人物の `houseIds` と突き合わせて、家ごとの帯を作るのに使う。
    * 渡さなくても、血のつながりから自動で家を判定する。
    */
   houses?: House[];

@@ -147,7 +147,7 @@ interface TreeCanvasProps {
    */
   sceneKey?: string;
   /**
-   * 手で登録した家。人物の `houseId` と突き合わせて、家ごとの帯を作るのに使う。
+   * 手で登録した家。人物の `houseIds` と突き合わせて、家ごとの帯を作るのに使う。
    * 渡さなくても血のつながりから自動で判定するので、省略してよい。
    */
   houses?: House[];

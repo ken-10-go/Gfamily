@@ -716,6 +716,7 @@ export function TreeDetailPage() {
             dialog={dialog}
             treeId={treeId}
             graph={baseGraph}
+            houses={houses}
             canEdit={canEdit}
             settings={{ settings, updateSetting }}
             onClose={() => setDialog(null)}
@@ -738,6 +739,7 @@ function DialogContent({
   dialog,
   treeId,
   graph,
+  houses,
   canEdit,
   settings,
   onClose,
@@ -752,6 +754,7 @@ function DialogContent({
   dialog: DialogMode;
   treeId: string;
   graph: TreeGraph;
+  houses: House[];
   canEdit: boolean;
   settings: {
     settings: ReturnType<typeof useViewSettings>['settings'];
@@ -796,7 +799,12 @@ function DialogContent({
   if (dialog.kind === 'add-person') {
     return (
       <PersonDialog title="人物を追加" onClose={onClose}>
-        <PersonForm submitLabel="追加" onSubmit={onCreatePerson} onCancel={onClose} />
+        <PersonForm
+          submitLabel="追加"
+          houses={houses}
+          onSubmit={onCreatePerson}
+          onCancel={onClose}
+        />
       </PersonDialog>
     );
   }
@@ -810,6 +818,7 @@ function DialogContent({
           treeId={treeId}
           graph={graph}
           person={person}
+          houses={houses}
           canEdit={canEdit}
           onSelectPerson={onSelectPerson}
           onChanged={onChanged}
@@ -824,6 +833,7 @@ function DialogContent({
         <PersonForm
           initial={person}
           submitLabel="保存"
+          houses={houses}
           derivedBirthOrder={deriveBirthOrder(graph, person.id)}
           onSubmit={async (input) => {
             await api.updatePerson(treeId, person.id, input);
