@@ -130,7 +130,8 @@ export function cardMetrics(settings: ViewSettings): CardMetrics {
   }
 
   return {
-    nodeWidth: Math.round(176 * scale),
+    // 幅は「1950–2001 享年51」が収まる範囲まで詰める。氏名は全角7文字まで枠に収まる
+    nodeWidth: Math.round(156 * scale),
     // 上下の余白 6 と、行の高さ 18
     nodeHeight: Math.round((6 + lines * 18) * scale),
     hGap: Math.round(24 * scale),
