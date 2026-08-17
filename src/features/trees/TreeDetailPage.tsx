@@ -172,7 +172,8 @@ export function TreeDetailPage() {
       return;
     }
     // 開くときに中心が未指定なら、選んでいる人物を初期値にする
-    if (!focus.centerId && selectedId) setFocus((current) => ({ ...current, centerId: selectedId }));
+    if (!focus.centerId && selectedId)
+      setFocus((current) => ({ ...current, centerId: selectedId }));
     setFocusOpen(true);
   }
 
@@ -181,7 +182,8 @@ export function TreeDetailPage() {
     const placeholderFor = placeholderTarget(personId);
     if (placeholderFor) {
       setSelectedId(placeholderFor);
-      if (canEdit) setDialog({ kind: 'add-relative', personId: placeholderFor, relation: 'spouse' });
+      if (canEdit)
+        setDialog({ kind: 'add-relative', personId: placeholderFor, relation: 'spouse' });
       return;
     }
 
@@ -237,17 +239,22 @@ export function TreeDetailPage() {
     }
   }
 
-  async function handleDelete(personId: string) {
+  /** 削除できたら true。取り消したときと失敗したときは false（呼び出し側は画面を閉じない）。 */
+  async function handleDelete(personId: string): Promise<boolean> {
     const person = personOf(personId);
-    if (!person) return;
-    if (!window.confirm(`${displayName(person)} を削除しますか？（ゴミ箱から復元できます）`)) return;
+    if (!person) return false;
+    if (!window.confirm(`${displayName(person)} を削除しますか？（ゴミ箱から復元できます）`)) {
+      return false;
+    }
 
     try {
       await api.softDeletePerson(treeId, personId);
       setSelectedId(null);
       await reload();
+      return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '削除に失敗しました');
+      return false;
     }
   }
 
@@ -402,218 +409,219 @@ export function TreeDetailPage() {
   return (
     <TreeKeyProvider treeId={treeId}>
       <div className="tree-page">
-      {/*
+        {/*
         狭い画面では画面の高さが貴重なので、ヘッダーは1行に収める。
         検索はアイコンから開き、頻度の低い操作は「⋯」にまとめる。
       */}
-      <header className="tree-page__header">
-        <Link to="/" className="tree-page__back" aria-label="家系図の一覧へ">
-          ←
-        </Link>
-        <h1 className="tree-page__title">{tree?.name}</h1>
-        {role && <span className="badge badge--wide">{ROLE_LABELS[role]}</span>}
-        {settings.locked && <span className="badge">ロック中</span>}
-        {focus.centerId && <span className="badge">絞り込み中</span>}
-        {combined && <span className="badge">合同表示</span>}
+        <header className="tree-page__header">
+          <Link to="/" className="tree-page__back" aria-label="家系図の一覧へ">
+            ←
+          </Link>
+          <h1 className="tree-page__title">{tree?.name}</h1>
+          {role && <span className="badge badge--wide">{ROLE_LABELS[role]}</span>}
+          {settings.locked && <span className="badge">ロック中</span>}
+          {focus.centerId && <span className="badge">絞り込み中</span>}
+          {combined && <span className="badge">合同表示</span>}
 
-        <div className="tree-page__actions">
-          <button
-            type="button"
-            className="icon-button icon-button--tap"
-            onClick={() => setSearchOpen((open) => !open)}
-            aria-label="人物を検索"
-            aria-expanded={searchOpen}
-          >
-            🔍
-          </button>
-
-          {hasBridge && (
-            <button
-              type="button"
-              className={combined ? 'button button--primary' : 'button'}
-              onClick={() => setCombined((on) => !on)}
-              title="つながっている家も合わせて表示する（相手の故人のみ）"
-            >
-              🤝<span className="hide-narrow">{combined ? '自家のみ' : '両家合同'}</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            className="icon-button icon-button--tap"
-            onClick={toggleFocusBar}
-            aria-label="表示する範囲を絞り込む"
-            aria-expanded={focusOpen}
-          >
-            🎯
-          </button>
-
-          {canEdit && (
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={() => setDialog({ kind: 'add-person' })}
-            >
-              ＋<span className="hide-narrow">人物を追加</span>
-            </button>
-          )}
-
-          <div className="more">
+          <div className="tree-page__actions">
             <button
               type="button"
               className="icon-button icon-button--tap"
-              onClick={() => setMoreOpen((open) => !open)}
-              aria-label="そのほかの操作"
-              aria-expanded={moreOpen}
+              onClick={() => setSearchOpen((open) => !open)}
+              aria-label="人物を検索"
+              aria-expanded={searchOpen}
             >
-              ⋯
+              🔍
             </button>
-            {moreOpen && (
-              <div className="more__menu" role="menu">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="person-menu__item"
-                  onClick={() => {
-                    setMoreOpen(false);
-                    setDialog({ kind: 'settings' });
-                  }}
-                >
-                  表示設定
-                </button>
-                {canEdit && (
+
+            {hasBridge && (
+              <button
+                type="button"
+                className={combined ? 'button button--primary' : 'button'}
+                onClick={() => setCombined((on) => !on)}
+                title="つながっている家も合わせて表示する（相手の故人のみ）"
+              >
+                🤝<span className="hide-narrow">{combined ? '自家のみ' : '両家合同'}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="icon-button icon-button--tap"
+              onClick={toggleFocusBar}
+              aria-label="表示する範囲を絞り込む"
+              aria-expanded={focusOpen}
+            >
+              🎯
+            </button>
+
+            {canEdit && (
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={() => setDialog({ kind: 'add-person' })}
+              >
+                ＋<span className="hide-narrow">人物を追加</span>
+              </button>
+            )}
+
+            <div className="more">
+              <button
+                type="button"
+                className="icon-button icon-button--tap"
+                onClick={() => setMoreOpen((open) => !open)}
+                aria-label="そのほかの操作"
+                aria-expanded={moreOpen}
+              >
+                ⋯
+              </button>
+              {moreOpen && (
+                <div className="more__menu" role="menu">
                   <button
                     type="button"
                     role="menuitem"
                     className="person-menu__item"
                     onClick={() => {
                       setMoreOpen(false);
-                      void handleResetAllPositions();
+                      setDialog({ kind: 'settings' });
                     }}
                   >
-                    全体を自動配置に戻す
+                    表示設定
                   </button>
-                )}
-                <Link
-                  to={`/trees/${treeId}/members`}
-                  role="menuitem"
-                  className="person-menu__item"
-                  onClick={() => setMoreOpen(false)}
-                >
-                  メンバー
-                </Link>
-                <Link
-                  to={`/trees/${treeId}/bridges`}
-                  role="menuitem"
-                  className="person-menu__item"
-                  onClick={() => setMoreOpen(false)}
-                >
-                  家どうしのつながり
-                </Link>
-                <Link
-                  to={`/trees/${treeId}/history`}
-                  role="menuitem"
-                  className="person-menu__item"
-                  onClick={() => setMoreOpen(false)}
-                >
-                  変更履歴
-                </Link>
-              </div>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="person-menu__item"
+                      onClick={() => {
+                        setMoreOpen(false);
+                        void handleResetAllPositions();
+                      }}
+                    >
+                      全体を自動配置に戻す
+                    </button>
+                  )}
+                  <Link
+                    to={`/trees/${treeId}/members`}
+                    role="menuitem"
+                    className="person-menu__item"
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    メンバー
+                  </Link>
+                  <Link
+                    to={`/trees/${treeId}/bridges`}
+                    role="menuitem"
+                    className="person-menu__item"
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    家どうしのつながり
+                  </Link>
+                  <Link
+                    to={`/trees/${treeId}/history`}
+                    role="menuitem"
+                    className="person-menu__item"
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    変更履歴
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {searchOpen && (
+          <div className="tree-page__search">
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="名前・ふりがな・旧姓で検索"
+              aria-label="人物を検索"
+              autoFocus
+            />
+            {matches.length > 0 && (
+              <ul className="search__results">
+                {matches.slice(0, 8).map((person) => (
+                  <li key={person.id}>
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => {
+                        setSelectedId(person.id);
+                        setDialog({ kind: 'detail', personId: person.id });
+                        setSearch('');
+                        setSearchOpen(false);
+                      }}
+                    >
+                      {displayName(person)}
+                      <span className="search__meta">{lifespanLabel(person)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
-        </div>
-      </header>
+        )}
 
-      {searchOpen && (
-        <div className="tree-page__search">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="名前・ふりがな・旧姓で検索"
-            aria-label="人物を検索"
-            autoFocus
+        {focusOpen && (
+          <FocusBar
+            persons={graph.persons}
+            value={focus}
+            onChange={setFocus}
+            onClear={() => setFocus((current) => ({ ...current, centerId: '' }))}
           />
-          {matches.length > 0 && (
-            <ul className="search__results">
-              {matches.slice(0, 8).map((person) => (
-                <li key={person.id}>
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => {
-                      setSelectedId(person.id);
-                      setDialog({ kind: 'detail', personId: person.id });
-                      setSearch('');
-                      setSearchOpen(false);
-                    }}
-                  >
-                    {displayName(person)}
-                    <span className="search__meta">{lifespanLabel(person)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+        )}
+
+        {error && tree && <p className="alert alert--error tree-page__error">{error}</p>}
+
+        <div className="tree-page__body">
+          <TreeCanvas
+            graph={visibleGraph}
+            metrics={metrics}
+            settings={settings}
+            selectedPersonId={selectedId}
+            onSelectPerson={openMenu}
+            canReorder={canEdit}
+            onMovePerson={handleMovePerson}
+            // ダブルタップで中央に寄せたら、1回目のタップで開いたメニューは引っ込める
+            onCenterPerson={() => setMenu(null)}
+            centerRequest={centerRequest}
+            onCenterDone={() => setCenterRequest(null)}
+            // 絞り込み中は自動配置で描く。手で置いた座標は家系図の全体を前提にした値で、
+            // 一部だけを取り出すとカードが遠くに取り残されるため。
+            ignoreManualPositions={Boolean(focus.centerId)}
+          />
         </div>
-      )}
 
-      {focusOpen && (
-        <FocusBar
-          persons={graph.persons}
-          value={focus}
-          onChange={setFocus}
-          onClear={() => setFocus((current) => ({ ...current, centerId: '' }))}
-        />
-      )}
+        {menu && menuPerson && (
+          <PersonMenu
+            person={menuPerson}
+            anchor={menu.anchor}
+            canEdit={canEdit}
+            onAction={handleAction}
+            onClose={() => setMenu(null)}
+          />
+        )}
 
-      {error && tree && <p className="alert alert--error tree-page__error">{error}</p>}
-
-      <div className="tree-page__body">
-        <TreeCanvas
-          graph={visibleGraph}
-          metrics={metrics}
-          settings={settings}
-          selectedPersonId={selectedId}
-          onSelectPerson={openMenu}
-          canReorder={canEdit}
-          onMovePerson={handleMovePerson}
-          // ダブルタップで中央に寄せたら、1回目のタップで開いたメニューは引っ込める
-          onCenterPerson={() => setMenu(null)}
-          centerRequest={centerRequest}
-          onCenterDone={() => setCenterRequest(null)}
-          // 絞り込み中は自動配置で描く。手で置いた座標は家系図の全体を前提にした値で、
-          // 一部だけを取り出すとカードが遠くに取り残されるため。
-          ignoreManualPositions={Boolean(focus.centerId)}
-        />
-      </div>
-
-      {menu && menuPerson && (
-        <PersonMenu
-          person={menuPerson}
-          anchor={menu.anchor}
-          canEdit={canEdit}
-          onAction={handleAction}
-          onClose={() => setMenu(null)}
-        />
-      )}
-
-      {dialog && (
-        <DialogContent
-          dialog={dialog}
-          treeId={treeId}
-          graph={baseGraph}
-          canEdit={canEdit}
-          settings={{ settings, updateSetting }}
-          onClose={() => setDialog(null)}
-          onSelectPerson={(personId) => setDialog({ kind: 'detail', personId })}
-          onChanged={reload}
-          onCreatePerson={handleCreatePerson}
-          onAddRelative={handleAddRelative}
-          onAddParents={handleAddParents}
-          onConnect={handleConnect}
-        />
-      )}
+        {dialog && (
+          <DialogContent
+            dialog={dialog}
+            treeId={treeId}
+            graph={baseGraph}
+            canEdit={canEdit}
+            settings={{ settings, updateSetting }}
+            onClose={() => setDialog(null)}
+            onSelectPerson={(personId) => setDialog({ kind: 'detail', personId })}
+            onChanged={reload}
+            onCreatePerson={handleCreatePerson}
+            onAddRelative={handleAddRelative}
+            onAddParents={handleAddParents}
+            onConnect={handleConnect}
+            onDeletePerson={handleDelete}
+          />
+        )}
       </div>
     </TreeKeyProvider>
   );
@@ -633,6 +641,7 @@ function DialogContent({
   onAddRelative,
   onAddParents,
   onConnect,
+  onDeletePerson,
 }: {
   dialog: DialogMode;
   treeId: string;
@@ -660,6 +669,7 @@ function DialogContent({
     otherId: string,
     kind: ParentKind,
   ) => Promise<void>;
+  onDeletePerson: (personId: string) => Promise<boolean>;
 }) {
   const person =
     'personId' in dialog ? (graph.persons.find((p) => p.id === dialog.personId) ?? null) : null;
@@ -715,6 +725,16 @@ function DialogContent({
             onClose();
           }}
           onCancel={onClose}
+          onDelete={
+            canEdit
+              ? () => {
+                  // 確認は handleDelete が出す。取り消されたら編集画面は開いたまま
+                  void onDeletePerson(person.id).then((deleted) => {
+                    if (deleted) onClose();
+                  });
+                }
+              : undefined
+          }
         />
       </PersonDialog>
     );

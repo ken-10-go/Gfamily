@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 
 import { useTreeKey } from '@/features/e2ee/useTreeKey';
 import { AgeInput } from '@/features/persons/AgeInput';
@@ -31,7 +31,22 @@ interface PersonFormProps {
   extraFields?: ReactNode;
   onSubmit: (input: PersonInput) => Promise<void>;
   onCancel: () => void;
+  /**
+   * この人物を削除する。渡されたときだけフォームの末尾に削除ボタンを出す。
+   *
+   * 新規追加のフォームには渡さない（まだ存在しないものは消せない）。
+   * 確認や実際の削除は呼び出し側が持つ。
+   */
+  onDelete?: () => void;
 }
+
+/** 編集画面のタブ。戸籍の骨組みと、その周辺の情報とで分ける。 */
+type FormTab = 'basic' | 'culture';
+
+const TABS: [FormTab, string][] = [
+  ['basic', '基本情報'],
+  ['culture', '文化的補足'],
+];
 
 export function PersonForm({
   initial,
@@ -43,6 +58,7 @@ export function PersonForm({
   extraFields,
   onSubmit,
   onCancel,
+  onDelete,
 }: PersonFormProps) {
   const [input, setInput] = useState<PersonInput>(() =>
     initial
@@ -75,6 +91,9 @@ export function PersonForm({
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<FormTab>('basic');
+  // 同じ画面に複数のフォームが出ても、ラジオのグループが混ざらないようにする
+  const genderName = useId();
 
   const key = useTreeKey();
   const [sensitive, setSensitive] = useState<SensitiveFields>(EMPTY_SENSITIVE);
@@ -138,6 +157,8 @@ export function PersonForm({
     event.preventDefault();
 
     if (!input.familyName?.trim() && !input.givenName?.trim()) {
+      // 指摘した欄が隠れていては直しようがないので、そのタブへ戻す
+      setTab('basic');
       setError('姓か名のどちらかは入力してください');
       return;
     }
@@ -161,49 +182,153 @@ export function PersonForm({
     <form onSubmit={handleSubmit} className="form">
       {extraFields}
 
-      <div className="form__row">
-        <label className="field">
-          <span className="field__label">姓</span>
-          <input
-            type="text"
-            value={input.familyName ?? ''}
-            onChange={(event) => update('familyName', event.target.value)}
-            maxLength={100}
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">名</span>
-          <input
-            type="text"
-            value={input.givenName ?? ''}
-            onChange={(event) => update('givenName', event.target.value)}
-            maxLength={100}
-          />
-        </label>
+      {/*
+       * 2つのタブに分ける。どちらも DOM に残したまま hidden で切り替えるので、
+       * 入力の途中で行き来しても値は消えず、保存では両方まとめて送れる。
+       */}
+      <div className="tabs" role="tablist" aria-label="編集する項目">
+        {TABS.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            id={`${genderName}-tab-${value}`}
+            aria-selected={tab === value}
+            aria-controls={`${genderName}-panel-${value}`}
+            className={tab === value ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
+            onClick={() => setTab(value)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div className="form__row">
-        <label className="field">
-          <span className="field__label">せい（ふりがな）</span>
+      <div
+        role="tabpanel"
+        id={`${genderName}-panel-basic`}
+        aria-labelledby={`${genderName}-tab-basic`}
+        hidden={tab !== 'basic'}
+      >
+        <div className="form__row">
+          <label className="field">
+            <span className="field__label">姓</span>
+            <input
+              type="text"
+              value={input.familyName ?? ''}
+              onChange={(event) => update('familyName', event.target.value)}
+              maxLength={100}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">名</span>
+            <input
+              type="text"
+              value={input.givenName ?? ''}
+              onChange={(event) => update('givenName', event.target.value)}
+              maxLength={100}
+            />
+          </label>
+        </div>
+
+        <div className="form__row">
+          <label className="field">
+            <span className="field__label">せい（ふりがな）</span>
+            <input
+              type="text"
+              value={input.familyNameKana ?? ''}
+              onChange={(event) => update('familyNameKana', event.target.value)}
+              maxLength={100}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">めい（ふりがな）</span>
+            <input
+              type="text"
+              value={input.givenNameKana ?? ''}
+              onChange={(event) => update('givenNameKana', event.target.value)}
+              maxLength={100}
+            />
+          </label>
+        </div>
+
+        {/* 性別はラジオにする。選択肢が4つと少なく、1タップで決まるため */}
+        <fieldset className="field field--radios">
+          <legend className="field__label">性別</legend>
+          {Object.entries(GENDER_LABELS).map(([value, label]) => (
+            <label key={value} className="field__radio">
+              <input
+                type="radio"
+                name={genderName}
+                value={value}
+                checked={input.gender === value}
+                onChange={() => update('gender', value as Gender)}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </fieldset>
+
+        <label className="field field--checkbox">
           <input
-            type="text"
-            value={input.familyNameKana ?? ''}
-            onChange={(event) => update('familyNameKana', event.target.value)}
-            maxLength={100}
+            type="checkbox"
+            checked={input.isLiving}
+            onChange={(event) => update('isLiving', event.target.checked)}
           />
+          <span>存命</span>
         </label>
-        <label className="field">
-          <span className="field__label">めい（ふりがな）</span>
+
+        {/* 没年月日を先に置く。享年から生年を逆算するときの基準になるため */}
+        {!input.isLiving && (
+          <>
+            <JapaneseDateInput
+              label="没年月日"
+              value={input.deathDate ?? ''}
+              onChange={(value, era) =>
+                setInput((current) => ({ ...current, deathDate: value, deathEra: era }))
+              }
+            />
+            <label className="field field--checkbox">
+              <input
+                type="checkbox"
+                checked={input.deathDateUncertain}
+                onChange={(event) => update('deathDateUncertain', event.target.checked)}
+              />
+              <span>没年ははっきりしない（「頃」として扱う）</span>
+            </label>
+          </>
+        )}
+
+        <JapaneseDateInput
+          label="生年月日"
+          value={input.birthDate ?? ''}
+          onChange={(value, era) =>
+            setInput((current) => ({ ...current, birthDate: value, birthEra: era }))
+          }
+        />
+
+        <label className="field field--checkbox">
           <input
-            type="text"
-            value={input.givenNameKana ?? ''}
-            onChange={(event) => update('givenNameKana', event.target.value)}
-            maxLength={100}
+            type="checkbox"
+            checked={input.birthDateUncertain}
+            onChange={(event) => update('birthDateUncertain', event.target.checked)}
           />
+          <span>生年ははっきりしない（「頃」として扱う）</span>
         </label>
+
+        <AgeInput
+          birthDate={input.birthDate ?? ''}
+          deathDate={input.deathDate ?? ''}
+          isLiving={input.isLiving}
+          onChangeBirthDate={(value) => update('birthDate', value)}
+        />
       </div>
 
-      <div className="form__row">
+      <div
+        role="tabpanel"
+        id={`${genderName}-panel-culture`}
+        aria-labelledby={`${genderName}-tab-culture`}
+        hidden={tab !== 'culture'}
+      >
         <label className="field">
           <span className="field__label">旧姓</span>
           <input
@@ -213,171 +338,102 @@ export function PersonForm({
             maxLength={100}
           />
         </label>
+
         <label className="field">
-          <span className="field__label">性別</span>
+          <span className="field__label">続柄</span>
           <select
-            value={input.gender}
-            onChange={(event) => update('gender', event.target.value as Gender)}
+            value={input.birthOrder ?? ''}
+            onChange={(event) => update('birthOrder', event.target.value)}
           >
-            {Object.entries(GENDER_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
+            <option value="">
+              {derivedBirthOrder ? `自動（${derivedBirthOrder}）` : '自動（生年から判定）'}
+            </option>
+            {/* 既存データが選択肢に無い表記でも失わないよう、その値を先頭に足す */}
+            {input.birthOrder && !BIRTH_ORDER_OPTIONS.includes(input.birthOrder) && (
+              <option value={input.birthOrder}>{input.birthOrder}</option>
+            )}
+            {BIRTH_ORDER_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
               </option>
             ))}
           </select>
         </label>
-      </div>
 
-      <label className="field">
-        <span className="field__label">続柄</span>
-        <select
-          value={input.birthOrder ?? ''}
-          onChange={(event) => update('birthOrder', event.target.value)}
-        >
-          <option value="">
-            {derivedBirthOrder ? `自動（${derivedBirthOrder}）` : '自動（生年から判定）'}
-          </option>
-          {/* 既存データが選択肢に無い表記でも失わないよう、その値を先頭に足す */}
-          {input.birthOrder && !BIRTH_ORDER_OPTIONS.includes(input.birthOrder) && (
-            <option value={input.birthOrder}>{input.birthOrder}</option>
-          )}
-          {BIRTH_ORDER_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="field field--checkbox">
-        <input
-          type="checkbox"
-          checked={input.isLiving}
-          onChange={(event) => update('isLiving', event.target.checked)}
-        />
-        <span>存命</span>
-      </label>
-
-      {/* 没年月日を先に置く。享年から生年を逆算するときの基準になるため */}
-      {!input.isLiving && (
-        <>
-          <JapaneseDateInput
-            label="没年月日"
-            value={input.deathDate ?? ''}
-            onChange={(value, era) =>
-              setInput((current) => ({ ...current, deathDate: value, deathEra: era }))
-            }
+        <label className="field">
+          <span className="field__label">出生地</span>
+          <input
+            type="text"
+            value={input.birthPlace ?? ''}
+            onChange={(event) => update('birthPlace', event.target.value)}
+            maxLength={200}
           />
-          <label className="field field--checkbox">
-            <input
-              type="checkbox"
-              checked={input.deathDateUncertain}
-              onChange={(event) => update('deathDateUncertain', event.target.checked)}
-            />
-            <span>没年ははっきりしない（「頃」として扱う）</span>
-          </label>
-        </>
-      )}
+        </label>
 
-      <JapaneseDateInput
-        label="生年月日"
-        value={input.birthDate ?? ''}
-        onChange={(value, era) =>
-          setInput((current) => ({ ...current, birthDate: value, birthEra: era }))
-        }
-      />
+        <fieldset className="surname-history">
+          <legend className="field__label">改姓の履歴</legend>
+          <p className="note">婚姻・養子縁組・分家などで姓が変わった経過を、古い順に登録します。</p>
 
-      <label className="field field--checkbox">
-        <input
-          type="checkbox"
-          checked={input.birthDateUncertain}
-          onChange={(event) => update('birthDateUncertain', event.target.checked)}
+          {surnameHistory.map((record, index) => (
+            <div key={index} className="surname-history__row">
+              <input
+                type="text"
+                value={record.familyName}
+                onChange={(event) => updateSurname(index, { familyName: event.target.value })}
+                placeholder="姓"
+                aria-label={`${index + 1}件目の姓`}
+                maxLength={100}
+              />
+              <select
+                value={record.reason}
+                onChange={(event) =>
+                  updateSurname(index, { reason: event.target.value as SurnameChangeReason })
+                }
+                aria-label={`${index + 1}件目の理由`}
+              >
+                {Object.entries(SURNAME_CHANGE_REASON_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => removeSurname(index)}
+                aria-label={`${index + 1}件目を削除`}
+              >
+                ×
+              </button>
+              <JapaneseDateInput
+                label="時期"
+                value={record.date ?? ''}
+                onChange={(value) => updateSurname(index, { date: value || null })}
+              />
+            </div>
+          ))}
+
+          <button type="button" className="button" onClick={addSurname}>
+            改姓を追加
+          </button>
+        </fieldset>
+
+        <label className="field">
+          <span className="field__label">メモ・エピソード</span>
+          <textarea
+            value={input.note ?? ''}
+            onChange={(event) => update('note', event.target.value)}
+            rows={3}
+            maxLength={4000}
+          />
+        </label>
+
+        <SensitiveFieldset
+          payload={input.encryptedData}
+          value={sensitive}
+          onChange={setSensitive}
         />
-        <span>生年ははっきりしない（「頃」として扱う）</span>
-      </label>
-
-      <AgeInput
-        birthDate={input.birthDate ?? ''}
-        deathDate={input.deathDate ?? ''}
-        isLiving={input.isLiving}
-        onChangeBirthDate={(value) => update('birthDate', value)}
-      />
-
-      <label className="field">
-        <span className="field__label">出生地</span>
-        <input
-          type="text"
-          value={input.birthPlace ?? ''}
-          onChange={(event) => update('birthPlace', event.target.value)}
-          maxLength={200}
-        />
-      </label>
-
-      <fieldset className="surname-history">
-        <legend className="field__label">改姓の履歴</legend>
-        <p className="note">
-          婚姻・養子縁組・分家などで姓が変わった経過を、古い順に登録します。
-        </p>
-
-        {surnameHistory.map((record, index) => (
-          <div key={index} className="surname-history__row">
-            <input
-              type="text"
-              value={record.familyName}
-              onChange={(event) => updateSurname(index, { familyName: event.target.value })}
-              placeholder="姓"
-              aria-label={`${index + 1}件目の姓`}
-              maxLength={100}
-            />
-            <select
-              value={record.reason}
-              onChange={(event) =>
-                updateSurname(index, { reason: event.target.value as SurnameChangeReason })
-              }
-              aria-label={`${index + 1}件目の理由`}
-            >
-              {Object.entries(SURNAME_CHANGE_REASON_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => removeSurname(index)}
-              aria-label={`${index + 1}件目を削除`}
-            >
-              ×
-            </button>
-            <JapaneseDateInput
-              label="時期"
-              value={record.date ?? ''}
-              onChange={(value) => updateSurname(index, { date: value || null })}
-            />
-          </div>
-        ))}
-
-        <button type="button" className="button" onClick={addSurname}>
-          改姓を追加
-        </button>
-      </fieldset>
-
-      <label className="field">
-        <span className="field__label">メモ・エピソード</span>
-        <textarea
-          value={input.note ?? ''}
-          onChange={(event) => update('note', event.target.value)}
-          rows={3}
-          maxLength={4000}
-        />
-      </label>
-
-      <SensitiveFieldset
-        payload={input.encryptedData}
-        value={sensitive}
-        onChange={setSensitive}
-      />
+      </div>
 
       {error && <p className="alert alert--error">{error}</p>}
 
@@ -389,6 +445,13 @@ export function PersonForm({
           キャンセル
         </button>
       </div>
+
+      {/* 編集中の人物だけ。誤って押さないよう、保存の下に離して置く */}
+      {onDelete && (
+        <button type="button" className="button button--danger form__delete" onClick={onDelete}>
+          🗑 この人物を削除する
+        </button>
+      )}
     </form>
   );
 }

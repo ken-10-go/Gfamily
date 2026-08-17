@@ -63,6 +63,7 @@ describe('AddRelativeForm', () => {
   it('配偶者はもう一方と逆の性別を初期選択にする', () => {
     renderFor(person('健一', { gender: 'male' }), 'spouse');
 
-    expect((screen.getByLabelText('性別') as HTMLSelectElement).value).toBe('female');
+    expect((screen.getByRole('radio', { name: '女性' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: '男性' }) as HTMLInputElement).checked).toBe(false);
   });
 });

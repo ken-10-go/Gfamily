@@ -1,0 +1,73 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+import { PersonForm } from '@/features/persons/PersonForm';
+import { EMPTY_PERSON, type Person } from '@/types/models';
+
+function person(overrides: Partial<Person> = {}): Person {
+  return { ...EMPTY_PERSON, id: '本人', familyName: '後藤', givenName: '健一', ...overrides };
+}
+
+function renderForm(props: Partial<Parameters<typeof PersonForm>[0]> = {}) {
+  return render(<PersonForm submitLabel="保存" onSubmit={vi.fn()} onCancel={vi.fn()} {...props} />);
+}
+
+const tab = (name: string) => screen.getByRole('tab', { name });
+const field = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
+const radio = (label: string) => screen.getByRole('radio', { name: label }) as HTMLInputElement;
+
+describe('PersonForm', () => {
+  it('基本情報のタブから始まり、文化的補足の欄は隠れている', () => {
+    renderForm();
+
+    expect(tab('基本情報').getAttribute('aria-selected')).toBe('true');
+    expect(field('姓')).toBeVisible();
+    expect(field('出生地')).not.toBeVisible();
+  });
+
+  it('タブを行き来しても入力した値は消えない', () => {
+    renderForm();
+
+    fireEvent.change(field('姓'), { target: { value: '後藤' } });
+    fireEvent.click(tab('文化的補足'));
+    fireEvent.change(field('出生地'), { target: { value: '北海道' } });
+    fireEvent.click(tab('基本情報'));
+
+    expect(field('姓').value).toBe('後藤');
+    // 隠れているだけで、値は DOM に残っている
+    expect(field('出生地').value).toBe('北海道');
+  });
+
+  it('姓も名も空で保存すると、基本情報のタブへ戻して知らせる', async () => {
+    const onSubmit = vi.fn();
+    renderForm({ onSubmit });
+
+    fireEvent.click(tab('文化的補足'));
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('姓か名のどちらかは入力してください')).toBeTruthy();
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(tab('基本情報').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('性別はラジオで選ぶ', () => {
+    renderForm({ initial: person({ gender: 'male' }) });
+
+    expect(radio('男性').checked).toBe(true);
+
+    fireEvent.click(radio('女性'));
+    expect(radio('女性').checked).toBe(true);
+    expect(radio('男性').checked).toBe(false);
+  });
+
+  it('削除ボタンは、削除の手立てを渡されたときだけ出す', () => {
+    const { unmount } = renderForm({ initial: person(), onDelete: vi.fn() });
+    expect(screen.getByRole('button', { name: /この人物を削除する/ })).toBeTruthy();
+    unmount();
+
+    renderForm({ initial: person() });
+    expect(screen.queryByRole('button', { name: /この人物を削除する/ })).toBeNull();
+  });
+});
