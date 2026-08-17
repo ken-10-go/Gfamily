@@ -134,6 +134,20 @@ service cloud.firestore {
         allow delete: if isOwner(treeId);
       }
 
+      /*
+       * 家（ツリーの中の、血のつながりでまとまった一群）。
+       *
+       * 名前しか持たない軽い文書で、個人情報は入らない。
+       * 既定では自動で判定するので、ここに登録があるのは
+       * 名前を付け直した家と、所属を手で決めた家だけ。
+       * 合同表示で相手の家の名前を出せるよう、つながった家からも読める。
+       */
+      match /houses/{houseId} {
+        allow read: if isMember(treeId) || hasBridgeTo(treeId);
+        allow create, update: if canEdit(treeId) && actorIsSelf();
+        allow delete: if canEdit(treeId);
+      }
+
       // 招待はオーナーだけが見られる。発行・受諾・取り消しは Cloud Functions 経由。
       // クライアントに書き込みを許すと、自分で自分をオーナーに招待できてしまう。
       match /invitations/{invitationId} {

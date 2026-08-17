@@ -343,6 +343,30 @@ describe('ツリーの作成', () => {
   });
 });
 
+describe('家（ツリーの中の、血のつながりでまとまった一群）', () => {
+  const houses = (uid: string) => collection(as(env, uid), 'trees', TREE, 'houses');
+
+  it('メンバーは読める', async () => {
+    await assertSucceeds(getDocs(houses(VIEWER)));
+  });
+
+  it('非メンバーは読めない', async () => {
+    await assertFails(getDocs(houses(OUTSIDER)));
+  });
+
+  it('編集者は登録できる', async () => {
+    await assertSucceeds(addDoc(houses(EDITOR), { name: '後藤家', updatedBy: EDITOR }));
+  });
+
+  it('閲覧者は登録できない', async () => {
+    await assertFails(addDoc(houses(VIEWER), { name: '後藤家', updatedBy: VIEWER }));
+  });
+
+  it('実行者を詐称した登録は弾く', async () => {
+    await assertFails(addDoc(houses(EDITOR), { name: '後藤家', updatedBy: OWNER }));
+  });
+});
+
 describe('監査ログ', () => {
   it('メンバーは読める', async () => {
     await assertSucceeds(getDocs(collection(as(env, VIEWER), 'trees', TREE, 'auditLogs')));

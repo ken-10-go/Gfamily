@@ -1,5 +1,6 @@
 import {
   addDoc,
+  deleteDoc,
   collection,
   doc,
   getDoc,
@@ -22,6 +23,7 @@ import { generateSalt } from '@/lib/crypto';
 import { getDb, getFirebaseAuth, getFns } from '@/lib/firebase';
 import {
   type AuditLog,
+  type House,
   type CardPosition,
   type Invitation,
   type InvitationPreview,
@@ -185,6 +187,7 @@ function toPerson(snapshot: QueryDocumentSnapshot<DocumentData>): Person {
     birthOrder: data.birthOrder ?? null,
     siblingOrder: typeof data.siblingOrder === 'number' ? data.siblingOrder : null,
     generationShift: typeof data.generationShift === 'number' ? data.generationShift : null,
+    houseId: typeof data.houseId === 'string' ? data.houseId : null,
     position:
       data.position && typeof data.position.x === 'number' && typeof data.position.y === 'number'
         ? { x: data.position.x, y: data.position.y }
@@ -360,6 +363,89 @@ export async function setGenerationShift(
     updatedBy: uid,
     updatedAt: serverTimestamp(),
   });
+}
+
+// --- 家（ツリーの中の、血のつながりでまとまった一群） --------------------------
+//
+// 既定では自動で判定するので、ここに登録するのは
+// 「名前を付け直した」「人物の所属を手で決めた」家だけ。
+// 登録が1件も無くても家系図は成り立つ。
+
+/** 保存された家の一覧。名前順に返す。 */
+export async function listHouses(treeId: string): Promise<House[]> {
+  const snapshot = await getDocs(sub(treeId, 'houses'));
+
+  return snapshot.docs
+    .map((entry) => ({ id: entry.id, name: (entry.get('name') as string) ?? '' }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+}
+
+/**
+ * 家を登録する。自動判定のままでよければ呼ばなくてよい。
+ * 自動で見つけた一群に名前を付けたいとき、その面々をまとめて所属させる。
+ */
+export async function createHouse(
+  treeId: string,
+  name: string,
+  memberIds: string[] = [],
+): Promise<string> {
+  const uid = requireUid();
+  const created = await addDoc(sub(treeId, 'houses'), {
+    name,
+    createdBy: uid,
+    createdAt: serverTimestamp(),
+    updatedBy: uid,
+    updatedAt: serverTimestamp(),
+  });
+
+  if (memberIds.length > 0) await setPersonHouses(treeId, memberIds, created.id);
+  return created.id;
+}
+
+export async function renameHouse(treeId: string, houseId: string, name: string): Promise<void> {
+  const uid = requireUid();
+  await updateDoc(doc(getDb(), 'trees', treeId, 'houses', houseId), {
+    name,
+    updatedBy: uid,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * 家の登録を消す。所属していた人物は自動判定に戻る。
+ * 人物そのものは消さない。
+ */
+export async function deleteHouse(treeId: string, houseId: string): Promise<void> {
+  const members = await getDocs(query(sub(treeId, 'persons'), where('houseId', '==', houseId)));
+  await setPersonHouses(
+    treeId,
+    members.docs.map((entry) => entry.id),
+    null,
+  );
+  await deleteDoc(doc(getDb(), 'trees', treeId, 'houses', houseId));
+}
+
+/** 人物の所属する家を決める。null を渡すと自動判定に戻る。 */
+export async function setPersonHouses(
+  treeId: string,
+  personIds: string[],
+  houseId: string | null,
+): Promise<void> {
+  if (personIds.length === 0) return;
+  const uid = requireUid();
+
+  // Firestore のバッチは1回500件まで。大きな家でも通るように分ける
+  for (let from = 0; from < personIds.length; from += 400) {
+    const batch = writeBatch(getDb());
+    for (const personId of personIds.slice(from, from + 400)) {
+      batch.update(doc(getDb(), 'trees', treeId, 'persons', personId), {
+        houseId,
+        updatedBy: uid,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
 }
 
 /** 手動の並び順を捨てて、生年順の自動整列に戻す。 */

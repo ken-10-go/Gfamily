@@ -606,6 +606,14 @@ export function TreeDetailPage() {
                     家どうしのつながり
                   </Link>
                   <Link
+                    to={`/trees/${treeId}/houses`}
+                    role="menuitem"
+                    className="person-menu__item"
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    家の管理
+                  </Link>
+                  <Link
                     to={`/trees/${treeId}/history`}
                     role="menuitem"
                     className="person-menu__item"

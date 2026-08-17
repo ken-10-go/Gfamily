@@ -60,6 +60,17 @@ export interface Tree {
   memberIds: string[];
 }
 
+/**
+ * 家。ツリーの中の、血のつながりでまとまった一群。
+ *
+ * 既定では親子の線をたどって自動で判定するので、ここに登録するのは
+ * 名前を付け直した家と、人物の所属を手で決めた家だけ。
+ */
+export interface House {
+  id: string;
+  name: string;
+}
+
 export interface Person {
   id: string;
   familyName: string | null;
@@ -94,6 +105,13 @@ export interface Person {
    * 親が子より下に来る指定は、レイアウト側で無効にする。
    */
   generationShift: number | null;
+  /**
+   * 属する家の指定。null なら血のつながりから自動で決める。
+   *
+   * 改姓や婿養子で自動の判定と実感が食い違うときだけ、人物ごとに上書きする。
+   * 家は配置のまとまりであり、将来は見せる範囲の単位にもなる。
+   */
+  houseId: string | null;
   /**
    * カードを手で置いた位置。null なら自動レイアウトに従う。
    * ドラッグで移動すると、格子に合わせた座標がここに入る。
@@ -172,6 +190,7 @@ export const EMPTY_PERSON: Person = {
   id: '',
   siblingOrder: null,
   generationShift: null,
+  houseId: null,
   position: null,
   deletedAt: null,
 };

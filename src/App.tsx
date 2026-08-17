@@ -2,6 +2,7 @@ import { Link, Route, Routes } from 'react-router-dom';
 
 import { VersionBadge } from '@/features/app/VersionBadge';
 import { BridgesPage } from '@/features/bridges/BridgesPage';
+import { HousesPage } from '@/features/houses/HousesPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { useAuth } from '@/features/auth/useAuth';
@@ -56,6 +57,14 @@ export default function App() {
           element={
             <RequireAuth>
               <BridgesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/trees/:treeId/houses"
+          element={
+            <RequireAuth>
+              <HousesPage />
             </RequireAuth>
           }
         />
