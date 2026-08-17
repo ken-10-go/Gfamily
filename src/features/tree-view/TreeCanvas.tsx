@@ -9,7 +9,13 @@ import {
   type LayoutMetrics,
   type LayoutNode,
 } from '@/features/tree-view/layout';
-import { crossingsOn, hopPath, verticalSegments, type Segment } from '@/features/tree-view/hops';
+import {
+  busLanes,
+  crossingsOn,
+  hopPath,
+  verticalSegments,
+  type Segment,
+} from '@/features/tree-view/hops';
 import { placeholderTarget, withSpousePlaceholders } from '@/features/tree-view/placeholders';
 import {
   isOutsideSiblingRow,
@@ -234,10 +240,18 @@ export function TreeCanvas({
     [layout.nodes],
   );
 
-  // 縦線は1回だけ集めて、すべての横線で使い回す（交差したところに弧を出すため）
-  const verticals = useMemo(
-    () => verticalSegments(layout.families, positionById, metrics),
+  /*
+   * きょうだいの横棒の高さを、家族ごとに決めておく。
+   * 同じ高さで重なるものだけを上へ逃がすので、2本が1本に見えることがなくなる。
+   * 縦線もこの高さに合わせて引くため、先に決めてから集める。
+   */
+  const lanes = useMemo(
+    () => busLanes(layout.families, positionById, metrics),
     [layout.families, positionById, metrics],
+  );
+  const verticals = useMemo(
+    () => verticalSegments(layout.families, positionById, metrics, lanes),
+    [layout.families, positionById, metrics, lanes],
   );
 
   // メニューから指示された人物を中央へ寄せる
@@ -434,6 +448,7 @@ export function TreeCanvas({
                 lineage={lineage}
                 dimmed={dimmed}
                 verticals={verticals}
+                busY={lanes.get(family.key)}
               />
             ))}
           </g>
@@ -848,6 +863,7 @@ function FamilyLines({
   lineage,
   dimmed,
   verticals,
+  busY: laneY,
 }: {
   /** この家族の識別子。自分の幹や枝をまたがないために使う */
   owner: string;
@@ -862,6 +878,8 @@ function FamilyLines({
   dimmed: ReadonlySet<string>;
   /** 図の中の縦線すべて。交差したところに弧を出す */
   verticals: Segment[];
+  /** きょうだいの横棒の高さ。busLanes が決めた段（重なる家族は上へ逃げている） */
+  busY?: number;
 }) {
   const presentParents = parents.filter((p): p is LayoutNode => Boolean(p));
   const presentChildren = children.filter((c): c is LayoutNode => Boolean(c));
@@ -870,8 +888,8 @@ function FamilyLines({
 
   const parentX = presentParents.reduce((sum, parent) => sum + parent.x, 0) / presentParents.length;
   const parentBottom = Math.max(...presentParents.map((p) => p.y)) + metrics.nodeHeight;
-  const childTop = Math.min(...presentChildren.map((c) => c.y));
-  const busY = childTop - metrics.vGap / 2;
+  // 高さの決め方は busLanes に集約してある。渡されなかったときだけ既定の中間に置く
+  const busY = laneY ?? Math.min(...presentChildren.map((c) => c.y)) - metrics.vGap / 2;
 
   const childXs = presentChildren.map((c) => c.x);
   const busLeft = Math.min(...childXs, parentX);

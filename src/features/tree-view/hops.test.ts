@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { crossingsOn, hopPath, verticalSegments, type Segment } from '@/features/tree-view/hops';
+import {
+  busLanes,
+  crossingsOn,
+  hopPath,
+  verticalSegments,
+  type Segment,
+} from '@/features/tree-view/hops';
 import { DEFAULT_METRICS, type FamilyUnit, type LayoutNode } from '@/features/tree-view/layout';
 import { EMPTY_PERSON } from '@/types/models';
 
@@ -108,8 +114,10 @@ describe('verticalSegments', () => {
     ['子2', node('子2', 300, row)],
   ]);
 
+  const lanesFor = (list: FamilyUnit[]) => busLanes(list, positions, DEFAULT_METRICS);
+
   it('親の幹と、子ごとの枝を返す', () => {
-    const segments = verticalSegments([family], positions, DEFAULT_METRICS);
+    const segments = verticalSegments([family], positions, DEFAULT_METRICS, lanesFor([family]));
 
     expect(segments).toHaveLength(3);
     // すべて縦。持ち主は家族の key
@@ -127,6 +135,123 @@ describe('verticalSegments', () => {
 
   it('親か子が描かれていない家族は飛ばす', () => {
     const orphan: FamilyUnit = { key: '孤', parentIds: [], childIds: ['子1'], childKinds: {} };
-    expect(verticalSegments([orphan], positions, DEFAULT_METRICS)).toEqual([]);
+    expect(verticalSegments([orphan], positions, DEFAULT_METRICS, lanesFor([orphan]))).toEqual([]);
+  });
+
+  it('段を上げた家族は、幹と枝もその高さに合わせて伸び縮みする', () => {
+    const lifted = new Map([[family.key, 100]]);
+    const segments = verticalSegments([family], positions, DEFAULT_METRICS, lifted);
+
+    // 幹の下端と、枝の上端がそろっている
+    expect(segments[0].y2).toBe(100);
+    expect(segments[1].y1).toBe(100);
+    expect(segments[2].y1).toBe(100);
+  });
+});
+
+describe('busLanes', () => {
+  const row = DEFAULT_METRICS.nodeHeight + DEFAULT_METRICS.vGap;
+  const baseY = row - DEFAULT_METRICS.vGap / 2;
+
+  const node = (id: string, x: number, y: number): LayoutNode => ({
+    person: { ...EMPTY_PERSON, id },
+    x,
+    y,
+    generation: y / row,
+    placedByHand: false,
+  });
+
+  /** 親1人・子1人の家族。横棒は placedAt で与えた親と子のXに伸びる。 */
+  const family = (key: string): FamilyUnit => ({
+    key,
+    parentIds: [`${key}親`],
+    childIds: [`${key}子`],
+    childKinds: { [`${key}子`]: 'biological' },
+  });
+
+  const placedAt = (specs: [string, number, number][]) =>
+    new Map(
+      specs.flatMap(([key, parentX, childX]) => [
+        [`${key}親`, node(`${key}親`, parentX, 0)] as const,
+        [`${key}子`, node(`${key}子`, childX, row)] as const,
+      ]),
+    );
+
+  it('重ならない横棒は、どちらも一番下の段のまま', () => {
+    const families = [family('A'), family('B')];
+    const lanes = busLanes(
+      families,
+      placedAt([
+        ['A', 0, 200],
+        ['B', 800, 1000],
+      ]),
+      DEFAULT_METRICS,
+    );
+
+    expect(lanes.get('A')).toBe(baseY);
+    expect(lanes.get('B')).toBe(baseY);
+  });
+
+  it('左右が重なる横棒は、片方を上の段へ逃がす', () => {
+    const families = [family('A'), family('B')];
+    const lanes = busLanes(
+      families,
+      placedAt([
+        ['A', 0, 400],
+        ['B', 200, 600],
+      ]),
+      DEFAULT_METRICS,
+    );
+
+    expect(lanes.get('A')).toBe(baseY);
+    expect(lanes.get('B')).toBeLessThan(baseY);
+  });
+
+  it('3本重なれば3段に分かれる', () => {
+    const specs: [string, number, number][] = [
+      ['A', 0, 600],
+      ['B', 100, 700],
+      ['C', 200, 800],
+    ];
+    const lanes = busLanes(
+      specs.map(([key]) => family(key)),
+      placedAt(specs),
+      DEFAULT_METRICS,
+    );
+
+    const heights = [lanes.get('A'), lanes.get('B'), lanes.get('C')];
+    expect(new Set(heights).size).toBe(3);
+  });
+
+  it('世代が違えば、そもそも高さが違うので影響し合わない', () => {
+    const positions = new Map([
+      ['A親', node('A親', 0, 0)],
+      ['A子', node('A子', 0, row)],
+      ['B親', node('B親', 0, row)],
+      ['B子', node('B子', 0, row * 2)],
+    ]);
+    const lanes = busLanes([family('A'), family('B')], positions, DEFAULT_METRICS);
+
+    expect(lanes.get('A')).toBe(baseY);
+    expect(lanes.get('B')).toBe(row * 2 - DEFAULT_METRICS.vGap / 2);
+  });
+
+  it('段を上げても、親の幹が潰れるところまでは上げない', () => {
+    // 10本すべてが重なる。上げられる段数には限りがあるので、必ず親の下端より下に収まる
+    const specs: [string, number, number][] = Array.from(
+      { length: 10 },
+      (_, i) => [`F${i}`, i * 10, i * 10 + 600] as [string, number, number],
+    );
+    const lanes = busLanes(
+      specs.map(([key]) => family(key)),
+      placedAt(specs),
+      DEFAULT_METRICS,
+    );
+
+    const parentBottom = DEFAULT_METRICS.nodeHeight;
+    for (const y of lanes.values()) {
+      expect(y).toBeGreaterThan(parentBottom);
+      expect(y).toBeLessThanOrEqual(baseY);
+    }
   });
 });

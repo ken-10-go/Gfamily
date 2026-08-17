@@ -97,18 +97,27 @@ export function hopPath(
   return cursor < right ? `${d} H ${right}` : d;
 }
 
-/**
- * 家系図の縦線をすべて集める。親から下りる幹と、子へ下りる枝。
- *
- * 横線がまたぐ相手はこれだけなので、1回集めておいて全部の横線で使い回す。
- * 描画側（FamilyLines）と同じ式で座標を出すこと。ずれると弧の位置が合わない。
- */
-export function verticalSegments(
+/** 段をひとつ上げるときの高さ。詰めすぎると別の段に見えない。 */
+const LANE_GAP = 10;
+
+/** 家族の横棒の位置。段を決めるのにも、線を引くのにも使う。 */
+interface BusBar {
+  key: string;
+  /** 段をずらす前の高さ。世代の間のちょうど真ん中 */
+  baseY: number;
+  left: number;
+  right: number;
+  /** 親の下端。段を上げすぎて幹が潰れないかの判定に使う */
+  parentBottom: number;
+}
+
+/** 家族ごとの横棒の位置を、レイアウトから割り出す。 */
+function busBars(
   families: FamilyUnit[],
   positionById: ReadonlyMap<string, LayoutNode>,
   metrics: LayoutMetrics,
-): Segment[] {
-  const segments: Segment[] = [];
+): BusBar[] {
+  const bars: BusBar[] = [];
 
   for (const family of families) {
     const parents = family.parentIds
@@ -121,13 +130,102 @@ export function verticalSegments(
     if (parents.length === 0 || children.length === 0) continue;
 
     const parentX = parents.reduce((sum, parent) => sum + parent.x, 0) / parents.length;
-    const parentBottom = Math.max(...parents.map((p) => p.y)) + metrics.nodeHeight;
-    const busY = Math.min(...children.map((c) => c.y)) - metrics.vGap / 2;
+    const xs = [...children.map((child) => child.x), parentX];
 
-    segments.push({ x1: parentX, y1: parentBottom, x2: parentX, y2: busY, owner: family.key });
+    bars.push({
+      key: family.key,
+      baseY: Math.min(...children.map((child) => child.y)) - metrics.vGap / 2,
+      left: Math.min(...xs),
+      right: Math.max(...xs),
+      parentBottom: Math.max(...parents.map((parent) => parent.y)) + metrics.nodeHeight,
+    });
+  }
 
-    for (const child of children) {
-      segments.push({ x1: child.x, y1: busY, x2: child.x, y2: child.y, owner: family.key });
+  return bars;
+}
+
+/**
+ * 家族ごとの、きょうだいの横棒の高さ。
+ *
+ * 同じ世代に子を持つ家族の横棒は、放っておくと全部同じ高さに並ぶ。
+ * 左右の範囲が重なると2本が完全に重なって1本に見えてしまい、
+ * どちらの家のきょうだいなのか読めなくなる（弧では表せない）。
+ *
+ * そこで、重なるものだけを1段ずつ上へ逃がす。左から順に、
+ * すでにその段にある横棒とぶつからない一番下の段へ入れる。
+ * ずらすことで別の家族の縦線と本当に交差するようになるので、飛び越えもここで効く。
+ *
+ * 純粋関数。返すのは「家族の key → 横棒の y」。
+ */
+export function busLanes(
+  families: FamilyUnit[],
+  positionById: ReadonlyMap<string, LayoutNode>,
+  metrics: LayoutMetrics,
+): Map<string, number> {
+  const bars = busBars(families, positionById, metrics);
+  const lanes = new Map<string, number>();
+
+  const byBaseY = new Map<number, BusBar[]>();
+  for (const bar of bars) {
+    byBaseY.set(bar.baseY, [...(byBaseY.get(bar.baseY) ?? []), bar]);
+  }
+
+  for (const group of byBaseY.values()) {
+    // 段ごとに「そこへ入れた横棒」を持ち、左から順に空いている段を探す
+    const occupied: BusBar[][] = [];
+
+    for (const bar of [...group].sort((a, b) => a.left - b.left || a.right - b.right)) {
+      // 幹が潰れない範囲でしか上げられない。足りなければ一番下の段へ戻す
+      const maxLane = Math.max(0, Math.floor((bar.baseY - bar.parentBottom - 8) / LANE_GAP));
+
+      let lane = 0;
+      while (
+        lane < maxLane &&
+        (occupied[lane] ?? []).some((other) => other.right > bar.left && other.left < bar.right)
+      ) {
+        lane += 1;
+      }
+
+      occupied[lane] = [...(occupied[lane] ?? []), bar];
+      lanes.set(bar.key, bar.baseY - lane * LANE_GAP);
+    }
+  }
+
+  return lanes;
+}
+
+/**
+ * 家系図の縦線をすべて集める。親から下りる幹と、子へ下りる枝。
+ *
+ * 横線がまたぐ相手はこれだけなので、1回集めておいて全部の横線で使い回す。
+ * 横棒の高さは `busLanes` が決めた値を使う。描画側（FamilyLines）も同じ値を使うこと。
+ * 片方だけ変えると弧の位置がずれる。
+ */
+export function verticalSegments(
+  families: FamilyUnit[],
+  positionById: ReadonlyMap<string, LayoutNode>,
+  metrics: LayoutMetrics,
+  lanes: ReadonlyMap<string, number>,
+): Segment[] {
+  const segments: Segment[] = [];
+
+  for (const bar of busBars(families, positionById, metrics)) {
+    const busY = lanes.get(bar.key) ?? bar.baseY;
+    const family = families.find((candidate) => candidate.key === bar.key);
+    if (!family) continue;
+
+    const parents = family.parentIds
+      .map((id) => positionById.get(id))
+      .filter((node): node is LayoutNode => Boolean(node));
+    const parentX = parents.reduce((sum, parent) => sum + parent.x, 0) / parents.length;
+
+    segments.push({ x1: parentX, y1: bar.parentBottom, x2: parentX, y2: busY, owner: bar.key });
+
+    for (const id of family.childIds) {
+      const child = positionById.get(id);
+      if (child) {
+        segments.push({ x1: child.x, y1: busY, x2: child.x, y2: child.y, owner: bar.key });
+      }
     }
   }
 
