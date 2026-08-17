@@ -7,7 +7,13 @@ import {
   V_GAP,
   type TreeLayout,
 } from '@/features/tree-view/layout';
-import { EMPTY_PERSON, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
+import {
+  EMPTY_PERSON,
+  type ParentChild,
+  type Person,
+  type TreeGraph,
+  type Union,
+} from '@/types/models';
 
 let counter = 0;
 
@@ -23,7 +29,11 @@ function person(id: string, overrides: Partial<Person> = {}): Person {
   };
 }
 
-function link(parentId: string, childId: string, overrides: Partial<ParentChild> = {}): ParentChild {
+function link(
+  parentId: string,
+  childId: string,
+  overrides: Partial<ParentChild> = {},
+): ParentChild {
   return {
     id: `${parentId}->${childId}`,
     parentId: parentId,
@@ -278,11 +288,7 @@ describe('computeLayout', () => {
           person('elder', { birthDate: '1978-01-01' }),
           person('younger', { birthDate: '1982-01-01' }),
         ],
-        parentChild: [
-          link('father', 'elder'),
-          link('mother', 'elder'),
-          link('father', 'younger'),
-        ],
+        parentChild: [link('father', 'elder'), link('mother', 'elder'), link('father', 'younger')],
         unions: [union('father', 'mother')],
       }),
     );
@@ -363,10 +369,7 @@ describe('computeLayout', () => {
           link('父', '後妻の子'),
           link('母B', '後妻の子'),
         ],
-        unions: [
-          union('父', '母A', { status: 'divorced' }),
-          union('父', '母B'),
-        ],
+        unions: [union('父', '母A', { status: 'divorced' }), union('父', '母B')],
       }),
     );
 
@@ -423,12 +426,7 @@ describe('computeLayout', () => {
     const layout = computeLayout(
       graph({
         persons: [person('gp'), person('gm'), person('p'), person('s'), person('c')],
-        parentChild: [
-          link('gp', 'p'),
-          link('gm', 'p'),
-          link('p', 'c'),
-          link('s', 'c'),
-        ],
+        parentChild: [link('gp', 'p'), link('gm', 'p'), link('p', 'c'), link('s', 'c')],
         unions: [union('gp', 'gm'), union('p', 's')],
       }),
     );
@@ -455,10 +453,7 @@ describe('computeLayout', () => {
           link('man', 'childB'),
           link('secondWife', 'childB'),
         ],
-        unions: [
-          union('man', 'firstWife', { status: 'divorced' }),
-          union('man', 'secondWife'),
-        ],
+        unions: [union('man', 'firstWife', { status: 'divorced' }), union('man', 'secondWife')],
       }),
     );
 
@@ -516,9 +511,7 @@ describe('computeLayout', () => {
   });
 
   it('つながりのない人物どうしも重ならない', () => {
-    const layout = computeLayout(
-      graph({ persons: [person('a'), person('b'), person('c')] }),
-    );
+    const layout = computeLayout(graph({ persons: [person('a'), person('b'), person('c')] }));
 
     expectNoOverlap(layout);
     expect(layout.width).toBeGreaterThan(NODE_WIDTH * 2);
@@ -802,7 +795,10 @@ describe('computeLayout', () => {
         ],
         parentChild: [
           link('リカ', 'サツエ'),
-          ...['善博', '順子', '映子'].flatMap((child) => [link('榮', child), link('サツエ', child)]),
+          ...['善博', '順子', '映子'].flatMap((child) => [
+            link('榮', child),
+            link('サツエ', child),
+          ]),
           link('佐々巳', '後藤夫'),
           link('ユリ子', '後藤夫'),
           ...['理奈', '健一', '理香'].flatMap((child) => [

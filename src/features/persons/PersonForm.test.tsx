@@ -52,6 +52,32 @@ describe('PersonForm', () => {
     expect(tab('基本情報').getAttribute('aria-selected')).toBe('true');
   });
 
+  it('旧姓は基本情報の側に置く（氏名と一緒に埋めるものなので）', () => {
+    renderForm();
+
+    expect(field('旧姓')).toBeVisible();
+  });
+
+  it('機微な情報の欄は出さない', () => {
+    renderForm({ initial: person() });
+
+    for (const label of ['本籍地', '現住所', '戒名・法名・法号']) {
+      expect(screen.queryByLabelText(label)).toBeNull();
+    }
+  });
+
+  it('機微な情報を持つ人物を保存しても、暗号文はそのまま残す', async () => {
+    const encryptedData = { iv: 'AAA', tag: 'BBB', ciphertext: 'CCC' };
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm({ initial: person({ encryptedData }), onSubmit });
+
+    fireEvent.change(field('名'), { target: { value: '健二' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ givenName: '健二', encryptedData });
+  });
+
   it('性別はラジオで選ぶ', () => {
     renderForm({ initial: person({ gender: 'male' }) });
 

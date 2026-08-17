@@ -5,7 +5,13 @@ import {
   spousePlaceholderId,
   withSpousePlaceholders,
 } from '@/features/tree-view/placeholders';
-import { EMPTY_PERSON, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
+import {
+  EMPTY_PERSON,
+  type ParentChild,
+  type Person,
+  type TreeGraph,
+  type Union,
+} from '@/types/models';
 
 function person(id: string, overrides: Partial<Person> = {}): Person {
   return {

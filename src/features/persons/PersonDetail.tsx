@@ -98,7 +98,10 @@ export function PersonDetail({
         <Detail label="性別" value={GENDER_LABELS[person.gender]} />
         <Detail label="生没" value={lifespanLabel(person) || '不明'} />
         <Detail label="年齢" value={age} />
-        <Detail label="生年月日" value={dateLabel(person.birthDate, person.birthEra, person.birthDateUncertain)} />
+        <Detail
+          label="生年月日"
+          value={dateLabel(person.birthDate, person.birthEra, person.birthDateUncertain)}
+        />
         {!person.isLiving && (
           <Detail
             label="没年月日"
@@ -245,11 +248,7 @@ function SensitiveSection({ person }: { person: Person }) {
  * 明治5年までは旧暦なので、西暦へ機械的に直した月日は戸籍の記載と合わない。
  * 入力された和暦をそのまま残しているので、両方を見せて判断できるようにする。
  */
-function dateLabel(
-  value: string | null,
-  era: Person['birthEra'],
-  uncertain: boolean,
-): string {
+function dateLabel(value: string | null, era: Person['birthEra'], uncertain: boolean): string {
   const base = formatWithEra(value);
   if (!base) return '';
 

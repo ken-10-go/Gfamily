@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { computeLayout, NODE_HEIGHT, NODE_WIDTH, V_GAP } from '@/features/tree-view/layout';
-import { EMPTY_PERSON, type ParentChild, type Person, type TreeGraph, type Union } from '@/types/models';
+import {
+  EMPTY_PERSON,
+  type ParentChild,
+  type Person,
+  type TreeGraph,
+  type Union,
+} from '@/types/models';
 
 // 乱数は固定の種から作る（落ちたケースを再現できるように）
 function rng(seed: number) {
   let s = seed;
-  return () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  return () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 }
 
 function randomGraph(seed: number): TreeGraph {
@@ -29,7 +35,15 @@ function randomGraph(seed: number): TreeGraph {
       const b = `p${n++}`;
       add(a, born);
       add(b, born + 2);
-      unions.push({ id: `${a}+${b}`, partner1Id: a, partner2Id: b, status: 'married', startDate: null, endDate: null, deletedAt: null });
+      unions.push({
+        id: `${a}+${b}`,
+        partner1Id: a,
+        partner2Id: b,
+        status: 'married',
+        startDate: null,
+        endDate: null,
+        deletedAt: null,
+      });
       couples.push([a, b]);
     }
 
@@ -39,15 +53,35 @@ function randomGraph(seed: number): TreeGraph {
       for (let c = 0; c < children; c++) {
         const child = `p${n++}`;
         add(child, born + 25 + c);
-        parentChild.push({ id: `${a}>${child}`, parentId: a, childId: child, kind: 'biological', deletedAt: null });
-        parentChild.push({ id: `${b}>${child}`, parentId: b, childId: child, kind: 'biological', deletedAt: null });
+        parentChild.push({
+          id: `${a}>${child}`,
+          parentId: a,
+          childId: child,
+          kind: 'biological',
+          deletedAt: null,
+        });
+        parentChild.push({
+          id: `${b}>${child}`,
+          parentId: b,
+          childId: child,
+          kind: 'biological',
+          deletedAt: null,
+        });
         current.push(child);
 
         // 半分くらいの子には配偶者を付ける
         if (r() < 0.6) {
           const spouse = `p${n++}`;
           add(spouse, born + 26 + c);
-          unions.push({ id: `${child}+${spouse}`, partner1Id: child, partner2Id: spouse, status: 'married', startDate: null, endDate: null, deletedAt: null });
+          unions.push({
+            id: `${child}+${spouse}`,
+            partner1Id: child,
+            partner2Id: spouse,
+            status: 'married',
+            startDate: null,
+            endDate: null,
+            deletedAt: null,
+          });
           couples.push([child, spouse]);
         }
       }
@@ -61,14 +95,19 @@ function randomGraph(seed: number): TreeGraph {
 function overlapsOf(layout: ReturnType<typeof computeLayout>) {
   const rows = new Map<number, { id: string; x: number }[]>();
   for (const node of layout.nodes) {
-    rows.set(node.generation, [...(rows.get(node.generation) ?? []), { id: node.person.id, x: node.x }]);
+    rows.set(node.generation, [
+      ...(rows.get(node.generation) ?? []),
+      { id: node.person.id, x: node.x },
+    ]);
   }
   const bad: string[] = [];
   for (const [gen, list] of rows) {
     const sorted = [...list].sort((a, b) => a.x - b.x);
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].x - sorted[i - 1].x < NODE_WIDTH) {
-        bad.push(`世代${gen}: ${sorted[i - 1].id}(${sorted[i - 1].x}) × ${sorted[i].id}(${sorted[i].x})`);
+        bad.push(
+          `世代${gen}: ${sorted[i - 1].id}(${sorted[i - 1].x}) × ${sorted[i].id}(${sorted[i].x})`,
+        );
       }
     }
   }

@@ -11,14 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
  * 氏名は必ず出すので、この一覧には含めない。
  */
 export type CardField =
-  | 'kana'
-  | 'meta'
-  | 'birthOrder'
-  | 'lifespan'
-  | 'birthDate'
-  | 'deathDate'
-  | 'birthPlace'
-  | 'note';
+  'kana' | 'meta' | 'birthOrder' | 'lifespan' | 'birthDate' | 'deathDate' | 'birthPlace' | 'note';
 
 export const CARD_FIELD_LABELS: Record<CardField, string> = {
   kana: 'ふりがな',
@@ -88,7 +81,8 @@ export interface ViewSettings {
 export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   theme: 'washi',
   showAge: true,
-  cardFields: ['kana', 'meta'],
+  // ふりがな・氏名・生没年（年齢つき）の3行。続柄は必要な人だけが足せばよい
+  cardFields: ['kana', 'lifespan'],
   nameOrder: 'family-first',
   nameLines: 1,
   uiSize: 'medium',
@@ -128,7 +122,7 @@ export function cardMetrics(settings: ViewSettings): CardMetrics {
 
   if (settings.vertical) {
     return {
-      nodeWidth: Math.round((26 + lines * 17) * scale),
+      nodeWidth: Math.round((20 + lines * 16) * scale),
       nodeHeight: Math.round(150 * scale),
       hGap: Math.round(24 * scale),
       vGap: Math.round(84 * scale),
@@ -137,8 +131,8 @@ export function cardMetrics(settings: ViewSettings): CardMetrics {
 
   return {
     nodeWidth: Math.round(176 * scale),
-    // 上下の余白 12 と、行の高さ 19
-    nodeHeight: Math.round((12 + lines * 19) * scale),
+    // 上下の余白 6 と、行の高さ 18
+    nodeHeight: Math.round((6 + lines * 18) * scale),
     hGap: Math.round(24 * scale),
     vGap: Math.round(84 * scale),
   };
@@ -152,6 +146,12 @@ interface LegacySettings {
   showNote?: boolean;
 }
 
+/** 前の版の既定。これと同じ設定は「既定のまま」とみなして今の既定へ寄せる。 */
+const PREVIOUS_DEFAULT_CARD_FIELDS: CardField[] = ['kana', 'meta'];
+
+const isExactly = (a: readonly CardField[], b: readonly CardField[]) =>
+  a.length === b.length && a.every((field, index) => field === b[index]);
+
 /**
  * 保存済みの設定を今の形に直す。
  *
@@ -164,9 +164,13 @@ export function migrateSettings(stored: Partial<ViewSettings> & LegacySettings):
   if (!Array.isArray(stored.cardFields)) {
     const fields: CardField[] = [];
     if (stored.showKana ?? DEFAULT_VIEW_SETTINGS.cardFields.includes('kana')) fields.push('kana');
-    fields.push('meta');
+    fields.push('lifespan');
     if (stored.showNote) fields.push('note');
     merged.cardFields = fields;
+  } else if (isExactly(stored.cardFields, PREVIOUS_DEFAULT_CARD_FIELDS)) {
+    // 前の既定のまま保存されているなら、選び直したのではなく既定を使っているということ。
+    // 既定を変えたときに置いていかれないよう、新しい既定へ寄せる。
+    merged.cardFields = [...DEFAULT_VIEW_SETTINGS.cardFields];
   }
 
   // 知らない項目や上限超えは捨てる（別の版で保存された設定が混ざっても壊れないように）

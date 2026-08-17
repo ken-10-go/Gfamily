@@ -164,8 +164,7 @@ export function computeLayout(
   function reserve(generation: number, count: number, desiredCenter?: number): number {
     const width = count * SLOT;
     const min = cursor.get(generation) ?? 0;
-    const left =
-      desiredCenter === undefined ? min : Math.max(min, desiredCenter - width / 2);
+    const left = desiredCenter === undefined ? min : Math.max(min, desiredCenter - width / 2);
     cursor.set(generation, left + width);
     return left;
   }
@@ -202,8 +201,7 @@ export function computeLayout(
   function reserveChildrenUnder(group: SiblingGroup, center: number): void {
     const simple = group.childIds.filter(
       (id) =>
-        !centerX.has(id) &&
-        !groupsWhereParent.get(id)?.some((own) => !placedGroups.has(own.key)),
+        !centerX.has(id) && !groupsWhereParent.get(id)?.some((own) => !placedGroups.has(own.key)),
     );
     if (simple.length === 0) return;
 
@@ -355,7 +353,9 @@ export function computeLayout(
       if (x === undefined) continue;
 
       const generation = generations.get(id) ?? 0;
-      const rightNeighbours = (stayingByGeneration.get(generation) ?? []).filter((other) => other > x);
+      const rightNeighbours = (stayingByGeneration.get(generation) ?? []).filter(
+        (other) => other > x,
+      );
       if (rightNeighbours.length === 0) continue;
 
       limit = Math.min(limit, Math.min(...rightNeighbours) - x - SLOT);

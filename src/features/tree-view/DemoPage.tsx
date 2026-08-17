@@ -103,7 +103,11 @@ function person(
   };
 }
 
-function pc(parentId: string, childId: string, kind: ParentChild['kind'] = 'biological'): ParentChild {
+function pc(
+  parentId: string,
+  childId: string,
+  kind: ParentChild['kind'] = 'biological',
+): ParentChild {
   return {
     id: `${parentId}-${childId}`,
     parentId: parentId,
@@ -185,9 +189,5 @@ const DEMO_GRAPH: TreeGraph = {
     pc('ua', 'cousin'),
     pc('c1', 'gc'),
   ],
-  unions: [
-    marriage('gf', 'gm', 'widowed'),
-    marriage('f', 'm'),
-    marriage('u', 'ua', 'divorced'),
-  ],
+  unions: [marriage('gf', 'gm', 'widowed'), marriage('f', 'm'), marriage('u', 'ua', 'divorced')],
 };

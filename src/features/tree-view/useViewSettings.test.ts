@@ -10,11 +10,11 @@ import {
 describe('migrateSettings', () => {
   it('以前の showKana / showNote をカードの項目に読み替える', () => {
     const migrated = migrateSettings({ showKana: true, showNote: true });
-    expect(migrated.cardFields).toEqual(['kana', 'meta', 'note']);
+    expect(migrated.cardFields).toEqual(['kana', 'lifespan', 'note']);
   });
 
   it('ふりがなを切っていた端末では、ふりがなを出さない', () => {
-    expect(migrateSettings({ showKana: false }).cardFields).toEqual(['meta']);
+    expect(migrateSettings({ showKana: false }).cardFields).toEqual(['lifespan']);
   });
 
   it('新しい形の設定はそのまま使う', () => {
@@ -42,10 +42,28 @@ describe('migrateSettings', () => {
     expect(migrated.cardFields).not.toContain('kamon');
   });
 
-  it('既定値は和風モダンで、ふりがなと続柄・生没年を出す', () => {
+  it('既定値は和風モダンで、ふりがなと生没年を出す', () => {
     const migrated = migrateSettings({});
     expect(migrated.theme).toBe('washi');
-    expect(migrated.cardFields).toEqual(['kana', 'meta']);
+    expect(migrated.cardFields).toEqual(['kana', 'lifespan']);
+  });
+
+  it('前の既定のまま保存されていたら、新しい既定へ寄せる', () => {
+    expect(migrateSettings({ cardFields: ['kana', 'meta'] }).cardFields).toEqual([
+      'kana',
+      'lifespan',
+    ]);
+  });
+
+  it('自分で選び直した設定は、前の既定に似ていても変えない', () => {
+    // 順が違う・項目が足りている場合は「選んだ結果」なので、そのまま尊重する
+    expect(migrateSettings({ cardFields: ['meta', 'kana'] }).cardFields).toEqual(['meta', 'kana']);
+    expect(migrateSettings({ cardFields: ['kana', 'meta', 'note'] }).cardFields).toEqual([
+      'kana',
+      'meta',
+      'note',
+    ]);
+    expect(migrateSettings({ cardFields: ['meta'] }).cardFields).toEqual(['meta']);
   });
 });
 

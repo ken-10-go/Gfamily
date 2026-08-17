@@ -42,20 +42,20 @@ export function usePanZoom(initial: Viewport = { x: 0, y: 0, scale: 1 }) {
     (event: React.WheelEvent<SVGSVGElement>) => {
       cancelAnimation();
       const rect = event.currentTarget.getBoundingClientRect();
-    const pointerX = event.clientX - rect.left;
-    const pointerY = event.clientY - rect.top;
+      const pointerX = event.clientX - rect.left;
+      const pointerY = event.clientY - rect.top;
 
-    setViewport((current) => {
-      const next = clampScale(current.scale * Math.exp(-event.deltaY / 500));
-      if (next === current.scale) return current;
+      setViewport((current) => {
+        const next = clampScale(current.scale * Math.exp(-event.deltaY / 500));
+        if (next === current.scale) return current;
 
-      // カーソル下の座標が動かないように平行移動量を補正する
-      const ratio = next / current.scale;
-      return {
-        scale: next,
-        x: pointerX - (pointerX - current.x) * ratio,
-        y: pointerY - (pointerY - current.y) * ratio,
-      };
+        // カーソル下の座標が動かないように平行移動量を補正する
+        const ratio = next / current.scale;
+        return {
+          scale: next,
+          x: pointerX - (pointerX - current.x) * ratio,
+          y: pointerY - (pointerY - current.y) * ratio,
+        };
       });
     },
     [cancelAnimation],

@@ -104,7 +104,8 @@ export function PersonPicker({ graph, personId, kind, onPick, onCancel }: Person
               >
                 <span className="picker__name">{displayName(person)}</span>
                 <span className="picker__meta">
-                  {problem ?? [displayNameKana(person), lifespanLabel(person)].filter(Boolean).join('　')}
+                  {problem ??
+                    [displayNameKana(person), lifespanLabel(person)].filter(Boolean).join('　')}
                 </span>
               </button>
             </li>

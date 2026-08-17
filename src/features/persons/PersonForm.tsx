@@ -1,9 +1,7 @@
-import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 
-import { useTreeKey } from '@/features/e2ee/useTreeKey';
 import { AgeInput } from '@/features/persons/AgeInput';
 import { JapaneseDateInput } from '@/features/persons/JapaneseDateInput';
-import { EMPTY_SENSITIVE, type SensitiveFields } from '@/lib/crypto';
 import {
   BIRTH_ORDER_OPTIONS,
   EMPTY_PERSON_INPUT,
@@ -95,28 +93,6 @@ export function PersonForm({
   // 同じ画面に複数のフォームが出ても、ラジオのグループが混ざらないようにする
   const genderName = useId();
 
-  const key = useTreeKey();
-  const [sensitive, setSensitive] = useState<SensitiveFields>(EMPTY_SENSITIVE);
-
-  // 鍵が開いたら、保存済みの暗号文をほどいて入力欄に載せる
-  useEffect(() => {
-    let cancelled = false;
-    if (!key.unlocked || !initial?.encryptedData) return;
-
-    void key
-      .decrypt(initial.encryptedData)
-      .then((fields) => {
-        if (!cancelled && fields) setSensitive(fields);
-      })
-      .catch(() => {
-        if (!cancelled) setError('機微な項目を復号できませんでした（合言葉が違います）');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [key, initial]);
-
   function update<K extends keyof PersonInput>(key: K, value: PersonInput[K]) {
     setInput((current) => ({ ...current, [key]: value }));
   }
@@ -166,9 +142,8 @@ export function PersonForm({
     setError(null);
     setBusy(true);
     try {
-      // 鍵があるときだけ機微項目を書き換える。無ければ既存の暗号文をそのまま残す
-      const encryptedData = key.unlocked ? await key.encrypt(sensitive) : input.encryptedData;
-      await onSubmit({ ...input, encryptedData: encryptedData as PersonInput['encryptedData'] });
+      // 機微項目はこの画面では扱わない。保存済みの暗号文はそのまま持ち越す
+      await onSubmit(input);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '保存に失敗しました');
     } finally {
@@ -251,8 +226,19 @@ export function PersonForm({
           </label>
         </div>
 
-        {/* 性別はラジオにする。選択肢が4つと少なく、1タップで決まるため */}
-        <fieldset className="field field--radios">
+        <label className="field">
+          <span className="field__label">旧姓</span>
+          <input
+            type="text"
+            value={input.maidenName ?? ''}
+            onChange={(event) => update('maidenName', event.target.value)}
+            maxLength={100}
+          />
+        </label>
+
+        {/* 性別はラジオにする。選択肢が4つと少なく、1タップで決まるため。
+            存命も同じ行に並べて、チェックだけの行を作らない */}
+        <fieldset className="field field--radios form__wide">
           <legend className="field__label">性別</legend>
           {Object.entries(GENDER_LABELS).map(([value, label]) => (
             <label key={value} className="field__radio">
@@ -266,36 +252,36 @@ export function PersonForm({
               <span>{label}</span>
             </label>
           ))}
+          <label className="field__radio field__radio--apart">
+            <input
+              type="checkbox"
+              checked={input.isLiving}
+              onChange={(event) => update('isLiving', event.target.checked)}
+            />
+            <span>存命</span>
+          </label>
         </fieldset>
-
-        <label className="field field--checkbox">
-          <input
-            type="checkbox"
-            checked={input.isLiving}
-            onChange={(event) => update('isLiving', event.target.checked)}
-          />
-          <span>存命</span>
-        </label>
 
         {/* 没年月日を先に置く。享年から生年を逆算するときの基準になるため */}
         {!input.isLiving && (
-          <>
-            <JapaneseDateInput
-              label="没年月日"
-              value={input.deathDate ?? ''}
-              onChange={(value, era) =>
-                setInput((current) => ({ ...current, deathDate: value, deathEra: era }))
-              }
-            />
-            <label className="field field--checkbox">
-              <input
-                type="checkbox"
-                checked={input.deathDateUncertain}
-                onChange={(event) => update('deathDateUncertain', event.target.checked)}
-              />
-              <span>没年ははっきりしない（「頃」として扱う）</span>
-            </label>
-          </>
+          <JapaneseDateInput
+            label="没年月日"
+            value={input.deathDate ?? ''}
+            onChange={(value, era) =>
+              setInput((current) => ({ ...current, deathDate: value, deathEra: era }))
+            }
+            trailing={
+              <label className="date-input__flag" title="はっきりしない没年は「頃」として扱う">
+                <input
+                  type="checkbox"
+                  checked={input.deathDateUncertain}
+                  onChange={(event) => update('deathDateUncertain', event.target.checked)}
+                  aria-label="没年ははっきりしない（「頃」として扱う）"
+                />
+                <span aria-hidden="true">頃</span>
+              </label>
+            }
+          />
         )}
 
         <JapaneseDateInput
@@ -304,16 +290,18 @@ export function PersonForm({
           onChange={(value, era) =>
             setInput((current) => ({ ...current, birthDate: value, birthEra: era }))
           }
+          trailing={
+            <label className="date-input__flag" title="はっきりしない生年は「頃」として扱う">
+              <input
+                type="checkbox"
+                checked={input.birthDateUncertain}
+                onChange={(event) => update('birthDateUncertain', event.target.checked)}
+                aria-label="生年ははっきりしない（「頃」として扱う）"
+              />
+              <span aria-hidden="true">頃</span>
+            </label>
+          }
         />
-
-        <label className="field field--checkbox">
-          <input
-            type="checkbox"
-            checked={input.birthDateUncertain}
-            onChange={(event) => update('birthDateUncertain', event.target.checked)}
-          />
-          <span>生年ははっきりしない（「頃」として扱う）</span>
-        </label>
 
         <AgeInput
           birthDate={input.birthDate ?? ''}
@@ -329,16 +317,6 @@ export function PersonForm({
         aria-labelledby={`${genderName}-tab-culture`}
         hidden={tab !== 'culture'}
       >
-        <label className="field">
-          <span className="field__label">旧姓</span>
-          <input
-            type="text"
-            value={input.maidenName ?? ''}
-            onChange={(event) => update('maidenName', event.target.value)}
-            maxLength={100}
-          />
-        </label>
-
         <label className="field">
           <span className="field__label">続柄</span>
           <select
@@ -370,7 +348,7 @@ export function PersonForm({
           />
         </label>
 
-        <fieldset className="surname-history">
+        <fieldset className="surname-history form__wide">
           <legend className="field__label">改姓の履歴</legend>
           <p className="note">婚姻・養子縁組・分家などで姓が変わった経過を、古い順に登録します。</p>
 
@@ -418,7 +396,7 @@ export function PersonForm({
           </button>
         </fieldset>
 
-        <label className="field">
+        <label className="field form__wide">
           <span className="field__label">メモ・エピソード</span>
           <textarea
             value={input.note ?? ''}
@@ -427,12 +405,6 @@ export function PersonForm({
             maxLength={4000}
           />
         </label>
-
-        <SensitiveFieldset
-          payload={input.encryptedData}
-          value={sensitive}
-          onChange={setSensitive}
-        />
       </div>
 
       {error && <p className="alert alert--error">{error}</p>}
@@ -453,89 +425,5 @@ export function PersonForm({
         </button>
       )}
     </form>
-  );
-}
-
-/** 機微項目の入力欄。鍵が無いときは、そこに情報があることだけを伝えて中身は伏せる。 */
-function SensitiveFieldset({
-  payload,
-  value,
-  onChange,
-}: {
-  /** 保存済みの暗号文。鍵が無くても「入っているか」だけは分かる */
-  payload: PersonInput['encryptedData'];
-  value: SensitiveFields;
-  onChange: (next: SensitiveFields) => void;
-}) {
-  const key = useTreeKey();
-  const update = (patch: Partial<SensitiveFields>) => onChange({ ...value, ...patch });
-
-  if (!key.unlocked) {
-    return (
-      <fieldset className="sensitive">
-        <legend className="field__label">🔒 機微な情報</legend>
-        <p className="note">
-          {payload
-            ? '本籍地・戒名などが暗号化して保存されています。表示・編集するには、表示設定の「機微な情報の鍵」で合言葉を入れてください。'
-            : '本籍地・住所・戒名・お墓・思い出は暗号化して保存します。入力するには、表示設定の「機微な情報の鍵」で合言葉を入れてください。'}
-        </p>
-      </fieldset>
-    );
-  }
-
-  return (
-    <fieldset className="sensitive">
-      <legend className="field__label">🔒 機微な情報（この端末で暗号化して保存）</legend>
-
-      <label className="field">
-        <span className="field__label">本籍地</span>
-        <input
-          type="text"
-          value={value.honseki}
-          onChange={(event) => update({ honseki: event.target.value })}
-          maxLength={200}
-        />
-      </label>
-
-      <label className="field">
-        <span className="field__label">現住所</span>
-        <input
-          type="text"
-          value={value.address}
-          onChange={(event) => update({ address: event.target.value })}
-          maxLength={200}
-        />
-      </label>
-
-      <label className="field">
-        <span className="field__label">戒名・法名・法号</span>
-        <input
-          type="text"
-          value={value.kaimyo}
-          onChange={(event) => update({ kaimyo: event.target.value })}
-          maxLength={200}
-        />
-      </label>
-
-      <label className="field">
-        <span className="field__label">お墓（霊園名・区画・墓石の刻字など）</span>
-        <input
-          type="text"
-          value={value.graveLocation}
-          onChange={(event) => update({ graveLocation: event.target.value })}
-          maxLength={200}
-        />
-      </label>
-
-      <label className="field">
-        <span className="field__label">思い出・エピソード</span>
-        <textarea
-          value={value.biographyNotes}
-          onChange={(event) => update({ biographyNotes: event.target.value })}
-          rows={3}
-          maxLength={4000}
-        />
-      </label>
-    </fieldset>
   );
 }

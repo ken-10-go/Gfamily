@@ -346,8 +346,8 @@ code {
 .form {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  margin: 1rem 0;
+  gap: 0.55rem;
+  margin: 0.75rem 0;
 }
 
 .form--inline {
@@ -371,15 +371,27 @@ code {
   gap: 0.5rem;
 }
 
-/* タブの中身も、フォーム本体と同じ間隔で縦に積む */
+/*
+ * タブの中身は、幅があるうちは2列に並べる。
+ * 縦に長い一枚ものだと、下の項目を見るのにスクロールが要る。
+ */
 .form > [role='tabpanel'] {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  align-items: start;
+  gap: 0.55rem 0.75rem;
 }
 
 .form > [role='tabpanel'][hidden] {
   display: none;
+}
+
+/* 横幅の要る項目は1行ぶんぶち抜く */
+.form > [role='tabpanel'] > .form__row,
+.form__wide,
+.form > [role='tabpanel'] > .date-input,
+.form > [role='tabpanel'] > .age-input {
+  grid-column: 1 / -1;
 }
 
 /* 保存から離し、間違って押しにくくする */
@@ -428,6 +440,11 @@ code {
   cursor: pointer;
 }
 
+/* 同じ行の右端へ寄せる。ラジオの並びとは別のものだと分かるように離す */
+.field__radio--apart {
+  margin-left: auto;
+}
+
 .field__radio input {
   width: 1.1rem;
   height: 1.1rem;
@@ -443,7 +460,7 @@ code {
 input,
 select,
 textarea {
-  padding: 0.45rem 0.6rem;
+  padding: 0.35rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
@@ -946,24 +963,24 @@ textarea {
   stroke-width: 3;
 }
 
-/* 余白を詰めたぶん、文字を大きくして読みやすさを優先する */
+/* 余白を詰めたぶん、名前を大きく太くして、まず名前が目に入るようにする */
 .person-card__name {
   fill: var(--fg);
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .person-card__meta {
   fill: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .person-card__kana {
   fill: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
-/* 年齢は名前の付随情報なので、小さく細く添える */
+/* 年齢は生没年の付随情報なので、小さく細く添える */
 .person-card__age {
   fill: var(--muted);
   font-size: 12px;
@@ -1091,8 +1108,30 @@ textarea {
  * 弧は枠の外へ張り出すので、位置決めは絶対配置にして本体の大きさに影響させない。
  * 起点はメニューの左上＝叩いた場所で、そこから放射状に散らす。
  */
+/*
+ * 弧を出している間は、枠そのものを消す。
+ * 弧は枠の外へ張り出すので、枠を残すとボタンが枠の上に乗って読めなくなる。
+ * 残すのは、誰の操作なのかを示す名前のチップだけ。
+ */
 .person-menu--radial {
-  min-width: 9rem;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+.person-menu--radial .person-menu__title {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -2.4rem);
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
 .person-menu__arc {
@@ -1190,7 +1229,7 @@ textarea {
 .date-input,
 .surname-history {
   margin: 0;
-  padding: 0.6rem 0.7rem;
+  padding: 0.4rem 0.55rem;
   border: 1px solid var(--border);
   border-radius: 6px;
 }
@@ -1198,16 +1237,16 @@ textarea {
 .date-input__row {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   flex-wrap: wrap;
 }
 
 .date-input__year {
-  width: 5rem;
+  width: 4.5rem;
 }
 
 .date-input__part {
-  padding: 0.45rem 0.3rem;
+  padding: 0.35rem 0.25rem;
 }
 
 .date-input__unit {
@@ -1215,14 +1254,36 @@ textarea {
   font-size: 0.8rem;
 }
 
+/* 併記は確認用。同じ行の右端へ寄せて、日付欄が1行に収まるようにする */
 .date-input__preview {
-  margin: 0.4rem 0 0;
+  flex: 1 1 auto;
+  min-width: 8rem;
+  margin: 0;
+  text-align: right;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* 「頃」のように、その日付にだけ関わる指定 */
+.date-input__flag {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
   color: var(--muted);
   font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.date-input__flag input {
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  accent-color: var(--accent);
 }
 
 .age-input {
-  padding: 0.6rem 0.7rem;
+  padding: 0.4rem 0.55rem;
   border: 1px solid var(--border);
   border-radius: 6px;
 }
@@ -1404,9 +1465,14 @@ textarea {
     padding: 0.65rem 0.7rem;
   }
 
+  /* 狭い画面では2列に割らない。1列ぶんが狭すぎて、かえって読みにくくなる */
+  .form > [role='tabpanel'] {
+    grid-template-columns: 1fr;
+  }
+
   .form__row {
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.5rem;
   }
 
   /*

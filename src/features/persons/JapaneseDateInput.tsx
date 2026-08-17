@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import type { EraDate } from '@/types/models';
 import {
@@ -21,6 +21,11 @@ interface JapaneseDateInputProps {
    * 旧暦の月日は西暦に直せないので、入力そのものを残したい側だけが受け取る。
    */
   onChange: (value: string, era: EraDate | null) => void;
+  /**
+   * 日付の行の右端に差し込む要素。
+   * 「はっきりしない」のような、その日付にだけ関わる指定をここへ置いて行数を減らす。
+   */
+  trailing?: ReactNode;
 }
 
 const GREGORIAN = '西暦';
@@ -34,7 +39,7 @@ const GREGORIAN = '西暦';
  * どの元号で入力するかは利用者の選択なので、値から逆算せず状態として持つ。
  * 逆算にすると、値が空のあいだ元号の選択を保持できない。
  */
-export function JapaneseDateInput({ label, value, onChange }: JapaneseDateInputProps) {
+export function JapaneseDateInput({ label, value, onChange, trailing }: JapaneseDateInputProps) {
   const parsed = parsePartialDate(value);
   const [era, setEra] = useState<string>(() => toEraDates(value)[0]?.era ?? GREGORIAN);
 
@@ -152,11 +157,14 @@ export function JapaneseDateInput({ label, value, onChange }: JapaneseDateInputP
             ×
           </button>
         )}
-      </div>
 
-      <p className="date-input__preview">
-        {formatWithEra(value) || '未入力（分かる範囲だけで構いません）'}
-      </p>
+        {/* 併記は入力の確認用なので、同じ行の右端に小さく回して1行に収める */}
+        <p className="date-input__preview">
+          {formatWithEra(value) || '分かる範囲だけで構いません'}
+        </p>
+
+        {trailing}
+      </div>
     </fieldset>
   );
 }

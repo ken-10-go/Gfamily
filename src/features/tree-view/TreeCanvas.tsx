@@ -83,8 +83,8 @@ function readableScale(viewWidth: number): number {
 }
 
 /** カード内の文字の配置。余白を詰めて、そのぶん文字を大きく取る。 */
-const CARD_PADDING_TOP = 19;
-const LINE_HEIGHT = 19;
+const CARD_PADDING_TOP = 16;
+const LINE_HEIGHT = 18;
 
 export interface CardAnchor {
   x: number;
@@ -622,28 +622,38 @@ function PersonCard({
   const top = node.y + (dragOffset?.y ?? 0);
 
   const names = nameLines(person, settings);
-  // 年齢は名前のすぐ横に、細く小さく添える
   const age = settings.showAge ? ageLabel(person) : '';
 
   // ふりがなだけは氏名の上に置く。読みは名前の一部という見え方にする。
   const above = settings.cardFields.includes('kana') ? displayNameKana(person) : '';
   const below = settings.cardFields
     .filter((field) => field !== 'kana')
-    .map((field) => fieldText(field, person, birthOrder))
-    .filter(Boolean);
+    .map((field) => ({ field, text: fieldText(field, person, birthOrder) }))
+    .filter((row) => row.text);
+
+  /*
+   * 年齢は生没年に添える（「1950– 75歳」）。年齢は生没年から出る値なので、
+   * 同じ行にあるほうが読みやすい。
+   * 生没年を出していないときだけ、氏名の横に置く（設定を切っていないのに消えないように）。
+   */
+  const ageRow = below.findIndex((row) => row.field === 'lifespan' || row.field === 'meta');
 
   const rows: { text: string; className: string; age?: string }[] = [
     ...(above ? [{ text: above, className: 'person-card__kana' }] : []),
     ...names.map((text, index) => ({
       text,
       className: 'person-card__name',
-      age: index === names.length - 1 ? age : undefined,
+      age: ageRow === -1 && index === names.length - 1 ? age : undefined,
     })),
-    ...below.map((text) => ({ text, className: 'person-card__meta' })),
+    ...below.map((row, index) => ({
+      text: row.text,
+      className: 'person-card__meta',
+      age: index === ageRow ? age : undefined,
+    })),
   ];
 
   // 読み上げでは、カードに出している補足行をそのまま読ませる
-  const ariaLabel = [displayName(person), ...below].join(' ');
+  const ariaLabel = [displayName(person), ...below.map((row) => row.text)].join(' ');
 
   return (
     <g

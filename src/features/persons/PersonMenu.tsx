@@ -42,13 +42,15 @@ interface MenuItem {
  * カードのまわりに弧で並べる操作。
  *
  * 「編集して、家族を足して、間違えたら消す」がほとんどの用なので、その5つだけを近くに置く。
- * 順番がそのまま上から下の並びになる。削除は端に置いて、間違って触りにくくする。
+ * 残りへの入口（⋯ その他）も弧に載せる。枠付きのリストを併せて出すと弧と重なるため。
+ * 順番がそのまま上から下の並びになる。削除は下端に置いて、間違って触りにくくする。
  */
-const QUICK_ITEMS: MenuItem[] = [
+const QUICK_ITEMS: { action: PersonAction | 'more'; label: string; danger?: boolean }[] = [
   { action: 'edit', label: '編集' },
   { action: 'add-parent', label: '親を追加' },
   { action: 'add-spouse', label: '配偶者を追加' },
   { action: 'add-child', label: '子を追加' },
+  { action: 'more', label: '⋯ その他' },
   { action: 'delete', label: '削除', danger: true },
 ];
 
@@ -136,23 +138,27 @@ export function PersonMenu({ person, anchor, canEdit, onAction, onClose }: Perso
   const visible = (items: MenuItem[]) =>
     items.filter((item) => (canEdit || !item.editOnly) && (item.when?.(person) ?? true));
 
-  const quick = canEdit ? QUICK_ITEMS : [];
   const more = visible(MORE_ITEMS);
-  const arc = arcPositions(quick.length, side);
+  /*
+   * 弧を出すのは「編集できて、まだ その他 を開いていない」ときだけ。
+   * 弧と枠付きのリストを同時に出すと、弧が枠の上に乗って読めなくなる。
+   */
+  const radial = canEdit && !showMore;
+  const arc = arcPositions(radial ? QUICK_ITEMS.length : 0, side);
 
   return (
     <div
       ref={ref}
-      className={quick.length > 0 ? 'person-menu person-menu--radial' : 'person-menu'}
+      className={radial ? 'person-menu person-menu--radial' : 'person-menu'}
       style={{ left: placement.x, top: placement.y }}
       role="menu"
       aria-label={`${displayName(person)} の操作`}
     >
       <p className="person-menu__title">{displayName(person)}</p>
 
-      {quick.length > 0 && (
+      {radial ? (
         <div className="person-menu__arc">
-          {quick.map((item, index) => (
+          {QUICK_ITEMS.map((item, index) => (
             <button
               key={item.action}
               type="button"
@@ -161,24 +167,12 @@ export function PersonMenu({ person, anchor, canEdit, onAction, onClose }: Perso
                 item.danger ? 'person-menu__spoke person-menu__spoke--danger' : 'person-menu__spoke'
               }
               style={{ transform: `translate(${arc[index].dx}px, ${arc[index].dy}px)` }}
-              onClick={() => onAction(item.action)}
+              onClick={() => (item.action === 'more' ? setShowMore(true) : onAction(item.action))}
             >
               {item.label}
             </button>
           ))}
         </div>
-      )}
-
-      {/* 弧に載せた5つ以外は、必要な人だけが開けばよい */}
-      {quick.length > 0 && !showMore ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="person-menu__item"
-          onClick={() => setShowMore(true)}
-        >
-          ⋯ その他
-        </button>
       ) : (
         more.map((item) => (
           <button
