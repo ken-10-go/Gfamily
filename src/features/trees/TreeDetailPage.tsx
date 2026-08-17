@@ -17,7 +17,7 @@ import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
 import { cardMetrics, useViewSettings } from '@/features/tree-view/useViewSettings';
 import { ViewSettingsPanel } from '@/features/tree-view/ViewSettingsPanel';
 import * as api from '@/lib/api';
-import { deriveBirthOrder, type ConnectionKind } from '@/lib/relations';
+import { deriveBirthOrder, siblingsOf, type ConnectionKind } from '@/lib/relations';
 import {
   displayName,
   displayNameKana,
@@ -224,6 +224,9 @@ export function TreeDetailPage() {
       case 'reset-position':
         void handleResetPosition(personId);
         break;
+      case 'reset-sibling-order':
+        void handleResetSiblingOrder(personId);
+        break;
       case 'connect-parent':
       case 'connect-spouse':
       case 'connect-child':
@@ -362,6 +365,27 @@ export function TreeDetailPage() {
       await reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '位置の初期化に失敗しました');
+    }
+  }
+
+  /**
+   * 手で並べ替えたきょうだいの順を捨てて、生年順に戻す。
+   *
+   * 1人だけ消すと、順番を持つ人と持たない人が混ざって並びが読めなくなるので、
+   * そのきょうだい全員をまとめて戻す。
+   */
+  async function handleResetSiblingOrder(personId: string) {
+    const person = personOf(personId);
+    if (!person) return;
+
+    const group = siblingsOf(graph, personId);
+    const ids = (group.length > 0 ? group : [person]).map((sibling) => sibling.id);
+
+    try {
+      await api.clearSiblingOrder(treeId, ids);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '並び順を戻せませんでした');
     }
   }
 

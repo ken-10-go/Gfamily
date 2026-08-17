@@ -1045,6 +1045,54 @@ textarea {
   color: var(--danger);
 }
 
+/*
+ * よく使う操作をカードのまわりの弧に出す。
+ *
+ * 弧は枠の外へ張り出すので、位置決めは絶対配置にして本体の大きさに影響させない。
+ * 起点はメニューの左上＝叩いた場所で、そこから放射状に散らす。
+ */
+.person-menu--radial {
+  min-width: 9rem;
+}
+
+.person-menu__arc {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.person-menu__spoke {
+  position: absolute;
+  /* 起点に対して中央をそろえてから、弧の位置へずらす */
+  left: 0;
+  top: 0;
+  margin: -1rem 0 0 -3.2rem;
+  width: 6.4rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  cursor: pointer;
+}
+
+.person-menu__spoke:hover {
+  background: var(--surface);
+  border-color: var(--muted);
+}
+
+.person-menu__spoke--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 /* --- モーダル -------------------------------------------------------------- */
 
 .dialog {
