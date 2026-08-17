@@ -602,7 +602,7 @@ function computeGenerations(
     if (!changed) break;
   }
 
-  return normalize(applyGenerationShifts(generations, persons, parentChild));
+  return normalize(applyGenerationShifts(generations, persons, parentChild, unions));
 }
 
 /**
@@ -624,7 +624,10 @@ function normalize(generations: Map<string, number>): Map<string, number> {
 /**
  * 手でずらした段を反映する。
  *
- * 動かすのは指定した本人だけ（配偶者は「夫婦は同じ段」の規則で結果的について来る）。
+ * 指示するのは本人だけでよい。**配偶者は連れて動く**。
+ * 夫婦が別の段に離れると線が斜めに走って図が読めなくなるので、
+ * 片方だけを指定したときは、指定していないほうを同じ段へ寄せる。
+ *
  * ただし **親が子と同じ段か、それより下に来る指定は無効にする**。
  * 上下が入れ替わると、親子の線が逆向きに引かれて図として読めなくなるため。
  * 無効にするのはその指定だけで、他の人の指定は生かす。
@@ -633,19 +636,29 @@ function applyGenerationShifts(
   generations: Map<string, number>,
   persons: Person[],
   parentChild: ParentChild[],
+  unions: Union[],
 ): Map<string, number> {
   const shifted = new Map(generations);
-  let anyShift = false;
+  const moved = new Set<string>();
 
   for (const person of persons) {
     const shift = person.generationShift ?? 0;
     if (shift === 0) continue;
 
     shifted.set(person.id, (generations.get(person.id) ?? 0) + shift);
-    anyShift = true;
+    moved.add(person.id);
   }
 
-  if (!anyShift) return generations;
+  if (moved.size === 0) return generations;
+
+  // 指定していないほうの配偶者を、指定したほうの段へ寄せる
+  for (const union of unions) {
+    const [a, b] = [union.partner1Id, union.partner2Id];
+    if (moved.has(a) === moved.has(b)) continue;
+
+    const [from, to] = moved.has(a) ? [a, b] : [b, a];
+    shifted.set(to, shifted.get(from) ?? 0);
+  }
 
   // 親子の上下が壊れる指定だけを、元の段へ戻す
   for (const pc of parentChild) {

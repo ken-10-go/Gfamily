@@ -833,18 +833,37 @@ function CoupleLine({
   const [left, right] = a.x <= b.x ? [a, b] : [b, a];
   const x1 = left.x + metrics.nodeWidth / 2;
   const x2 = right.x - metrics.nodeWidth / 2;
-  const y = left.y + metrics.nodeHeight / 2;
+  const y1 = left.y + metrics.nodeHeight / 2;
+  const y2 = right.y + metrics.nodeHeight / 2;
 
   const className = status === 'divorced' ? 'link link--divorced' : 'link link--couple';
   // 二重線は上下に2本引いて表す。線の太さを変えるより、和装の家系図の見た目に近い
   const offsets = status === 'married' || status === 'widowed' ? [-2, 2] : [0];
-  const crossings = crossingsOn({ x1, y1: y, x2, y2: y, owner: id }, verticals);
+
+  /*
+   * 段の違う夫婦（婚姻で片方が引き下げられた場合など）は、まっすぐ斜めに結ぶ。
+   * 飛び越えの弧は横線にしか付けられないので、そのときは弧を出さない。
+   * ここを「左の人の高さ」で決め打ちすると、線が相手に届かず宙ぶらりんになる。
+   */
+  const level = y1 === y2;
+  const crossings = level ? crossingsOn({ x1, y1, x2, y2, owner: id }, verticals) : [];
 
   return (
     <g className={dimmed ? 'link-group link-group--distant' : 'link-group'}>
-      {offsets.map((offset) => (
-        <path key={offset} d={hopPath(y + offset, x1, x2, crossings)} className={className} />
-      ))}
+      {offsets.map((offset) =>
+        level ? (
+          <path key={offset} d={hopPath(y1 + offset, x1, x2, crossings)} className={className} />
+        ) : (
+          <line
+            key={offset}
+            x1={x1}
+            y1={y1 + offset}
+            x2={x2}
+            y2={y2 + offset}
+            className={className}
+          />
+        ),
+      )}
       <title>{UNION_STATUS_LABELS[status]}</title>
     </g>
   );
