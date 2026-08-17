@@ -1,5 +1,6 @@
+import { orderHouses, resolveHouses } from '@/features/tree-view/houses';
 import { compareForDisplay } from '@/lib/relations';
-import type { ParentChild, ParentKind, Person, TreeGraph, Union } from '@/types/models';
+import type { House, ParentChild, ParentKind, Person, TreeGraph, Union } from '@/types/models';
 
 export const NODE_WIDTH = 168;
 export const NODE_HEIGHT = 64;
@@ -85,6 +86,11 @@ export interface SiblingGroup {
 
 export interface LayoutOptions {
   /**
+   * 保存された家。人物の `houseId` と突き合わせて、家ごとの帯を作るのに使う。
+   * 渡さなくても、血のつながりから自動で家を判定する。
+   */
+  houses?: House[];
+  /**
    * 手で置いた位置（`person.position`）を無視して、すべて自動配置にする。
    *
    * 絞り込み表示のように、家系図の一部だけを描くときに使う。
@@ -111,8 +117,10 @@ export interface TreeLayout {
  *   1. 親子関係から世代（縦位置）を決め、配偶者は同じ世代に揃える
  *   2. 同じ親の組を持つ子をまとめて「家族単位」にする
  *   3. 家族単位を深さ優先で下からたどり、子を並べてから親をその中央に置く
+ *   4. 家ごとにX方向の帯を取り、血縁のまとまりが散らばらないようにする
  *
- * 同世代では「次に空いているX座標」を単調増加で消費するため、カードが重なることはない。
+ * 同世代では「すでに埋まっている区間」を持ち、空いている隙間にしか置かないため、
+ * カードが重なることはない。
  */
 export function computeLayout(
   graph: TreeGraph,
@@ -158,15 +166,67 @@ export function computeLayout(
 
   const centerX = new Map<string, number>();
   const placedGroups = new Set<string>();
-  /** 世代ごとの「次に空いている左端X」 */
-  const cursor = new Map<number, number>();
+  /**
+   * 世代ごとの、すでに埋まっている区間（左端でソート済み）。
+   *
+   * 以前は「次に空いている左端」を1つ持つだけだったが、それだと後から置く人は
+   * 必ず右端に付くしかなく、**親を子の真上に置けない**（子が左にいても、
+   * その世代がすでに右まで埋まっていれば親は右へ押し出される）。
+   * 空いている区間を覚えておいて、希望の位置にいちばん近い隙間へ入れる。
+   */
+  const occupied = new Map<number, { from: number; to: number }[]>();
 
+  /** その世代の右端。区間が1つも無ければ 0。 */
+  const rightEdge = (generation: number) => {
+    const spans = occupied.get(generation) ?? [];
+    return spans.length === 0 ? 0 : spans[spans.length - 1].to;
+  };
+
+  const overlaps = (generation: number, from: number, to: number) =>
+    (occupied.get(generation) ?? []).some((span) => span.from < to && from < span.to);
+
+  /** その世代の区間を埋まっているものとして覚える。 */
+  function markOccupied(generation: number, from: number, to: number): void {
+    if (to <= from) return;
+    const spans = [...(occupied.get(generation) ?? []), { from, to }];
+    spans.sort((a, b) => a.from - b.from);
+    occupied.set(generation, spans);
+  }
+
+  /**
+   * その世代に `count` 人ぶんの場所を取り、左端のXを返す。
+   *
+   * `desiredCenter` があれば、そこを中心にした位置をまず狙う。
+   * ふさがっていたら、左右の隙間のうち希望に近いほうへ入れる。
+   * 見つからなければ右端へ足す。どの経路でも既存の区間とは重ならない。
+   */
   function reserve(generation: number, count: number, desiredCenter?: number): number {
     const width = count * SLOT;
-    const min = cursor.get(generation) ?? 0;
-    const left = desiredCenter === undefined ? min : Math.max(min, desiredCenter - width / 2);
-    cursor.set(generation, left + width);
-    return left;
+
+    const take = (left: number) => {
+      const spans = [...(occupied.get(generation) ?? []), { from: left, to: left + width }];
+      spans.sort((a, b) => a.from - b.from);
+      occupied.set(generation, spans);
+      return left;
+    };
+
+    if (desiredCenter === undefined) return take(rightEdge(generation));
+
+    const wanted = desiredCenter - width / 2;
+    if (wanted >= 0 && !overlaps(generation, wanted, wanted + width)) return take(wanted);
+
+    // 隙間を探す。左端・区間のあいだ・右端の順に、希望からの距離で選ぶ
+    const spans = occupied.get(generation) ?? [];
+    const gaps: number[] = [];
+    let edge = 0;
+    for (const span of spans) {
+      if (span.from - edge >= width) gaps.push(edge);
+      edge = Math.max(edge, span.to);
+    }
+    gaps.push(edge);
+
+    const best = gaps.reduce((a, b) => (Math.abs(a - wanted) <= Math.abs(b - wanted) ? a : b));
+    return take(best);
   }
 
   function placePerson(personId: string): void {
@@ -306,8 +366,8 @@ export function computeLayout(
       const moved = x + dx;
       centerX.set(id, moved);
       // 動かした先を「使用済み」として記録する。次に同じ世代へ置く人が重ならない。
-      const generation = generations.get(id) ?? 0;
-      cursor.set(generation, Math.max(cursor.get(generation) ?? 0, moved + SLOT / 2));
+      // 元いた場所は空いたままにせず埋めておく（あとから割り込まれると線が絡む）。
+      markOccupied(generations.get(id) ?? 0, Math.min(x, moved) - SLOT / 2, moved + SLOT / 2);
     }
   }
 
@@ -371,18 +431,64 @@ export function computeLayout(
   const groupBirthKey = (group: SiblingGroup) =>
     earliest(group.parentIds) ?? earliest(group.childIds) ?? '9999';
 
-  // 上の世代から順に着手し、同じ世代では年長の家族から置く。
+  /*
+   * 家ごとにX方向の帯を取る。
+   *
+   * 世代ごとに左から詰めるだけだと、あとから足した姻族がその世代の空いている
+   * 右端へ押し出され、血縁のまとまりが散らばってしまう。
+   * 家の単位でまとめて置き、家を切り替えるときに全世代の「次に空いている左端」を
+   * そろえることで、別の家のカードが割り込めなくなる。
+   *
+   * ひとりだけの家（生家を登録していない姻族）は帯を作らない。
+   * その人は配偶者の隣にいるのが自然で、帯にすると夫婦が引き離されてしまう。
+   */
+  const assignment = resolveHouses(graph, options.houses ?? []);
+  const houseOrder = new Map(
+    orderHouses(graph, assignment).map((houseId, index) => [houseId, index]),
+  );
+  const houseSize = new Map<string, number>();
+  for (const house of assignment.values()) {
+    houseSize.set(house.id, (houseSize.get(house.id) ?? 0) + 1);
+  }
+
+  /** その家族が属する家。子（血筋）の側で決める。帯を持たない家は null。 */
+  function bandOf(group: SiblingGroup): string | null {
+    const houseId = assignment.get(group.childIds[0] ?? group.parentIds[0])?.id;
+    if (!houseId || (houseSize.get(houseId) ?? 0) < 2) return null;
+    return houseId;
+  }
+
+  const bandRank = (group: SiblingGroup) => {
+    const band = bandOf(group);
+    return band === null ? Number.MAX_SAFE_INTEGER : (houseOrder.get(band) ?? 0);
+  };
+
+  // 家の中では、上の世代から順に着手し、同じ世代では年長の家族から置く。
   // 配置は先着順に左から詰めるので、この順番がそのまま左右の並びになる。
   // ここを ID 順にすると、つながりのない家系どうしが登録順で並んでしまう。
   // 親の生年が同じ場合に子の生年で決めるのは、親を共有する家族どうしを年長の子から置くため。
   const orderedGroups = [...groups].sort(
     (a, b) =>
+      bandRank(a) - bandRank(b) ||
       (generations.get(a.parentIds[0]) ?? 0) - (generations.get(b.parentIds[0]) ?? 0) ||
       groupBirthKey(a).localeCompare(groupBirthKey(b)) ||
       (earliest(a.childIds) ?? '9999').localeCompare(earliest(b.childIds) ?? '9999') ||
       a.key.localeCompare(b.key),
   );
+
+  /** 家を切り替えるとき、全世代の「次に空いている左端」を右端にそろえる。 */
+  function startBand(): void {
+    const rightmost = Math.max(0, ...[...occupied.keys()].map(rightEdge));
+    for (const generation of occupied.keys())
+      markOccupied(generation, rightEdge(generation), rightmost);
+  }
+
+  let band: string | null | undefined;
   for (const group of orderedGroups) {
+    const next = bandOf(group);
+    if (band !== undefined && next !== band) startBand();
+    band = next;
+
     placeGroup(group);
   }
   // どの家族単位にも属さない人物

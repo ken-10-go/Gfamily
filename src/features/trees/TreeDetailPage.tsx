@@ -24,6 +24,7 @@ import {
   lifespanLabel,
   ROLE_LABELS,
   type CardPosition,
+  type House,
   type ParentKind,
   type PersonInput,
   type Tree,
@@ -75,23 +76,27 @@ export function TreeDetailPage() {
   const [combined, setCombined] = useState(false);
   const [combinedGraph, setCombinedGraph] = useState<TreeGraph | null>(null);
   const [hasBridge, setHasBridge] = useState(false);
+  /** 手で登録した家。配置を家ごとの帯にまとめるのに使う（未登録なら自動判定） */
+  const [houses, setHouses] = useState<House[]>([]);
 
   const { settings, update: updateSetting } = useViewSettings(treeId);
   const metrics = useMemo(() => cardMetrics(settings), [settings]);
 
   const reload = useCallback(async () => {
     try {
-      const [nextTree, nextRole, nextGraph, bridges] = await Promise.all([
+      const [nextTree, nextRole, nextGraph, bridges, nextHouses] = await Promise.all([
         api.getTree(treeId),
         api.getMyRole(treeId),
         api.loadTreeGraph(treeId),
         // つながりが1つも無ければ合同表示の出番はない。読み取りも増やさない
         api.listBridges(treeId).catch(() => []),
+        api.listHouses(treeId).catch(() => []),
       ]);
       setTree(nextTree);
       setRole(nextRole);
       setGraph(nextGraph);
       setHasBridge(bridges.some((bridge) => bridge.status === 'accepted'));
+      setHouses(nextHouses);
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '読み込みに失敗しました');
@@ -687,6 +692,7 @@ export function TreeDetailPage() {
             onFocusPerson={toggleFocus}
             dimmed={distantIds}
             sceneKey={focus.centerId || 'all'}
+            houses={houses}
             centerRequest={centerRequest}
             onCenterDone={() => setCenterRequest(null)}
             // 絞り込み中は自動配置で描く。手で置いた座標は家系図の全体を前提にした値で、

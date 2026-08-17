@@ -38,6 +38,7 @@ import {
   PARENT_KIND_LABELS,
   UNION_STATUS_LABELS,
   type CardPosition,
+  type House,
   type ParentKind,
   type Person,
   type TreeGraph,
@@ -145,6 +146,11 @@ interface TreeCanvasProps {
    * 絞り込みの中心が変わったときに「別の眺めになった」と分かるようにするために使う。
    */
   sceneKey?: string;
+  /**
+   * 手で登録した家。人物の `houseId` と突き合わせて、家ごとの帯を作るのに使う。
+   * 渡さなくても血のつながりから自動で判定するので、省略してよい。
+   */
+  houses?: House[];
 }
 
 const NO_DIMMED: ReadonlySet<string> = new Set<string>();
@@ -165,6 +171,7 @@ export function TreeCanvas({
   dimmed = NO_DIMMED,
   onFocusPerson,
   sceneKey = 'all',
+  houses,
 }: TreeCanvasProps) {
   // 空の配偶者カードはレイアウト計算の前に足す。枠のぶんの場所が確保され、実在のカードと重ならない
   const drawn = useMemo(
@@ -172,8 +179,8 @@ export function TreeCanvas({
     [graph, settings.showSpousePlaceholder, canReorder],
   );
   const layout = useMemo(
-    () => computeLayout(drawn, metrics, { ignoreManualPositions }),
-    [drawn, metrics, ignoreManualPositions],
+    () => computeLayout(drawn, metrics, { ignoreManualPositions, houses }),
+    [drawn, metrics, ignoreManualPositions, houses],
   );
   const draggable = canReorder && !ignoreManualPositions;
 
