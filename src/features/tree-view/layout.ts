@@ -279,6 +279,8 @@ export function computeLayout(
    * 押し出されたぶんだけ子を追いかけさせる。
    *
    * 動かすのは右だけ。左は先に置いたカードがいるかもしれず、重ねてしまうため。
+   * 右も、すでに置かれているカードにぶつかる手前で止める。そろえるのは見栄えの話だが、
+   * 重なりは読めなくなる不具合なので、そろわないほうを取る。
    */
   function alignChildrenUnderParents(group: SiblingGroup): void {
     const parentXs = group.parentIds
@@ -289,20 +291,17 @@ export function computeLayout(
       .filter((x): x is number => x !== undefined);
     if (parentXs.length === 0 || childXs.length === 0) return;
 
-    const dx =
+    const want =
       (Math.min(...parentXs) + Math.max(...parentXs)) / 2 -
       (Math.min(...childXs) + Math.max(...childXs)) / 2;
-    if (dx <= 0) return;
+    if (want <= 0) return;
 
     // 子だけを動かすと孫が置いていかれるので、下の家系ごと動かす
-    const queue = [...group.childIds];
-    const shifted = new Set<string>();
+    const shifted = collectDescendantsAndSpouses(group.childIds);
+    const dx = Math.min(want, maxSafeShift(shifted));
+    if (dx <= 0) return;
 
-    while (queue.length > 0) {
-      const id = queue.pop() as string;
-      if (shifted.has(id)) continue;
-      shifted.add(id);
-
+    for (const id of shifted) {
       const x = centerX.get(id);
       if (x === undefined) continue;
 
@@ -311,6 +310,18 @@ export function computeLayout(
       // 動かした先を「使用済み」として記録する。次に同じ世代へ置く人が重ならない。
       const generation = generations.get(id) ?? 0;
       cursor.set(generation, Math.max(cursor.get(generation) ?? 0, moved + SLOT / 2));
+    }
+  }
+
+  /** 一緒に動かす人たち。下の世代へ連鎖し、連れ合いも巻き込む。 */
+  function collectDescendantsAndSpouses(startIds: string[]): Set<string> {
+    const queue = [...startIds];
+    const seen = new Set<string>();
+
+    while (queue.length > 0) {
+      const id = queue.pop() as string;
+      if (seen.has(id)) continue;
+      seen.add(id);
 
       for (const own of groupsWhereParent.get(id) ?? []) {
         // 子だけでなく連れ合いも一緒に動かす。片方だけ動かすと夫婦が離れ、
@@ -318,6 +329,39 @@ export function computeLayout(
         queue.push(...own.childIds, ...own.parentIds);
       }
     }
+
+    return seen;
+  }
+
+  /**
+   * 動かしてよい最大の幅。
+   *
+   * 動かす人それぞれについて、同じ世代で右にいる「動かさない人」までの余裕を測り、
+   * その最小値を取る。右に誰もいなければ制限はない。
+   */
+  function maxSafeShift(shifted: Set<string>): number {
+    const stayingByGeneration = new Map<number, number[]>();
+    for (const [id, x] of centerX) {
+      if (shifted.has(id)) continue;
+      const generation = generations.get(id) ?? 0;
+      const list = stayingByGeneration.get(generation) ?? [];
+      list.push(x);
+      stayingByGeneration.set(generation, list);
+    }
+
+    let limit = Number.POSITIVE_INFINITY;
+    for (const id of shifted) {
+      const x = centerX.get(id);
+      if (x === undefined) continue;
+
+      const generation = generations.get(id) ?? 0;
+      const rightNeighbours = (stayingByGeneration.get(generation) ?? []).filter((other) => other > x);
+      if (rightNeighbours.length === 0) continue;
+
+      limit = Math.min(limit, Math.min(...rightNeighbours) - x - SLOT);
+    }
+
+    return limit;
   }
 
   const birthOf = (id: string) => personById.get(id)?.birthDate ?? '';

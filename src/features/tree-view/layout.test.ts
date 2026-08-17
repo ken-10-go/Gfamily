@@ -773,4 +773,56 @@ describe('computeLayout', () => {
     const leftMost = Math.min(...layout.nodes.map((n) => n.x - NODE_WIDTH / 2));
     expect(leftMost).toBeCloseTo(0, 5);
   });
+
+  it('親の下へ子を寄せ直すとき、先に置かれた姻族に重ならない', () => {
+    // 末子（映子）を足すと、きょうだいを親の下へ寄せる動きが、
+    // 別の家系から嫁いできた配偶者（後藤夫）の上に乗ってしまっていた。
+    const born = (id: string, year: number | null) =>
+      person(id, { birthDate: year === null ? null : `${year}-01-01` });
+
+    const layout = computeLayout(
+      graph({
+        persons: [
+          born('リカ', 1905),
+          born('榮', 1928),
+          born('サツエ', 1931),
+          born('佐々巳', 1925),
+          born('ユリ子', 1928),
+          born('善博', 1949),
+          born('順子', 1956),
+          born('映子', 1962),
+          born('後藤夫', 1955),
+          born('理奈', 1978),
+          born('健一', 1980),
+          born('理香', 1982),
+          born('純也', null),
+          born('奈保', 1981),
+          born('和明', 1983),
+          born('駿佑', 2016),
+        ],
+        parentChild: [
+          link('リカ', 'サツエ'),
+          ...['善博', '順子', '映子'].flatMap((child) => [link('榮', child), link('サツエ', child)]),
+          link('佐々巳', '後藤夫'),
+          link('ユリ子', '後藤夫'),
+          ...['理奈', '健一', '理香'].flatMap((child) => [
+            link('後藤夫', child),
+            link('順子', child),
+          ]),
+          link('健一', '駿佑'),
+          link('奈保', '駿佑'),
+        ],
+        unions: [
+          union('榮', 'サツエ'),
+          union('佐々巳', 'ユリ子'),
+          union('後藤夫', '順子'),
+          union('純也', '理奈'),
+          union('健一', '奈保'),
+          union('和明', '理香'),
+        ],
+      }),
+    );
+
+    expectNoOverlap(layout);
+  });
 });
