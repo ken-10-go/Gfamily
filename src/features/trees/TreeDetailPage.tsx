@@ -12,7 +12,7 @@ import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { collapsedHouseTarget } from '@/features/tree-view/collapse';
 import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
-import { houseChoices, resolveHouses } from '@/features/tree-view/houses';
+import { houseChoices, NEW_HOUSE_PREFIX, resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget } from '@/features/tree-view/placeholders';
 import { FocusBar, type FocusState } from '@/features/tree-view/FocusBar';
 import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
@@ -190,6 +190,14 @@ export function TreeDetailPage() {
     const houseIds: string[] = [];
 
     for (const id of input.houseIds) {
+      // 編集画面で名前だけ決めた家。顔ぶれはこの人だけで作る
+      if (id.startsWith(NEW_HOUSE_PREFIX)) {
+        const name = id.slice(NEW_HOUSE_PREFIX.length);
+        const existing = houses.find((house) => house.name === name);
+        houseIds.push(existing?.id ?? (await api.createHouse(treeId, name)));
+        continue;
+      }
+
       const choice = choices.find((house) => house.id === id);
       // 見つからない指定（消えた家）は捨てる。自動判定に戻るだけで壊れない
       if (!choice) continue;

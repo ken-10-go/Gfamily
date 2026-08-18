@@ -2,7 +2,7 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react';
 
 import { AgeInput } from '@/features/persons/AgeInput';
 import { JapaneseDateInput } from '@/features/persons/JapaneseDateInput';
-import type { HouseChoice } from '@/features/tree-view/houses';
+import { newHouseChoice, type HouseChoice } from '@/features/tree-view/houses';
 import {
   BIRTH_ORDER_OPTIONS,
   EMPTY_PERSON_INPUT,
@@ -104,8 +104,34 @@ export function PersonForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<FormTab>('basic');
+  /*
+   * この画面で名前だけ決めた家。自動判定にも登録済みにも無い家を足すためのもの
+   * （同じ姓で別の家が出てきたときなど）。登録は保存する側が行う。
+   */
+  const [drafts, setDrafts] = useState<HouseChoice[]>([]);
+  const [newHouse, setNewHouse] = useState('');
   // 同じ画面に複数のフォームが出ても、ラジオのグループが混ざらないようにする
   const genderName = useId();
+
+  /** 選べる家。渡された一覧に、この画面で足した家を続ける。 */
+  const choices = [...houses, ...drafts];
+
+  /** 名前だけ決めた家を選択肢に足して、そのまま選んだ状態にする。 */
+  function addHouse() {
+    const name = newHouse.trim();
+    if (!name) return;
+
+    const known = choices.find((house) => house.name === name);
+    const choice = known ?? newHouseChoice(name);
+    if (!known) setDrafts((current) => [...current, choice]);
+    setNewHouse('');
+
+    setInput((current) =>
+      current.houseIds.includes(choice.id)
+        ? current
+        : { ...current, houseIds: [...current.houseIds, choice.id] },
+    );
+  }
 
   function update<K extends keyof PersonInput>(key: K, value: PersonInput[K]) {
     setInput((current) => ({ ...current, [key]: value }));
@@ -333,14 +359,14 @@ export function PersonForm({
       >
         <fieldset className="field field--radios form__wide">
           <legend className="field__label">属する家</legend>
-          {houses.length > 0 ? (
+          {choices.length > 0 ? (
             <>
               <p className="note">
                 生家と婚家のように、複数の家に属してかまいません。
                 <strong>先頭に選んだ家</strong>が配置のまとまりに使われます。
                 どれも選ばなければ、血のつながりから自動で判定します。
               </p>
-              {houses.map((house) => (
+              {choices.map((house) => (
                 <label key={house.id} className="field__radio">
                   <input
                     type="checkbox"
@@ -361,8 +387,27 @@ export function PersonForm({
               ))}
             </>
           ) : (
-            <p className="note">まだ人物が居ないので、選べる家がありません。</p>
+            <p className="note">選べる家がまだありません。下の欄に名前を入れて足してください。</p>
           )}
+
+          <span className="form__row">
+            <input
+              type="text"
+              value={newHouse}
+              placeholder="新しい家の名前（例: 後藤家）"
+              aria-label="新しい家の名前"
+              onChange={(event) => setNewHouse(event.target.value)}
+              onKeyDown={(event) => {
+                // Enter で保存が走ってしまわないように、ここで受け止める
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                addHouse();
+              }}
+            />
+            <button type="button" className="button" onClick={addHouse}>
+              家を追加
+            </button>
+          </span>
         </fieldset>
 
         <label className="field">

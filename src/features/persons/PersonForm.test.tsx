@@ -104,6 +104,26 @@ describe('PersonForm', () => {
     expect(choice.checked).toBe(true);
   });
 
+  it('自動判定に無い家を、名前だけ決めて足せる', async () => {
+    // 同じ姓で別の家が出てきたときなど、血のつながりからは分けられない家がある
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm({ initial: person(), onSubmit });
+
+    fireEvent.click(tab('文化的補足'));
+    fireEvent.change(screen.getByLabelText('新しい家の名前'), {
+      target: { value: '後藤家（分家）' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '家を追加' }));
+
+    // 足した家はそのまま選ばれている
+    const added = screen.getByRole('checkbox', { name: /後藤家（分家）/ }) as HTMLInputElement;
+    expect(added.checked).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0].houseIds).toEqual(['new:後藤家（分家）']);
+  });
+
   it('選んだ家は保存の内容に入る（登録は保存する側が行う）', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     renderForm({

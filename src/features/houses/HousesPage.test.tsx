@@ -36,6 +36,9 @@ function renderPage() {
 
 describe('HousesPage', () => {
   beforeEach(() => {
+    // 呼び出しの記録と window.prompt の差し替えを毎回まっさらにする
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
     vi.mocked(api.getTree).mockResolvedValue({
       id: 't1',
       name: '寺原家',
@@ -58,6 +61,16 @@ describe('HousesPage', () => {
     // 「先に固定してから選ぶ」の二段構えだと、ここが空で行き止まりになっていた
     await waitFor(() => expect(screen.getByText('人物の所属')).toBeTruthy());
     expect(screen.getAllByRole('checkbox', { name: /寺原家/ }).length).toBeGreaterThan(0);
+  });
+
+  it('自動判定に無い家を、名前だけ決めて作れる', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('後藤家（分家）');
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('いまの家')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '家を追加' }));
+
+    await waitFor(() => expect(api.createHouse).toHaveBeenCalledWith('t1', '後藤家（分家）'));
   });
 
   it('閲覧のみでも、節ごと消さずに理由を出す', async () => {

@@ -83,6 +83,16 @@ export function HousesPage() {
     }, '家を登録できませんでした');
   }
 
+  /** 自動判定に出てこない家を、名前だけ決めて作る。 */
+  function handleAdd() {
+    const name = window.prompt('新しい家の名前（例: 後藤家）')?.trim();
+    if (!name) return;
+
+    void run(async () => {
+      await api.createHouse(treeId, name);
+    }, '家を作れませんでした');
+  }
+
   function handleRename(house: House) {
     const name = window.prompt('家の名前', house.name)?.trim();
     if (!name || name === house.name) return;
@@ -172,7 +182,14 @@ export function HousesPage() {
       {error && <p className="alert alert--error">{error}</p>}
       {!canEdit && <p className="note">家の変更は編集者以上が行えます。</p>}
 
-      <h2>いまの家</h2>
+      <div className="page__actions">
+        <h2>いまの家</h2>
+        {canEdit && (
+          <button type="button" className="button" disabled={busy} onClick={handleAdd}>
+            家を追加
+          </button>
+        )}
+      </div>
       {detected.length === 0 ? (
         <p className="note">まだ人物が登録されていません。</p>
       ) : (

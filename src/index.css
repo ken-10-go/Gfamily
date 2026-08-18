@@ -650,6 +650,14 @@ textarea {
   text-decoration: none;
 }
 
+.page__actions {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .tree-page__actions {
   display: flex;
   align-items: center;

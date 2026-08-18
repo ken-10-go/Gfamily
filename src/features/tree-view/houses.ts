@@ -271,6 +271,20 @@ export interface HouseChoice {
 }
 
 /**
+ * その場で作った、まだ保存されていない家の目印。
+ *
+ * 自動判定にも登録済みにも無い家を、編集画面から名前だけ決めて足せるようにする。
+ * 同じ姓で別の家が出てきたときのように、血のつながりからは分けられない家がある。
+ * 保存する側がこの目印を見て、名前だけの家を登録する。
+ */
+export const NEW_HOUSE_PREFIX = 'new:';
+
+/** 名前だけ決めた、まだ登録していない家。保存した時点で登録される。 */
+export function newHouseChoice(name: string): HouseChoice {
+  return { id: `${NEW_HOUSE_PREFIX}${name}`, name, registered: false, memberIds: [] };
+}
+
+/**
  * 所属の選択肢。登録済みの家に、まだ登録していない自動判定の家を足す。
  *
  * 「先に名前を付けて固定してから所属を選ぶ」の二段構えにすると、何も登録して
