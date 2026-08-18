@@ -11,15 +11,56 @@ const MAX_SCALE = 2.5;
 
 const clampScale = (scale: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
 
+/** つまむ操作の状態。2本の指の間隔と中点。 */
+export interface Pinch {
+  distance: number;
+  centerX: number;
+  centerY: number;
+}
+
+/**
+ * つまむ操作を1回ぶん反映した表示位置を返す。
+ *
+ * 指の間隔の比を拡大率にし、**指の中点の下にある座標が動かない**ように平行移動を補正する。
+ * 上限・下限に当たったときは、実際に効いた倍率で補正する（当たった瞬間に図が飛ばないように）。
+ * `origin` は SVG の画面上の左上。指の座標を図の座標系に合わせるのに使う。
+ *
+ * 純粋関数。指の座標さえあればテストできる。
+ */
+export function applyPinch(
+  current: Viewport,
+  from: Pinch,
+  to: Pinch,
+  origin: { left: number; top: number },
+): Viewport {
+  if (from.distance <= 0 || to.distance <= 0) return current;
+
+  const scale = clampScale((current.scale * to.distance) / from.distance);
+  const applied = scale / current.scale;
+
+  return {
+    scale,
+    x: to.centerX - origin.left - (from.centerX - origin.left - current.x) * applied,
+    y: to.centerY - origin.top - (from.centerY - origin.top - current.y) * applied,
+  };
+}
+
 /**
  * SVG のパン・ズーム操作。
  *
  * ホイールでカーソル位置を中心にズームし、ドラッグで平行移動する。
+ * 指2本でつまめば拡大縮小（`applyPinch`）。触れている指の数で操作を持ち替える。
  * 大人数の家系図でも再レンダリングが重くならないよう、状態は viewport 1つに集約する。
  */
 export function usePanZoom(initial: Viewport = { x: 0, y: 0, scale: 1 }) {
   const [viewport, setViewport] = useState<Viewport>(initial);
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number } | null>(null);
+  /*
+   * 触れている指。2本になったらつまむ操作（ピンチ）に切り替える。
+   * 1本ぶんの平行移動と混ざらないよう、指の数で持ち替える。
+   */
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<Pinch | null>(null);
   const [isPanning, setIsPanning] = useState(false);
 
   /** 実行中の中央寄せ。次の指示や手動の操作が来たら止める */
@@ -61,10 +102,28 @@ export function usePanZoom(initial: Viewport = { x: 0, y: 0, scale: 1 }) {
     [cancelAnimation],
   );
 
+  /** 2本の指の間の距離と中点。つまむ操作の基準にする */
+  const pinchOf = (points: { x: number; y: number }[]): Pinch => ({
+    distance: Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y),
+    centerX: (points[0].x + points[1].x) / 2,
+    centerY: (points[0].y + points[1].y) / 2,
+  });
+
   const onPointerDown = useCallback(
     (event: React.PointerEvent<SVGSVGElement>) => {
       // 手で動かし始めたら、中央寄せの途中でも譲る
       cancelAnimation();
+
+      pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      // 2本目の指が触れたら、つまんで拡大縮小する操作に切り替える
+      if (pointersRef.current.size === 2) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        pinchRef.current = pinchOf([...pointersRef.current.values()]);
+        dragRef.current = null;
+        setIsPanning(false);
+        return;
+      }
 
       // カード上でのクリックは選択操作なので、パンを始めない
       if ((event.target as Element).closest('[data-person-card]')) return;
@@ -81,6 +140,23 @@ export function usePanZoom(initial: Viewport = { x: 0, y: 0, scale: 1 }) {
   );
 
   const onPointerMove = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
+    const pointers = pointersRef.current;
+    if (pointers.has(event.pointerId)) {
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+
+    // つまむ操作。指の間隔で拡大率を、中点の移動で平行移動を決める
+    const pinch = pinchRef.current;
+    if (pinch && pointers.size >= 2) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const next = pinchOf([...pointers.values()].slice(0, 2));
+      if (next.distance <= 0 || pinch.distance <= 0) return;
+
+      pinchRef.current = next;
+      setViewport((current) => applyPinch(current, pinch, next, rect));
+      return;
+    }
+
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
@@ -93,6 +169,11 @@ export function usePanZoom(initial: Viewport = { x: 0, y: 0, scale: 1 }) {
   }, []);
 
   const onPointerUp = useCallback((event: React.PointerEvent<SVGSVGElement>) => {
+    pointersRef.current.delete(event.pointerId);
+    // 指が1本になったら、つまむ操作は終わり。残った指でのパンは始めない
+    // （持ち替えた瞬間に図が飛ぶのを防ぐ）
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+
     if (dragRef.current?.pointerId !== event.pointerId) return;
     dragRef.current = null;
     setIsPanning(false);

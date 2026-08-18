@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { Hint } from '@/features/app/Hint';
 import {
   detectHouses,
   houseChoices,
@@ -173,11 +174,11 @@ export function HousesPage() {
         <Link to={`/trees/${treeId}`}>← {treeName || '家系図'}へ戻る</Link>
       </p>
       <h1>家の管理</h1>
-      <p className="note">
+      <Hint>
         家は、婚姻の線を外して<strong>親子だけをたどった一群</strong>として自動で決まります。
         名前はその一群でいちばん多い姓から付けます。
         改姓や婿養子で実感と食い違うときだけ、下で直してください。
-      </p>
+      </Hint>
 
       {error && <p className="alert alert--error">{error}</p>}
       {!canEdit && <p className="note">家の変更は編集者以上が行えます。</p>}
@@ -270,12 +271,12 @@ export function HousesPage() {
         <p className="note">人物がまだ登録されていません。</p>
       ) : (
         <>
-          <p className="note">
+          <Hint>
             1人が複数の家に属してかまいません（生家と婚家など）。
             <strong>先頭の「主たる家」</strong>だけが配置のまとまりに使われます。
             どれも選ばなければ、血のつながりから自動で判定します。
             まだ登録していない家（自動）を選ぶと、その場で登録されます。
-          </p>
+          </Hint>
 
           <ul className="card-list">
             {persons.map((person) => (

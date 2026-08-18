@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { arcPositions, ARC_RADIUS } from '@/features/persons/menuArc';
+import { arcPositions, menuPlacement, type MenuPlacement } from '@/features/persons/menuArc';
 import { displayName, type Person } from '@/types/models';
 
 /** メニューから選べる操作。 */
@@ -101,30 +101,29 @@ const MORE_ITEMS: MenuItem[] = [
  */
 export function PersonMenu({ person, anchor, canEdit, onAction, onClose }: PersonMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [placement, setPlacement] = useState(anchor);
-  const [side, setSide] = useState<'left' | 'right'>('right');
+  const [placement, setPlacement] = useState<MenuPlacement>({
+    x: anchor.x,
+    y: anchor.y,
+    side: 'right',
+    sheet: false,
+  });
   const [showMore, setShowMore] = useState(false);
 
-  // 画面の端で切れないように、出したあとで位置を内側へ寄せる
+  // 画面の端で切れないように、出したあとで位置を内側へ寄せる。
+  // 弧はボタンが枠の外へ張り出すので、そのぶんも menuPlacement が見込む。
   useLayoutEffect(() => {
     const box = ref.current?.getBoundingClientRect();
     if (!box) return;
 
-    // 弧は枠の外へ張り出すので、そのぶんの余白も見て内側へ寄せる
-    const margin = 8;
-    const reach = canEdit ? ARC_RADIUS : 0;
-    const x = Math.max(margin, Math.min(anchor.x, window.innerWidth - box.width - margin));
-    const y = Math.max(
-      margin + reach,
-      Math.min(anchor.y, window.innerHeight - box.height - margin - reach),
+    setPlacement(
+      menuPlacement(
+        anchor,
+        { width: box.width, height: box.height },
+        { width: window.innerWidth, height: window.innerHeight },
+        canEdit && !showMore,
+      ),
     );
-
-    if (x !== placement.x || y !== placement.y) setPlacement({ x, y });
-    // 弧は、はみ出さないほうへ開く
-    setSide(anchor.x + ARC_RADIUS + 120 > window.innerWidth ? 'left' : 'right');
-    // anchor が変わったときだけ計算し直す
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchor.x, anchor.y, canEdit]);
+  }, [anchor, canEdit, showMore]);
 
   // 外側をクリックするか Esc で閉じる
   useEffect(() => {
@@ -156,20 +155,50 @@ export function PersonMenu({ person, anchor, canEdit, onAction, onClose }: Perso
    * 弧を出すのは「編集できて、まだ その他 を開いていない」ときだけ。
    * 弧と枠付きのリストを同時に出すと、弧が枠の上に乗って読めなくなる。
    */
-  const radial = canEdit && !showMore;
-  const arc = arcPositions(radial ? QUICK_ITEMS.length : 0, side);
+  const radial = canEdit && !showMore && !placement.sheet;
+  const arc = arcPositions(radial ? QUICK_ITEMS.length : 0, placement.side);
+  /*
+   * 狭い画面では、弧の代わりに画面下のシートに並べる。
+   * 弧はカードのまわりへ張り出すので、スマホの幅では必ずどこかが画面の外へ出て
+   * 押せなくなる。確実に押せることを、見た目より優先する。
+   */
+  const quick = canEdit && placement.sheet && !showMore;
+
+  const className = [
+    'person-menu',
+    radial ? 'person-menu--radial' : '',
+    placement.sheet ? 'person-menu--sheet' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div
       ref={ref}
-      className={radial ? 'person-menu person-menu--radial' : 'person-menu'}
-      style={{ left: placement.x, top: placement.y }}
+      className={className}
+      style={placement.sheet ? undefined : { left: placement.x, top: placement.y }}
       role="menu"
       aria-label={`${displayName(person)} の操作`}
     >
       <p className="person-menu__title">{displayName(person)}</p>
 
-      {radial ? (
+      {quick ? (
+        <div className="person-menu__grid">
+          {QUICK_ITEMS.map((item) => (
+            <button
+              key={item.action}
+              type="button"
+              role="menuitem"
+              className={
+                item.danger ? 'person-menu__tile person-menu__tile--danger' : 'person-menu__tile'
+              }
+              onClick={() => (item.action === 'more' ? setShowMore(true) : onAction(item.action))}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : radial ? (
         <div className="person-menu__arc">
           {QUICK_ITEMS.map((item, index) => (
             <button

@@ -1,5 +1,6 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 
+import { Hint } from '@/features/app/Hint';
 import { AgeInput } from '@/features/persons/AgeInput';
 import { JapaneseDateInput } from '@/features/persons/JapaneseDateInput';
 import { newHouseChoice, type HouseChoice } from '@/features/tree-view/houses';
@@ -361,11 +362,11 @@ export function PersonForm({
           <legend className="field__label">属する家</legend>
           {choices.length > 0 ? (
             <>
-              <p className="note">
+              <Hint>
                 生家と婚家のように、複数の家に属してかまいません。
                 <strong>先頭に選んだ家</strong>が配置のまとまりに使われます。
                 どれも選ばなければ、血のつながりから自動で判定します。
-              </p>
+              </Hint>
               {choices.map((house) => (
                 <label key={house.id} className="field__radio">
                   <input
@@ -387,7 +388,7 @@ export function PersonForm({
               ))}
             </>
           ) : (
-            <p className="note">選べる家がまだありません。下の欄に名前を入れて足してください。</p>
+            <p className="note">下の欄に名前を入れて足してください。</p>
           )}
 
           <span className="form__row">
@@ -443,7 +444,7 @@ export function PersonForm({
 
         <fieldset className="surname-history form__wide">
           <legend className="field__label">改姓の履歴</legend>
-          <p className="note">婚姻・養子縁組・分家などで姓が変わった経過を、古い順に登録します。</p>
+          <Hint>婚姻・養子縁組・分家などで姓が変わった経過を、古い順に登録します。</Hint>
 
           {surnameHistory.map((record, index) => (
             <div key={index} className="surname-history__row">

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { arcPositions } from '@/features/persons/menuArc';
+import { arcPositions, ARC_RADIUS } from '@/features/persons/menuArc';
 import { PersonMenu } from '@/features/persons/PersonMenu';
 import { EMPTY_PERSON, type Person } from '@/types/models';
 
@@ -34,7 +34,7 @@ describe('arcPositions', () => {
     }
     // 真ん中は真横
     expect(arc[2].dy).toBeCloseTo(0, 5);
-    expect(arc[2].dx).toBeCloseTo(96, 5);
+    expect(arc[2].dx).toBeCloseTo(ARC_RADIUS, 5);
   });
 
   it('どの2つも離れていて、重ならない', () => {
@@ -57,7 +57,7 @@ describe('arcPositions', () => {
   });
 
   it('1つだけなら真横に置く', () => {
-    expect(arcPositions(1, 'right')).toEqual([{ dx: 96, dy: 0 }]);
+    expect(arcPositions(1, 'right')).toEqual([{ dx: ARC_RADIUS, dy: 0 }]);
   });
 
   it('0個でも落ちない', () => {

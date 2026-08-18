@@ -1191,6 +1191,79 @@ textarea {
   border-color: var(--danger);
 }
 
+/*
+ * 狭い画面のメニュー。画面下に貼り付けて、確実に押せる大きさで並べる。
+ * 弧はカードのまわりへ張り出すので、スマホの幅では必ず画面の外へ出てしまう。
+ */
+.person-menu--sheet {
+  position: fixed;
+  inset: auto 0 0;
+  min-width: 0;
+  padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+  border-radius: 14px 14px 0 0;
+  border-bottom: 0;
+  max-height: 70dvh;
+  overflow-y: auto;
+}
+
+.person-menu--sheet .person-menu__title {
+  margin: 0.1rem 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.person-menu__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.person-menu__tile {
+  min-height: 2.9rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.person-menu__tile--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* たたんでおける説明。ふだんは1行だけにして、場所を取らせない */
+.hint {
+  margin: 0.15rem 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.hint__summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: 0.15rem 0;
+  list-style: none;
+}
+
+.hint__summary::before {
+  content: 'ⓘ ';
+}
+
+.hint__summary::-webkit-details-marker {
+  display: none;
+}
+
+.hint__body {
+  padding: 0.35rem 0.6rem;
+  border-left: 2px solid var(--border);
+  line-height: 1.6;
+}
+
 /* --- モーダル -------------------------------------------------------------- */
 
 .dialog {
