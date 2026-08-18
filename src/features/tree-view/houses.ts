@@ -266,6 +266,8 @@ export interface HouseChoice {
   name: string;
   /** すでに登録されている家か。false なら選んだ時点で登録する */
   registered: boolean;
+  /** 登録するときに所属させる顔ぶれ。登録済みの家では空 */
+  memberIds: string[];
 }
 
 /**
@@ -274,14 +276,40 @@ export interface HouseChoice {
  * 「先に名前を付けて固定してから所属を選ぶ」の二段構えにすると、何も登録して
  * いないあいだは選ぶものが1つも無く行き止まりになる。自動の家もそのまま選べて、
  * 選んだ時点で登録される、という形にするための一覧。
- * 同じ名前の家がすでに登録されていれば、自動のほうは出さない（二重に見えるため）。
+ *
+ * **同じ名前の家はひとつにまとめる。** 自動判定は血のつながりで分けるので、
+ * 嫁いだ先の姓を持つ人がひとりで居ると、同姓の一群とは別の「家」として出てくる
+ * （「後藤家」が2つ並ぶ）。選ぶ側から見れば同じ家なので、顔ぶれを合わせて1つにする。
+ * すでに同じ名前で登録された家があれば、自動のほうは出さない。
  */
 export function houseChoices(graph: TreeGraph, houses: House[]): HouseChoice[] {
+  const merged = new Map<string, HouseChoice>();
+
+  for (const group of detectHouses(graph)) {
+    if (houses.some((house) => house.name === group.name)) continue;
+
+    const current = merged.get(group.name);
+    if (current) {
+      current.memberIds = [...current.memberIds, ...group.memberIds];
+      continue;
+    }
+
+    merged.set(group.name, {
+      id: group.key,
+      name: group.name,
+      registered: false,
+      memberIds: [...group.memberIds],
+    });
+  }
+
   return [
-    ...houses.map((house) => ({ id: house.id, name: house.name, registered: true })),
-    ...detectHouses(graph)
-      .filter((group) => !houses.some((house) => house.name === group.name))
-      .map((group) => ({ id: group.key, name: group.name, registered: false })),
+    ...houses.map((house) => ({
+      id: house.id,
+      name: house.name,
+      registered: true,
+      memberIds: [],
+    })),
+    ...merged.values(),
   ];
 }
 

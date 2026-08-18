@@ -93,7 +93,7 @@ describe('PersonForm', () => {
     renderForm({
       initial: person(),
       autoHouseName: '寺原家',
-      houses: [{ id: 'auto-key', name: '寺原家', registered: false }],
+      houses: [{ id: 'auto-key', name: '寺原家', registered: false, memberIds: [] }],
     });
 
     fireEvent.click(tab('文化的補足'));
@@ -109,7 +109,7 @@ describe('PersonForm', () => {
     renderForm({
       initial: person(),
       onSubmit,
-      houses: [{ id: 'auto-key', name: '寺原家', registered: false }],
+      houses: [{ id: 'auto-key', name: '寺原家', registered: false, memberIds: [] }],
     });
 
     fireEvent.click(tab('文化的補足'));
@@ -124,8 +124,8 @@ describe('PersonForm', () => {
     renderForm({
       initial: person(),
       houses: [
-        { id: 'h1', name: '寺原家', registered: true },
-        { id: 'h2', name: '後藤家', registered: true },
+        { id: 'h1', name: '寺原家', registered: true, memberIds: [] },
+        { id: 'h2', name: '後藤家', registered: true, memberIds: [] },
       ],
     });
 

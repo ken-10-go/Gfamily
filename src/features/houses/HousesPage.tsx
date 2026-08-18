@@ -116,12 +116,12 @@ export function HousesPage() {
         return;
       }
 
-      const group = detectHouses(graph).find((house) => house.key === houseId);
-      if (!group) throw new Error('家が見つかりませんでした');
+      const choice = houseChoices(graph, houses).find((house) => house.id === houseId);
+      if (!choice) throw new Error('家が見つかりませんでした');
 
       // 顔ぶれごと固定するので、その一群に居る人はこれだけで所属が付く
-      const created = await api.createHouse(treeId, group.name, group.memberIds);
-      if (group.memberIds.includes(person.id)) return;
+      const created = await api.createHouse(treeId, choice.name, choice.memberIds);
+      if (choice.memberIds.includes(person.id)) return;
 
       await api.setPersonHouses(treeId, [person.id], [...person.houseIds, created]);
     }, '所属を変えられませんでした');

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bloodGroups,
   detectHouses,
+  houseChoices,
   houseMemberships,
   houseNameOf,
   houseSizes,
@@ -132,6 +133,31 @@ describe('detectHouses', () => {
   });
 });
 
+describe('houseChoices', () => {
+  it('同じ名前の家はひとつにまとめる', () => {
+    // 嫁いだ先の姓を持つ人がひとりで居ると、同姓の一群とは別の家として検出される。
+    // 選ぶ側から見れば同じ「後藤家」なので、選択肢としては1つにする。
+    const graph: TreeGraph = {
+      ...sample,
+      persons: [...sample.persons, person('ユリ子', '後藤')],
+    };
+
+    const names = houseChoices(graph, []).map((house) => house.name);
+    expect(names).toEqual([...new Set(names)]);
+    expect(names.filter((name) => name === '後藤家')).toHaveLength(1);
+
+    // まとめた家を登録すると、両方の顔ぶれが所属する
+    const goto = houseChoices(graph, []).find((house) => house.name === '後藤家');
+    expect(goto?.memberIds).toEqual(expect.arrayContaining(['敏行', '佐々巳', 'ユリ子']));
+  });
+
+  it('同じ名前で登録済みの家があれば、自動のほうは出さない', () => {
+    const names = houseChoices(sample, [{ id: 'h1', name: '後藤家' }]).map((house) => house.name);
+    expect(names.filter((name) => name === '後藤家')).toHaveLength(1);
+    expect(houseChoices(sample, [{ id: 'h1', name: '後藤家' }])[0].registered).toBe(true);
+  });
+});
+
 describe('houseMemberships', () => {
   it('1人が複数の家に属せる。先頭が主たる家になる', () => {
     const houses: House[] = [
@@ -143,10 +169,11 @@ describe('houseMemberships', () => {
       persons: sample.persons.map((p) => (p.id === '順子' ? { ...p, houseIds: ['h1', 'h2'] } : p)),
     };
 
-    expect(houseMemberships(graph, houses).get('順子')?.map((house) => house.name)).toEqual([
-      '後藤家（婚家）',
-      '寺原家（生家）',
-    ]);
+    expect(
+      houseMemberships(graph, houses)
+        .get('順子')
+        ?.map((house) => house.name),
+    ).toEqual(['後藤家（婚家）', '寺原家（生家）']);
     expect(resolveHouses(graph, houses).get('順子')?.id).toBe('h1');
   });
 });

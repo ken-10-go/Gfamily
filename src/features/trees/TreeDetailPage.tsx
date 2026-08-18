@@ -12,7 +12,7 @@ import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { collapsedHouseTarget } from '@/features/tree-view/collapse';
 import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
-import { detectHouses, houseChoices, resolveHouses } from '@/features/tree-view/houses';
+import { houseChoices, resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget } from '@/features/tree-view/placeholders';
 import { FocusBar, type FocusState } from '@/features/tree-view/FocusBar';
 import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
@@ -186,18 +186,19 @@ export function TreeDetailPage() {
    * 手間が大きすぎて実質使えない。編集画面だけで所属を決められるようにする。
    */
   async function withRegisteredHouses(input: PersonInput): Promise<PersonInput> {
-    const detected = detectHouses(baseGraph);
+    const choices = houseChoices(baseGraph, houses);
     const houseIds: string[] = [];
 
     for (const id of input.houseIds) {
-      if (houses.some((house) => house.id === id)) {
-        houseIds.push(id);
-        continue;
-      }
-
-      const group = detected.find((house) => house.key === id);
+      const choice = choices.find((house) => house.id === id);
       // 見つからない指定（消えた家）は捨てる。自動判定に戻るだけで壊れない
-      if (group) houseIds.push(await api.createHouse(treeId, group.name, group.memberIds));
+      if (!choice) continue;
+
+      houseIds.push(
+        choice.registered
+          ? choice.id
+          : await api.createHouse(treeId, choice.name, choice.memberIds),
+      );
     }
 
     return { ...input, houseIds };
