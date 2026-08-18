@@ -60,6 +60,15 @@ describe('HousesPage', () => {
     expect(screen.getAllByRole('checkbox', { name: /寺原家/ }).length).toBeGreaterThan(0);
   });
 
+  it('閲覧のみでも、節ごと消さずに理由を出す', async () => {
+    vi.mocked(api.getMyRole).mockResolvedValue('viewer');
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('人物の所属')).toBeTruthy());
+    expect(screen.getByText(/所属の変更は編集者以上が行えます/)).toBeTruthy();
+    expect(screen.getAllByRole('checkbox')[0].hasAttribute('disabled')).toBe(true);
+  });
+
   it('未登録の家を選ぶと、その場で登録して所属させる', async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText('人物の所属')).toBeTruthy());

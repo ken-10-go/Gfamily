@@ -7,6 +7,7 @@ import { compareForDisplay } from '@/lib/relations';
 import {
   displayName,
   lifespanLabel,
+  ROLE_LABELS,
   type House,
   type Person,
   type TreeGraph,
@@ -239,9 +240,22 @@ export function HousesPage() {
         </ul>
       )}
 
-      {canEdit && (
+      {/*
+        権限や読み込みの結果でこの節ごと消してしまうと、「設定項目が無い」のか
+        「権限が無い」のか「読み込みに失敗した」のかが画面から分からなくなる。
+        見出しは必ず出し、できない理由のほうを書く。
+      */}
+      <h2>人物の所属</h2>
+      {!canEdit && (
+        <p className="note">
+          所属の変更は編集者以上が行えます（いまの権限:{' '}
+          {role ? ROLE_LABELS[role] : '読み込めていません'}）。
+        </p>
+      )}
+      {persons.length === 0 ? (
+        <p className="note">人物がまだ登録されていません。</p>
+      ) : (
         <>
-          <h2>人物の所属</h2>
           <p className="note">
             1人が複数の家に属してかまいません（生家と婚家など）。
             <strong>先頭の「主たる家」</strong>だけが配置のまとまりに使われます。
@@ -280,7 +294,7 @@ export function HousesPage() {
                           <input
                             type="checkbox"
                             checked={belongs}
-                            disabled={busy}
+                            disabled={busy || !canEdit}
                             onChange={(event) =>
                               handleToggle(person, house.id, event.target.checked)
                             }
@@ -291,7 +305,7 @@ export function HousesPage() {
                           </span>
                           {auto && <span className="badge">自動</span>}
                         </label>
-                        {belongs && !primary && (
+                        {belongs && !primary && canEdit && (
                           <button
                             type="button"
                             className="link-button"
