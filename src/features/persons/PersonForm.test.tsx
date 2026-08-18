@@ -88,21 +88,44 @@ describe('PersonForm', () => {
     expect(radio('男性').checked).toBe(false);
   });
 
-  it('属する家の欄は、登録された家が無くても出す', () => {
-    // 自動判定だけの段階でも「今どの家に居るのか」は見えていてほしい
-    renderForm({ initial: person(), autoHouseName: '寺原家' });
+  it('まだ登録していない家も、そのまま選べる', () => {
+    // 「家の管理で先に固定してから選ぶ」の二段構えは手間が大きすぎて使えない
+    renderForm({
+      initial: person(),
+      autoHouseName: '寺原家',
+      houses: [{ id: 'auto-key', name: '寺原家', registered: false }],
+    });
 
     fireEvent.click(tab('文化的補足'));
     expect(screen.getByText('属する家')).toBeTruthy();
-    expect(screen.getByText('寺原家')).toBeTruthy();
+
+    const choice = screen.getByRole('checkbox', { name: /寺原家/ }) as HTMLInputElement;
+    fireEvent.click(choice);
+    expect(choice.checked).toBe(true);
+  });
+
+  it('選んだ家は保存の内容に入る（登録は保存する側が行う）', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm({
+      initial: person(),
+      onSubmit,
+      houses: [{ id: 'auto-key', name: '寺原家', registered: false }],
+    });
+
+    fireEvent.click(tab('文化的補足'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /寺原家/ }));
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0].houseIds).toEqual(['auto-key']);
   });
 
   it('登録された家があれば、複数選べて先頭が主になる', () => {
     renderForm({
       initial: person(),
       houses: [
-        { id: 'h1', name: '寺原家' },
-        { id: 'h2', name: '後藤家' },
+        { id: 'h1', name: '寺原家', registered: true },
+        { id: 'h2', name: '後藤家', registered: true },
       ],
     });
 

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import { detectHouses, resolveHouses, type DetectedHouse } from '@/features/tree-view/houses';
+import {
+  detectHouses,
+  houseChoices,
+  resolveHouses,
+  type DetectedHouse,
+} from '@/features/tree-view/houses';
 import * as api from '@/lib/api';
 import { compareForDisplay } from '@/lib/relations';
 import {
@@ -138,16 +143,8 @@ export function HousesPage() {
   const detected = detectHouses(graph);
   const persons = [...graph.persons].sort(compareForDisplay);
 
-  /**
-   * 所属として選べる家。登録済みのものに、まだ登録していない自動判定の家を足す。
-   * 自動のほうを選んだら、その時点で登録される。
-   */
-  const choices: { id: string; name: string; auto: boolean }[] = [
-    ...houses.map((house) => ({ id: house.id, name: house.name, auto: false })),
-    ...detected
-      .filter((group) => !houses.some((house) => house.name === group.name))
-      .map((group) => ({ id: group.key, name: group.name, auto: true })),
-  ];
+  // 所属として選べる家。編集画面と同じ一覧を使う
+  const choices = houseChoices(graph, houses);
 
   const houseName = (houseId: string) =>
     houses.find((house) => house.id === houseId)?.name ?? '(不明な家)';
@@ -301,7 +298,7 @@ export function HousesPage() {
                           />
                           <span>
                             {house.name}
-                            {house.auto && <span className="note">（未登録）</span>}
+                            {!house.registered && <span className="note">（未登録）</span>}
                           </span>
                           {auto && <span className="badge">自動</span>}
                         </label>

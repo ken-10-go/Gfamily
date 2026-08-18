@@ -2,13 +2,13 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react';
 
 import { AgeInput } from '@/features/persons/AgeInput';
 import { JapaneseDateInput } from '@/features/persons/JapaneseDateInput';
+import type { HouseChoice } from '@/features/tree-view/houses';
 import {
   BIRTH_ORDER_OPTIONS,
   EMPTY_PERSON_INPUT,
   GENDER_LABELS,
   SURNAME_CHANGE_REASON_LABELS,
   type Gender,
-  type House,
   type Person,
   type PersonInput,
   type SurnameChangeReason,
@@ -29,10 +29,10 @@ interface PersonFormProps {
   /** 人物の項目より前に差し込む欄。親の選択など、関係づけの指定に使う。 */
   extraFields?: ReactNode;
   /**
-   * 選べる家。手で登録した家だけが並ぶ（自動判定の家は登録されるまで選べない）。
-   * 空でも欄は出す。「今どの家に居るのか」は登録の有無にかかわらず知りたいため。
+   * 所属として選べる家。まだ登録していない自動判定の家も含む
+   * （`houseChoices`）。選んだ家の登録は、保存する側が行う。
    */
-  houses?: House[];
+  houses?: HouseChoice[];
   /**
    * 血のつながりから自動で判定した家の名前。何も選んでいないときはこれになる。
    * 分からなければ省略してよい。
@@ -338,8 +338,7 @@ export function PersonForm({
               <p className="note">
                 生家と婚家のように、複数の家に属してかまいません。
                 <strong>先頭に選んだ家</strong>が配置のまとまりに使われます。
-                どれも選ばなければ、血のつながりから自動で判定します
-                {autoHouseName ? `（今は「${autoHouseName}」）` : ''}。
+                どれも選ばなければ、血のつながりから自動で判定します。
               </p>
               {houses.map((house) => (
                 <label key={house.id} className="field__radio">
@@ -356,17 +355,13 @@ export function PersonForm({
                     }
                   />
                   <span>{house.name}</span>
+                  {house.name === autoHouseName && <span className="note">（今ここ）</span>}
                   {(input.houseIds ?? [])[0] === house.id && <span className="badge">主</span>}
                 </label>
               ))}
             </>
           ) : (
-            <p className="note">
-              今は<strong>{autoHouseName ?? '血のつながりから自動で判定'}</strong>
-              に属しています。 手で決めたいときは「⋯ → 家の管理」でその家に
-              <strong>名前を付けて固定</strong>
-              すると、ここで選べるようになります。
-            </p>
+            <p className="note">まだ人物が居ないので、選べる家がありません。</p>
           )}
         </fieldset>
 

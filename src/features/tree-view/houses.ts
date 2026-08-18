@@ -259,6 +259,32 @@ export function orderHouses(graph: TreeGraph, assignment: Map<string, HouseAssig
   return order;
 }
 
+/** 所属として選べる家。まだ登録していない自動判定の家も選べる。 */
+export interface HouseChoice {
+  /** 登録済みなら `House.id`、自動判定なら `DetectedHouse.key` */
+  id: string;
+  name: string;
+  /** すでに登録されている家か。false なら選んだ時点で登録する */
+  registered: boolean;
+}
+
+/**
+ * 所属の選択肢。登録済みの家に、まだ登録していない自動判定の家を足す。
+ *
+ * 「先に名前を付けて固定してから所属を選ぶ」の二段構えにすると、何も登録して
+ * いないあいだは選ぶものが1つも無く行き止まりになる。自動の家もそのまま選べて、
+ * 選んだ時点で登録される、という形にするための一覧。
+ * 同じ名前の家がすでに登録されていれば、自動のほうは出さない（二重に見えるため）。
+ */
+export function houseChoices(graph: TreeGraph, houses: House[]): HouseChoice[] {
+  return [
+    ...houses.map((house) => ({ id: house.id, name: house.name, registered: true })),
+    ...detectHouses(graph)
+      .filter((group) => !houses.some((house) => house.name === group.name))
+      .map((group) => ({ id: group.key, name: group.name, registered: false })),
+  ];
+}
+
 /** 家ごとの人数。管理画面の一覧に出す。 */
 export function houseSizes(assignment: Map<string, HouseAssignment>): Map<string, number> {
   const sizes = new Map<string, number>();

@@ -12,7 +12,7 @@ import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { collapsedHouseTarget } from '@/features/tree-view/collapse';
 import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
-import { resolveHouses } from '@/features/tree-view/houses';
+import { detectHouses, houseChoices, resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget } from '@/features/tree-view/placeholders';
 import { FocusBar, type FocusState } from '@/features/tree-view/FocusBar';
 import { TreeCanvas, type CardAnchor } from '@/features/tree-view/TreeCanvas';
@@ -179,6 +179,30 @@ export function TreeDetailPage() {
     [settings.collapsedHouses],
   );
 
+  /**
+   * 選ばれた家のうち、まだ登録していないもの（自動判定のまま）をその場で登録する。
+   *
+   * 「家の管理で先に固定してから、編集画面で選ぶ」という順番を踏ませると、
+   * 手間が大きすぎて実質使えない。編集画面だけで所属を決められるようにする。
+   */
+  async function withRegisteredHouses(input: PersonInput): Promise<PersonInput> {
+    const detected = detectHouses(baseGraph);
+    const houseIds: string[] = [];
+
+    for (const id of input.houseIds) {
+      if (houses.some((house) => house.id === id)) {
+        houseIds.push(id);
+        continue;
+      }
+
+      const group = detected.find((house) => house.key === id);
+      // 見つからない指定（消えた家）は捨てる。自動判定に戻るだけで壊れない
+      if (group) houseIds.push(await api.createHouse(treeId, group.name, group.memberIds));
+    }
+
+    return { ...input, houseIds };
+  }
+
   /** その人の属する家を1枚に畳む。 */
   function collapseHouseOf(personId: string) {
     const houseId = resolveHouses(baseGraph, houses).get(personId)?.id;
@@ -330,7 +354,7 @@ export function TreeDetailPage() {
   }
 
   async function handleCreatePerson(input: PersonInput) {
-    const created = await api.createPerson(treeId, input);
+    const created = await api.createPerson(treeId, await withRegisteredHouses(input));
     await reload();
     setSelectedId(created.id);
     setDialog(null);
@@ -765,6 +789,7 @@ export function TreeDetailPage() {
             treeId={treeId}
             graph={baseGraph}
             houses={houses}
+            onRegisterHouses={withRegisteredHouses}
             canEdit={canEdit}
             settings={{ settings, updateSetting }}
             onClose={() => setDialog(null)}
@@ -788,6 +813,7 @@ function DialogContent({
   treeId,
   graph,
   houses,
+  onRegisterHouses,
   canEdit,
   settings,
   onClose,
@@ -803,6 +829,8 @@ function DialogContent({
   treeId: string;
   graph: TreeGraph;
   houses: House[];
+  /** 選ばれた家のうち、未登録のものを登録して ID に置き換える */
+  onRegisterHouses: (input: PersonInput) => Promise<PersonInput>;
   canEdit: boolean;
   settings: {
     settings: ReturnType<typeof useViewSettings>['settings'];
@@ -831,8 +859,10 @@ function DialogContent({
   const person =
     'personId' in dialog ? (graph.persons.find((p) => p.id === dialog.personId) ?? null) : null;
 
-  // 何も選んでいない人が「今どの家に居るのか」を編集画面と詳細に出す
+  // 何も選んでいない人が「今どの家に居るのか」を編集画面に出す
   const autoHouseName = person ? (resolveHouses(graph, houses).get(person.id)?.name ?? null) : null;
+  // 登録済みの家に、まだ登録していない自動判定の家を足したものが選択肢
+  const choices = houseChoices(graph, houses);
 
   if (dialog.kind === 'settings') {
     return (
@@ -852,7 +882,7 @@ function DialogContent({
       <PersonDialog title="人物を追加" onClose={onClose}>
         <PersonForm
           submitLabel="追加"
-          houses={houses}
+          houses={choices}
           onSubmit={onCreatePerson}
           onCancel={onClose}
         />
@@ -884,11 +914,11 @@ function DialogContent({
         <PersonForm
           initial={person}
           submitLabel="保存"
-          houses={houses}
+          houses={choices}
           autoHouseName={autoHouseName}
           derivedBirthOrder={deriveBirthOrder(graph, person.id)}
           onSubmit={async (input) => {
-            await api.updatePerson(treeId, person.id, input);
+            await api.updatePerson(treeId, person.id, await onRegisterHouses(input));
             await onChanged();
             onClose();
           }}
