@@ -88,6 +88,34 @@ describe('PersonForm', () => {
     expect(radio('男性').checked).toBe(false);
   });
 
+  it('属する家の欄は、登録された家が無くても出す', () => {
+    // 自動判定だけの段階でも「今どの家に居るのか」は見えていてほしい
+    renderForm({ initial: person(), autoHouseName: '寺原家' });
+
+    fireEvent.click(tab('文化的補足'));
+    expect(screen.getByText('属する家')).toBeTruthy();
+    expect(screen.getByText('寺原家')).toBeTruthy();
+  });
+
+  it('登録された家があれば、複数選べて先頭が主になる', () => {
+    renderForm({
+      initial: person(),
+      houses: [
+        { id: 'h1', name: '寺原家' },
+        { id: 'h2', name: '後藤家' },
+      ],
+    });
+
+    fireEvent.click(tab('文化的補足'));
+    fireEvent.click(screen.getByRole('checkbox', { name: /後藤家/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /寺原家/ }));
+
+    // 先に選んだ後藤家が主（先頭）
+    expect(screen.getByRole('checkbox', { name: /後藤家/ }).parentElement?.textContent).toContain(
+      '主',
+    );
+  });
+
   it('削除ボタンは、削除の手立てを渡されたときだけ出す', () => {
     const { unmount } = renderForm({ initial: person(), onDelete: vi.fn() });
     expect(screen.getByRole('button', { name: /この人物を削除する/ })).toBeTruthy();

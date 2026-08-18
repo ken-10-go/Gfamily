@@ -831,6 +831,9 @@ function DialogContent({
   const person =
     'personId' in dialog ? (graph.persons.find((p) => p.id === dialog.personId) ?? null) : null;
 
+  // 何も選んでいない人が「今どの家に居るのか」を編集画面と詳細に出す
+  const autoHouseName = person ? (resolveHouses(graph, houses).get(person.id)?.name ?? null) : null;
+
   if (dialog.kind === 'settings') {
     return (
       <PersonDialog title="表示設定" onClose={onClose}>
@@ -882,6 +885,7 @@ function DialogContent({
           initial={person}
           submitLabel="保存"
           houses={houses}
+          autoHouseName={autoHouseName}
           derivedBirthOrder={deriveBirthOrder(graph, person.id)}
           onSubmit={async (input) => {
             await api.updatePerson(treeId, person.id, input);

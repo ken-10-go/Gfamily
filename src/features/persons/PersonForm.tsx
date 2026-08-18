@@ -30,9 +30,14 @@ interface PersonFormProps {
   extraFields?: ReactNode;
   /**
    * 選べる家。手で登録した家だけが並ぶ（自動判定の家は登録されるまで選べない）。
-   * 空なら所属の欄そのものを出さない。
+   * 空でも欄は出す。「今どの家に居るのか」は登録の有無にかかわらず知りたいため。
    */
   houses?: House[];
+  /**
+   * 血のつながりから自動で判定した家の名前。何も選んでいないときはこれになる。
+   * 分からなければ省略してよい。
+   */
+  autoHouseName?: string | null;
   onSubmit: (input: PersonInput) => Promise<void>;
   onCancel: () => void;
   /**
@@ -61,6 +66,7 @@ export function PersonForm({
   derivedBirthOrder,
   extraFields,
   houses = [],
+  autoHouseName = null,
   onSubmit,
   onCancel,
   onDelete,
@@ -325,32 +331,44 @@ export function PersonForm({
         aria-labelledby={`${genderName}-tab-culture`}
         hidden={tab !== 'culture'}
       >
-        {houses.length > 0 && (
-          <fieldset className="field field--radios form__wide">
-            <legend className="field__label">属する家</legend>
+        <fieldset className="field field--radios form__wide">
+          <legend className="field__label">属する家</legend>
+          {houses.length > 0 ? (
+            <>
+              <p className="note">
+                生家と婚家のように、複数の家に属してかまいません。
+                <strong>先頭に選んだ家</strong>が配置のまとまりに使われます。
+                どれも選ばなければ、血のつながりから自動で判定します
+                {autoHouseName ? `（今は「${autoHouseName}」）` : ''}。
+              </p>
+              {houses.map((house) => (
+                <label key={house.id} className="field__radio">
+                  <input
+                    type="checkbox"
+                    checked={(input.houseIds ?? []).includes(house.id)}
+                    onChange={(event) =>
+                      update(
+                        'houseIds',
+                        event.target.checked
+                          ? [...(input.houseIds ?? []), house.id]
+                          : (input.houseIds ?? []).filter((id) => id !== house.id),
+                      )
+                    }
+                  />
+                  <span>{house.name}</span>
+                  {(input.houseIds ?? [])[0] === house.id && <span className="badge">主</span>}
+                </label>
+              ))}
+            </>
+          ) : (
             <p className="note">
-              生家と婚家のように、複数の家に属してかまいません。
-              先頭に選んだ家が配置のまとまりに使われます。
+              今は<strong>{autoHouseName ?? '血のつながりから自動で判定'}</strong>
+              に属しています。 手で決めたいときは「⋯ → 家の管理」でその家に
+              <strong>名前を付けて固定</strong>
+              すると、ここで選べるようになります。
             </p>
-            {houses.map((house) => (
-              <label key={house.id} className="field__radio">
-                <input
-                  type="checkbox"
-                  checked={(input.houseIds ?? []).includes(house.id)}
-                  onChange={(event) =>
-                    update(
-                      'houseIds',
-                      event.target.checked
-                        ? [...(input.houseIds ?? []), house.id]
-                        : (input.houseIds ?? []).filter((id) => id !== house.id),
-                    )
-                  }
-                />
-                <span>{house.name}</span>
-              </label>
-            ))}
-          </fieldset>
-        )}
+          )}
+        </fieldset>
 
         <label className="field">
           <span className="field__label">続柄</span>
