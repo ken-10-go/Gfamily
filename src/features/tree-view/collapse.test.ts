@@ -55,6 +55,7 @@ const sample: TreeGraph = {
   unions: [union('敏行', '順子')],
 };
 
+const metrics = cardMetrics(DEFAULT_VIEW_SETTINGS);
 const assignment = resolveHouses(sample);
 const teraharaId = assignment.get('順子')!.id;
 
@@ -107,14 +108,42 @@ describe('collapseHouses', () => {
     expect(toCard).toHaveLength(1);
   });
 
+  it('夫婦でもあり親子でもある線は落とす（段が延々と下がるのを防ぐ）', () => {
+    // 順子は後藤家へ嫁いでいる。後藤家を畳むと、順子は
+    // 「後藤家の配偶者」であると同時に「後藤家（の子）の親」になる。
+    const graph: TreeGraph = {
+      persons: [...sample.persons, person('理奈', '後藤')],
+      parentChild: [...sample.parentChild, link('敏行', '理奈'), link('順子', '理奈')],
+      unions: sample.unions,
+    };
+    const map = resolveHouses(graph);
+    const gotoId = map.get('敏行')!.id;
+
+    const collapsed = collapseHouses(graph, map, new Set([gotoId]));
+    const card = collapsedHouseId(gotoId);
+
+    // 親としての線は落とし、婚姻のほうを残す
+    expect(collapsed.parentChild.some((pc) => pc.parentId === '順子')).toBe(false);
+    expect(
+      collapsed.unions.some(
+        (u) =>
+          [u.partner1Id, u.partner2Id].includes('順子') &&
+          [u.partner1Id, u.partner2Id].includes(card),
+      ),
+    ).toBe(true);
+
+    // 「子は親より下」と「夫婦は同じ段」が食い違わないので、段は増えない
+    const layout = computeLayout(collapsed, metrics);
+    const rows = new Set(layout.nodes.map((node) => node.y));
+    expect(rows.size).toBeLessThanOrEqual(3);
+  });
+
   it('畳む家に誰も居なければ、そのまま返す', () => {
     expect(collapseHouses(sample, assignment, new Set(['存在しない家']))).toBe(sample);
   });
 });
 
 describe('畳んだ家を実際に配置する', () => {
-  const metrics = cardMetrics(DEFAULT_VIEW_SETTINGS);
-
   it('段が減り、つながりの相手はそのまま残る', () => {
     const before = computeLayout(sample, metrics);
     const after = computeLayout(collapseHouses(sample, assignment, new Set([teraharaId])), metrics);

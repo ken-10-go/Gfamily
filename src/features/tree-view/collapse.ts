@@ -70,31 +70,68 @@ export function collapseHouses(
     isLiving: true,
   }));
 
-  const parentChild: ParentChild[] = [];
-  const seenEdge = new Set<string>();
-  for (const pc of graph.parentChild) {
-    if (pc.deletedAt) continue;
-    const [parentId, childId] = [to(pc.parentId), to(pc.childId)];
-    // 家の中で閉じている線。畳んだら自分自身への線になるので落とす
-    if (parentId === childId) continue;
-
-    const key = `${parentId}>${childId}`;
-    if (seenEdge.has(key)) continue;
-    seenEdge.add(key);
-    parentChild.push({ ...pc, parentId, childId });
-  }
-
+  /*
+   * 婚姻を先に作る。親子の線を落とすかどうかの判断に使うため。
+   */
   const unions: Union[] = [];
   const seenUnion = new Set<string>();
+  const pairKey = (a: string, b: string) => [a, b].sort().join('&');
+
   for (const union of graph.unions) {
     if (union.deletedAt) continue;
     const [partner1Id, partner2Id] = [to(union.partner1Id), to(union.partner2Id)];
     if (partner1Id === partner2Id) continue;
 
-    const key = [partner1Id, partner2Id].sort().join('&');
+    const key = pairKey(partner1Id, partner2Id);
     if (seenUnion.has(key)) continue;
     seenUnion.add(key);
     unions.push({ ...union, partner1Id, partner2Id });
+  }
+
+  /*
+   * 親子の線をつなぎ替える。落とすものが3種類ある。
+   *
+   * ① 家の中で閉じた線（畳んだら自分自身への線になる）
+   * ② 畳んだ1枚と「夫婦でもあり親子でもある」線。
+   *    嫁いだ順子は後藤家の子の親だが、後藤家の一員（夫）の配偶者でもある。
+   *    畳むと「順子は後藤家の親」かつ「順子は後藤家の配偶者」になり、
+   *    「子は親より下」と「夫婦は同じ段」が食い違って、段が延々と下がる。
+   *    親としての線は畳んだ中に吸収されたと見て落とし、婚姻のほうを残す。
+   * ③ ②を落としてもまだ輪になる線。畳むと世代の上下が潰れるので、
+   *    親子をたどって元に戻る形になりうる。図として読めないので後から来たほうを落とす。
+   */
+  const parentChild: ParentChild[] = [];
+  const seenEdge = new Set<string>();
+  /** 親 → 子（つなぎ替えたあと）。輪になっていないかを見るのに使う */
+  const childrenOf = new Map<string, string[]>();
+
+  /** from から親子をたどって to に着けるか */
+  const reaches = (from: string, target: string): boolean => {
+    const stack = [from];
+    const seen = new Set<string>();
+    while (stack.length > 0) {
+      const id = stack.pop() as string;
+      if (id === target) return true;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      stack.push(...(childrenOf.get(id) ?? []));
+    }
+    return false;
+  };
+
+  for (const pc of graph.parentChild) {
+    if (pc.deletedAt) continue;
+    const [parentId, childId] = [to(pc.parentId), to(pc.childId)];
+    if (parentId === childId) continue;
+    if (seenUnion.has(pairKey(parentId, childId))) continue;
+
+    const key = `${parentId}>${childId}`;
+    if (seenEdge.has(key)) continue;
+    if (reaches(childId, parentId)) continue;
+
+    seenEdge.add(key);
+    childrenOf.set(parentId, [...(childrenOf.get(parentId) ?? []), childId]);
+    parentChild.push({ ...pc, parentId, childId });
   }
 
   return {
