@@ -90,13 +90,35 @@ export function HousesPage() {
     void run(() => api.deleteHouse(treeId, house.id), '解除できませんでした');
   }
 
-  /** その人の、ある家への所属を付け外しする。1人が複数の家に属してよい。 */
+  /**
+   * その人の、ある家への所属を付け外しする。1人が複数の家に属してよい。
+   *
+   * まだ登録されていない（自動判定のままの）家を選んだときは、その場で登録する。
+   * 「先に名前を付けて固定してから所属を選ぶ」という二段構えにすると、
+   * 何も登録していないあいだは選ぶものが1つも無く、行き止まりになるため。
+   */
   function handleToggle(person: Person, houseId: string, belongs: boolean) {
-    const next = belongs
-      ? [...person.houseIds, houseId]
-      : person.houseIds.filter((id) => id !== houseId);
+    if (!belongs) {
+      const next = person.houseIds.filter((id) => id !== houseId);
+      void run(() => api.setPersonHouses(treeId, [person.id], next), '所属を変えられませんでした');
+      return;
+    }
 
-    void run(() => api.setPersonHouses(treeId, [person.id], next), '所属を変えられませんでした');
+    void run(async () => {
+      if (houses.some((house) => house.id === houseId)) {
+        await api.setPersonHouses(treeId, [person.id], [...person.houseIds, houseId]);
+        return;
+      }
+
+      const group = detectHouses(graph).find((house) => house.key === houseId);
+      if (!group) throw new Error('家が見つかりませんでした');
+
+      // 顔ぶれごと固定するので、その一群に居る人はこれだけで所属が付く
+      const created = await api.createHouse(treeId, group.name, group.memberIds);
+      if (group.memberIds.includes(person.id)) return;
+
+      await api.setPersonHouses(treeId, [person.id], [...person.houseIds, created]);
+    }, '所属を変えられませんでした');
   }
 
   /** 主たる家（配置のまとまりに使う家）を先頭へ持ってくる。 */
@@ -114,6 +136,17 @@ export function HousesPage() {
   const assignment = resolveHouses(graph, houses);
   const detected = detectHouses(graph);
   const persons = [...graph.persons].sort(compareForDisplay);
+
+  /**
+   * 所属として選べる家。登録済みのものに、まだ登録していない自動判定の家を足す。
+   * 自動のほうを選んだら、その時点で登録される。
+   */
+  const choices: { id: string; name: string; auto: boolean }[] = [
+    ...houses.map((house) => ({ id: house.id, name: house.name, auto: false })),
+    ...detected
+      .filter((group) => !houses.some((house) => house.name === group.name))
+      .map((group) => ({ id: group.key, name: group.name, auto: true })),
+  ];
 
   const houseName = (houseId: string) =>
     houses.find((house) => house.id === houseId)?.name ?? '(不明な家)';
@@ -206,13 +239,14 @@ export function HousesPage() {
         </ul>
       )}
 
-      {canEdit && houses.length > 0 && (
+      {canEdit && (
         <>
           <h2>人物の所属</h2>
           <p className="note">
             1人が複数の家に属してかまいません（生家と婚家など）。
             <strong>先頭の「主たる家」</strong>だけが配置のまとまりに使われます。
             どれも選ばなければ、血のつながりから自動で判定します。
+            まだ登録していない家（自動）を選ぶと、その場で登録されます。
           </p>
 
           <ul className="card-list">
@@ -233,9 +267,12 @@ export function HousesPage() {
                 </div>
 
                 <div className="field field--radios">
-                  {houses.map((house) => {
+                  {choices.map((house) => {
                     const belongs = person.houseIds.includes(house.id);
                     const primary = person.houseIds[0] === house.id;
+                    // 何も選んでいない人は、自動で判定された家に居る
+                    const auto =
+                      person.houseIds.length === 0 && assignment.get(person.id)?.id === house.id;
 
                     return (
                       <span key={house.id} className="house-choice">
@@ -248,7 +285,11 @@ export function HousesPage() {
                               handleToggle(person, house.id, event.target.checked)
                             }
                           />
-                          <span>{house.name}</span>
+                          <span>
+                            {house.name}
+                            {house.auto && <span className="note">（未登録）</span>}
+                          </span>
+                          {auto && <span className="badge">自動</span>}
                         </label>
                         {belongs && !primary && (
                           <button
