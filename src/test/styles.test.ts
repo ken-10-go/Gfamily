@@ -79,7 +79,7 @@ describe('index.css', () => {
 
     const root = /^:root \{([\s\S]*?)\n\}/m.exec(css)?.[1] ?? '';
     const dark =
-      /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme\]\) \{([\s\S]*?)\n  \}/.exec(
+      /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme\]\) \{([\s\S]*?)\n {2}\}/.exec(
         css,
       )?.[1] ?? '';
 
