@@ -31,7 +31,11 @@ src/
 ├── lib/api.ts             データアクセス層。UIから直接 Firestore を触らない
 ├── types/models.ts        ドメイン型と表示用ラベル
 ├── features/
-│   ├── auth/              AuthProvider・ログイン・ルート保護
+│   ├── app/               画面下のタブ・ビルドの目印・畳める説明
+├── auth/              AuthProvider・ログイン・ルート保護
+├── home/              ホーム（家系図の入口と顔ぶれ）・丸アバター
+├── people/            家族（人物）の一覧
+├── settings/          設定（各管理画面への入口）
 │   ├── trees/             一覧・詳細（ツリービューとパネルの土台）
 │   ├── persons/           人物フォームと詳細パネル
 │   ├── tree-view/         レイアウト計算・SVG描画・パン/ズーム・開発用デモ
@@ -51,6 +55,18 @@ npm run dev
 変更後は `npm run typecheck && npm run lint && npm test` を通すこと。
 ルールを触ったら `npm run test:rules` も必ず走らせる（Java が必要）。
 Firebase なしで描画を見たいときは `/demo`（DEV ビルドのみ）。
+
+## 画面の作り（Claude Design「1a ぬくもりの木漏れ日」）
+
+`specs/g-family-app-mockup-designs/` のモックが元。**行き先は画面下のタブに集める**
+（ホーム・家族・＋・家系図・設定）。親指の届く下半分に操作を置くため。
+タブは `<Routes>` の外に出しているので `useParams` では家系図IDを拾えない。
+URL から直接読み、無ければ直前に開いたもの（`lastTree.ts`）へ送る。
+他の画面からの指示は URL で渡す（`?add=person` / `?person=<id>`）。使ったら消す。
+
+配色は CSS 変数で持つ（クリーム `--bg` ／ テラコッタ `--accent` ／ セージ `--sage`）。
+角丸と影も変数（`--radius*` / `--shadow-*`）。見出しは `--font-display`（Fraunces）で、
+仮名を持たないので日本語は端末のフォントに落ちる。
 
 ## 仕様書と実装の名前の対応
 

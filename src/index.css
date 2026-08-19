@@ -1,21 +1,45 @@
 :root {
-  --bg: #ffffff;
-  --surface: #f6f7f9;
-  --border: #d9dde3;
-  --fg: #1a1a1a;
-  --muted: #5c6370;
-  --accent: #2f6f4f;
+  /*
+   * 配色は Claude Design のモック「1a ぬくもりの木漏れ日」から。
+   * クリームの地に、テラコッタ（要所）とセージ（生存の印）。
+   * 文字は真っ黒を避けた煤色で、紙の上の墨のように見せる。
+   */
+  --bg: #fbf4e8;
+  --bg-deep: #f6ecdb;
+  --surface: #ffffff;
+  --surface-alt: #f6ecdb;
+  --border: #ece0cc;
+  --fg: #3d3226;
+  --muted: #9a8f7d;
+  --accent: #c97b4a;
   --accent-fg: #ffffff;
-  --danger: #a8352c;
-  --link: #1f5fa8;
-  --male: #e8f0fa;
+  --accent-soft: #f6e5d8;
+  --sage: #a3b98a;
+  --sage-soft: #dfe6cc;
+  --sand: #e8d9b5;
+  --danger: #b0463a;
+  --link: #a6714f;
+  --male: #eef2f6;
   --female: #fbeef2;
-  --neutral: #f2f2f0;
-  --deceased: #9aa0aa;
-  /* 故人カードの背景。性別の色より優先して塗る */
-  --deceased-bg: #f5f5f5;
-  /* 直系をたどる線と枠の色 */
-  --lineage: #c5a059;
+  --neutral: #f7f2e8;
+  --deceased: #a49a8a;
+  --deceased-bg: #f3efe7;
+  --lineage: #c9a04a;
+
+  /* 角の丸み。モックは「カード20px・行16px・小物12px」で組まれている */
+  --radius-sm: 12px;
+  --radius: 16px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* 影。濃い黒ではなく、地の色に馴染む茶を薄く敷く */
+  --shadow-row: 0 6px 16px -10px rgb(61 50 38 / 20%);
+  --shadow-card: 0 10px 30px -14px rgb(61 50 38 / 25%);
+  --shadow-float: 0 8px 16px -4px rgb(201 123 74 / 50%);
+
+  /* 見出しは Fraunces。仮名を持たないので、日本語は端末のフォントへ落ちる */
+  --font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+
   /* 指で狙える最小の的（44px）。ボタンと入力欄の高さの下限に使う（仕様書 6.1） */
   --tap: 2.75rem;
 
@@ -27,6 +51,7 @@
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   font-family:
+    'Nunito',
     system-ui,
     -apple-system,
     'Hiragino Sans',
@@ -76,25 +101,8 @@ svg text {
  * カードの色は「故人 > 性別」の順で上書きされる（故人であることを優先して示す）。
  * ------------------------------------------------------------------------ */
 
-/* 和風モダン：折本や和装本の生成り色に、金煤竹の枠線 */
+/* ぬくもりの木漏れ日：クリーム×テラコッタ×セージ。既定と同じ（デザイン 1a） */
 :root[data-theme='washi'] {
-  --bg: #faf9f6;
-  --surface: #f3f1ea;
-  --border: #bdc3c7;
-  --fg: #2c3e50;
-  --muted: #7f8c8d;
-  --accent: #c5a059;
-  --accent-fg: #ffffff;
-  --danger: #a8352c;
-  --link: #1f5fa8;
-  --male: #edf1f5;
-  --female: #f8eef0;
-  --neutral: #faf9f6;
-  --deceased: #9aa0aa;
-  --deceased-bg: #f5f5f5;
-  --lineage: #c5a059;
-  /* 指で狙える最小の的（44px）。ボタンと入力欄の高さの下限に使う（仕様書 6.1） */
-  --tap: 2.75rem;
   color-scheme: light;
 }
 
@@ -1367,6 +1375,293 @@ input[type='radio'] {
   fill: var(--muted);
   font-size: 12px;
   letter-spacing: normal;
+}
+
+/* --- 画面下のタブ ---------------------------------------------------------
+ * 親指の届く下半分に行き先を集める（モバイルデザイン仕様 4.2）。
+ * ------------------------------------------------------------------------ */
+
+.tabbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0.5rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.tabbar__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tabbar__tab--active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* 中央の丸。よく使う「人物を追加」を、いちばん押しやすい場所に浮かせる */
+.tabbar__add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  margin-top: -1.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--shadow-float);
+}
+
+.tabbar__add:active {
+  transform: scale(0.95);
+}
+
+/* --- ホーム・家族・設定 ---------------------------------------------------- */
+
+.home {
+  flex: 1;
+  width: min(34rem, 100%);
+  margin: 0 auto;
+  padding: 1rem 1.15rem 1.5rem;
+}
+
+.home__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.home__greeting {
+  margin: 0 0 0.15rem;
+  color: var(--link);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.95rem;
+}
+
+.home__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* 自分を表す丸。右上に置いて、どのアカウントで見ているかの目印にする */
+.home__me {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+
+/* 家系図への入口。中身の顔ぶれを覗かせて、開く気にさせる */
+.home__preview {
+  display: block;
+  padding: 0.9rem 1.15rem 1rem;
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  color: inherit;
+  text-decoration: none;
+}
+
+.home__faces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+}
+
+.home__open {
+  display: block;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.home__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.home__section {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.home__more {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.home__search {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-radius: var(--radius-pill);
+}
+
+.home__create {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.home__signout {
+  margin-top: 1rem;
+}
+
+/* 人物の行。アバター・名前・状態の3つだけに絞る */
+.person-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--tap);
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-row);
+  color: inherit;
+  text-decoration: none;
+}
+
+.person-row:active {
+  transform: scale(0.99);
+}
+
+.person-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.person-row__kana,
+.person-row__name,
+.person-row__meta {
+  display: block;
+}
+
+.person-row__kana {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.person-row__name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.person-row__meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* 存命の印。故人は色を落として、丸そのものは残す（行の高さをそろえるため） */
+.person-row__dot {
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--sage);
+}
+
+.person-row__dot.is-gone {
+  background: var(--deceased);
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: var(--radius-pill);
+  color: #fff;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 設定の行。名前・説明・矢印 */
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menu-list__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.1rem 0.75rem;
+  min-height: var(--tap);
+  padding: 0.6rem 0.9rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-row);
+  color: inherit;
+  text-decoration: none;
+}
+
+.menu-list__title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.menu-list__note {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.menu-list__arrow {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 1.4rem;
 }
 
 /* --- モーダル -------------------------------------------------------------- */

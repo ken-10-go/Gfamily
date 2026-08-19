@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { PassphrasePanel } from '@/features/e2ee/PassphrasePanel';
 import { TreeKeyProvider } from '@/features/e2ee/TreeKeyProvider';
@@ -11,6 +11,7 @@ import { GenerationDialog } from '@/features/persons/GenerationDialog';
 import { PersonForm } from '@/features/persons/PersonForm';
 import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
+import { rememberTree } from '@/features/app/lastTree';
 import { collapsedHouseTarget } from '@/features/tree-view/collapse';
 import { generationShiftApplies, generationsOf } from '@/features/tree-view/layout';
 import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
@@ -62,6 +63,7 @@ const CONNECT_LABELS: Record<ConnectionKind, string> = {
 
 export function TreeDetailPage() {
   const { treeId = '' } = useParams();
+  const [params, setParams] = useSearchParams();
   const [tree, setTree] = useState<Tree | null>(null);
   const [role, setRole] = useState<TreeRole | null>(null);
   const [graph, setGraph] = useState<TreeGraph>(EMPTY_GRAPH);
@@ -114,6 +116,33 @@ export function TreeDetailPage() {
     setLoading(true);
     void reload();
   }, [reload]);
+
+  // 下のタブは「いま開いている家系図」に対して働く。どれを見ていたかを覚えておく
+  useEffect(() => {
+    rememberTree(treeId);
+  }, [treeId]);
+
+  /*
+   * 他の画面からの指示を URL で受け取る。
+   *   ?add=person   … タブの「＋」から。人物を追加する画面を開く
+   *   ?person=<id>  … 家族の一覧から。その人の詳細を開いて中央に寄せる
+   * 一度使ったら URL からは消す（読み込み直すたびに開き直さないように）。
+   */
+  useEffect(() => {
+    if (params.get('add') === 'person') {
+      setDialog({ kind: 'add-person' });
+      setParams({}, { replace: true });
+      return;
+    }
+
+    const personId = params.get('person');
+    if (personId) {
+      setSelectedId(personId);
+      setDialog({ kind: 'detail', personId });
+      setCenterRequest(personId);
+      setParams({}, { replace: true });
+    }
+  }, [params, setParams]);
 
   // 合同表示に切り替えたときだけ、相手の家を読みに行く
   useEffect(() => {

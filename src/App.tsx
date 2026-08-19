@@ -1,4 +1,4 @@
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes, useLocation } from 'react-router-dom';
 
 import { VersionBadge } from '@/features/app/VersionBadge';
 import { BridgesPage } from '@/features/bridges/BridgesPage';
@@ -10,8 +10,11 @@ import { HistoryPage } from '@/features/history/HistoryPage';
 import { AcceptInvitePage } from '@/features/members/AcceptInvitePage';
 import { MembersPage } from '@/features/members/MembersPage';
 import { DemoPage } from '@/features/tree-view/DemoPage';
+import { TabBar } from '@/features/app/TabBar';
+import { HomePage } from '@/features/home/HomePage';
+import { PeoplePage } from '@/features/people/PeoplePage';
+import { SettingsPage } from '@/features/settings/SettingsPage';
 import { TreeDetailPage } from '@/features/trees/TreeDetailPage';
-import { TreeListPage } from '@/features/trees/TreeListPage';
 
 export default function App() {
   return (
@@ -24,7 +27,7 @@ export default function App() {
           path="/"
           element={
             <RequireAuth>
-              <TreeListPage />
+              <HomePage />
             </RequireAuth>
           }
         />
@@ -33,6 +36,22 @@ export default function App() {
           element={
             <RequireAuth>
               <TreeDetailPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/trees/:treeId/people"
+          element={
+            <RequireAuth>
+              <PeoplePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/trees/:treeId/settings"
+          element={
+            <RequireAuth>
+              <SettingsPage />
             </RequireAuth>
           }
         />
@@ -72,31 +91,39 @@ export default function App() {
         {import.meta.env.DEV && <Route path="/demo" element={<DemoPage />} />}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <TabBarSlot />
     </div>
   );
 }
 
-function AppHeader() {
-  const { user, signOut } = useAuth();
+/**
+ * 画面下のタブを出す場所。
+ *
+ * ログインと招待の受諾では出さない。まだどの家系図にも属していないので、
+ * 行き先が無いタブが並ぶだけになる。
+ */
+function TabBarSlot() {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  const hidden = pathname === '/login' || pathname.startsWith('/invite');
 
+  if (!user || hidden) return null;
+  return <TabBar />;
+}
+
+/**
+ * 画面いちばん上の細い帯。
+ *
+ * 行き先は下のタブに集めたので、ここには名前と、開いているビルドの目印だけを置く。
+ * ログアウトは設定へ移した（毎画面で押せる必要はなく、誤って押すほうが困る）。
+ */
+function AppHeader() {
   return (
     <header className="app__header">
       <Link to="/" className="app__brand">
-        家系図
+        絆ツリー
       </Link>
-      <div className="app__account">
-        {user && (
-          <>
-            {/* 狭い画面ではメールアドレスを畳む。横幅を取るわりに常時は要らない */}
-            <span className="app__email hide-narrow">{user.email}</span>
-            <button type="button" className="button" onClick={() => void signOut()}>
-              ログアウト
-            </button>
-          </>
-        )}
-        {/* どの画面でも右上に出す。開いているビルドを確かめるための目印 */}
-        <VersionBadge />
-      </div>
+      <VersionBadge />
     </header>
   );
 }
