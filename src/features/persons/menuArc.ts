@@ -1,5 +1,5 @@
 /** 弧の半径（ピクセル）。カードに重ならず、指が届く範囲。 */
-export const ARC_RADIUS = 112;
+export const ARC_RADIUS = 128;
 
 /** 弧が覆う角度。真横を 0 として上下に振り分ける。 */
 const ARC_SPREAD = (150 * Math.PI) / 180;
