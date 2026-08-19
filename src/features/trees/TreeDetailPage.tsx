@@ -11,6 +11,7 @@ import { PersonForm } from '@/features/persons/PersonForm';
 import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { collapsedHouseTarget } from '@/features/tree-view/collapse';
+import { generationShiftApplies } from '@/features/tree-view/layout';
 import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
 import { houseChoices, NEW_HOUSE_PREFIX, resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget } from '@/features/tree-view/placeholders';
@@ -507,15 +508,26 @@ export function TreeDetailPage() {
   /**
    * 段（世代の行）を手で上下させる。`absolute` なら自動に戻す。
    *
-   * 動かすのは本人だけ。配偶者は「夫婦は同じ段」の規則で結果的について来る。
-   * 親が子より下に来る指定はレイアウト側で無効になるので、ここでは止めない
-   * （保存しても図が壊れず、戻せば元どおりになる）。
+   * 動かすのは本人だけ。配偶者は連れて動く。
+   *
+   * 親が子より下に来る指定はレイアウト側で無効になる。保存だけできてしまうと
+   * 「押しても動かない」ようにしか見えず、効くまで押し続けることになるので、
+   * 効かない指定はここで止めて理由を出す。
    */
   async function handleShiftGeneration(personId: string, delta: number, absolute = false) {
     const person = personOf(personId);
     if (!person) return;
 
     const next = absolute ? 0 : (person.generationShift ?? 0) + delta;
+
+    if (!generationShiftApplies(baseGraph, personId, next)) {
+      setError(
+        delta < 0
+          ? 'これ以上は上げられません（親と同じ段か、それより上になってしまいます）'
+          : 'これ以上は下げられません（子と同じ段か、それより下になってしまいます）',
+      );
+      return;
+    }
 
     try {
       await api.setGenerationShift(treeId, personId, next);

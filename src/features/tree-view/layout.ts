@@ -667,6 +667,22 @@ function computeGenerations(
   parentChild: ParentChild[],
   unions: Union[],
 ): Map<string, number> {
+  return normalize(
+    applyGenerationShifts(
+      relaxGenerations(persons, parentChild, unions),
+      persons,
+      parentChild,
+      unions,
+    ),
+  );
+}
+
+/** 自動で決まる段。手の指定は含まない（`applyGenerationShifts` が後から当てる）。 */
+function relaxGenerations(
+  persons: Person[],
+  parentChild: ParentChild[],
+  unions: Union[],
+): Map<string, number> {
   const generations = new Map(persons.map((p) => [p.id, 0]));
   const maxIterations = persons.length + 2;
 
@@ -708,7 +724,7 @@ function computeGenerations(
     if (!changed) break;
   }
 
-  return normalize(applyGenerationShifts(generations, persons, parentChild, unions));
+  return generations;
 }
 
 /**
@@ -732,49 +748,97 @@ function normalize(generations: Map<string, number>): Map<string, number> {
  *
  * 指示するのは本人だけでよい。**配偶者は連れて動く**。
  * 夫婦が別の段に離れると線が斜めに走って図が読めなくなるので、
- * 片方だけを指定したときは、指定していないほうを同じ段へ寄せる。
+ * 指定していないほうの配偶者は同じだけずらす。
  *
  * ただし **親が子と同じ段か、それより下に来る指定は無効にする**。
  * 上下が入れ替わると、親子の線が逆向きに引かれて図として読めなくなるため。
- * 無効にするのはその指定だけで、他の人の指定は生かす。
+ *
+ * ⚠ 無効にするときは、**その指定を丸ごと捨てる**（本人も、連れて動いた配偶者も戻す）。
+ * 以前は壊れた親子の線の両端だけを元に戻していたので、連れて動いた配偶者が
+ * 動いたまま取り残され、夫婦が別の段に離れてしまっていた。
+ * しかも押すたびに離れていくので、効かないと思って押すほど差が開いた。
+ *
+ * 順に1人ずつ当てていき、壊す指定だけを飛ばす。他の人の指定は生かす。
+ * 当てる順は ID 順に固定して、同じ入力からは必ず同じ結果になるようにする。
  */
 function applyGenerationShifts(
   generations: Map<string, number>,
   persons: Person[],
   parentChild: ParentChild[],
   unions: Union[],
+  /** 実際に効いた指定の持ち主。無効になったものは入らない */
+  applied?: Set<string>,
 ): Map<string, number> {
-  const shifted = new Map(generations);
-  const moved = new Set<string>();
+  const shifts = new Map(
+    persons
+      .filter((person) => (person.generationShift ?? 0) !== 0)
+      .map((person) => [person.id, person.generationShift as number]),
+  );
+  if (shifts.size === 0) return generations;
 
-  for (const person of persons) {
-    const shift = person.generationShift ?? 0;
-    if (shift === 0) continue;
-
-    shifted.set(person.id, (generations.get(person.id) ?? 0) + shift);
-    moved.add(person.id);
-  }
-
-  if (moved.size === 0) return generations;
-
-  // 指定していないほうの配偶者を、指定したほうの段へ寄せる
+  /** 配偶者。指定のない相手は連れて動く */
+  const spousesOf = new Map<string, string[]>();
   for (const union of unions) {
+    if (union.deletedAt) continue;
     const [a, b] = [union.partner1Id, union.partner2Id];
-    if (moved.has(a) === moved.has(b)) continue;
-
-    const [from, to] = moved.has(a) ? [a, b] : [b, a];
-    shifted.set(to, shifted.get(from) ?? 0);
+    spousesOf.set(a, [...(spousesOf.get(a) ?? []), b]);
+    spousesOf.set(b, [...(spousesOf.get(b) ?? []), a]);
   }
 
-  // 親子の上下が壊れる指定だけを、元の段へ戻す
-  for (const pc of parentChild) {
-    if ((shifted.get(pc.parentId) ?? 0) < (shifted.get(pc.childId) ?? 0)) continue;
+  /** 親子の上下が保たれているか */
+  const sound = (levels: Map<string, number>) =>
+    parentChild.every(
+      (pc) => pc.deletedAt || (levels.get(pc.parentId) ?? 0) < (levels.get(pc.childId) ?? 0),
+    );
 
-    shifted.set(pc.parentId, generations.get(pc.parentId) ?? 0);
-    shifted.set(pc.childId, generations.get(pc.childId) ?? 0);
+  let current = generations;
+
+  for (const [personId, shift] of [...shifts].sort(([a], [b]) => a.localeCompare(b))) {
+    const next = new Map(current);
+    // 本人と、自分では指定していない配偶者を、同じだけずらす
+    const together = [personId, ...(spousesOf.get(personId) ?? []).filter((id) => !shifts.has(id))];
+    for (const id of together) next.set(id, (current.get(id) ?? 0) + shift);
+
+    if (!sound(next)) continue;
+
+    current = next;
+    applied?.add(personId);
   }
 
-  return shifted;
+  return current;
+}
+
+/**
+ * その段の指定が実際に効くかどうか。
+ *
+ * 親子の上下が入れ替わる指定は無効になる（`applyGenerationShifts`）。
+ * 無効になったことを画面から知らせるために、保存する前に確かめる。
+ * これが無いと「押しても動かない」ようにしか見えず、何度も押すことになる。
+ */
+export function generationShiftApplies(graph: TreeGraph, personId: string, shift: number): boolean {
+  if (shift === 0) return true;
+
+  const persons = graph.persons
+    .filter((person) => !person.deletedAt)
+    .map((person) => (person.id === personId ? { ...person, generationShift: shift } : person));
+  const alive = new Set(persons.map((person) => person.id));
+  const parentChild = graph.parentChild.filter(
+    (pc) => !pc.deletedAt && alive.has(pc.parentId) && alive.has(pc.childId),
+  );
+  const unions = graph.unions.filter(
+    (u) => !u.deletedAt && alive.has(u.partner1Id) && alive.has(u.partner2Id),
+  );
+
+  const applied = new Set<string>();
+  applyGenerationShifts(
+    relaxGenerations(persons, parentChild, unions),
+    persons,
+    parentChild,
+    unions,
+    applied,
+  );
+
+  return applied.has(personId);
 }
 
 /**

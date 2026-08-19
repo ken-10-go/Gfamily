@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   computeLayout,
+  generationShiftApplies,
   NODE_HEIGHT,
   NODE_WIDTH,
   V_GAP,
@@ -548,6 +549,55 @@ describe('computeLayout', () => {
 
     expect(nodeOf(layout, '親').generation).toBe(0);
     expect(nodeOf(layout, '無関係').generation).toBe(2);
+  });
+
+  it('無効になる指定でも、夫婦が別の段に置き去りにされない', () => {
+    /*
+     * 報告のあった不具合。嫁いだ美帆を上の段へ動かそうとすると、
+     * 親と同じ段になるので指定は無効になる。ところが「連れて動く」はずの
+     * 配偶者だけが動いたまま残り、夫婦の線が斜めに長く伸びていた。
+     * 押すたびに離れていくので、何度も押して差が開く。
+     */
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('和博'),
+          person('しのぶ'),
+          person('美帆', { generationShift: -1 }),
+          person('達郎'),
+        ],
+        parentChild: [link('和博', '美帆'), link('しのぶ', '美帆')],
+        unions: [union('和博', 'しのぶ'), union('美帆', '達郎')],
+      }),
+    );
+
+    expect(nodeOf(layout, '美帆').generation).toBe(nodeOf(layout, '達郎').generation);
+    // 指定そのものが無効なので、自動のときと同じ段に戻る
+    expect(nodeOf(layout, '美帆').generation).toBe(1);
+  });
+
+  it('段をずらすと、指定していない配偶者も同じ段について来る', () => {
+    const layout = computeLayout(
+      graph({
+        persons: [person('夫', { generationShift: 2 }), person('妻')],
+        unions: [union('夫', '妻')],
+      }),
+    );
+
+    expect(nodeOf(layout, '夫').generation).toBe(nodeOf(layout, '妻').generation);
+  });
+
+  it('効かない指定は、保存する前に見分けられる', () => {
+    const tree = graph({
+      persons: [person('親'), person('子')],
+      parentChild: [link('親', '子')],
+    });
+
+    // 親を1段下げると子と同じ段になるので効かない。上げるぶんには効く
+    expect(generationShiftApplies(tree, '親', 1)).toBe(false);
+    expect(generationShiftApplies(tree, '親', -1)).toBe(true);
+    // 自動に戻す（0）はいつでも通す
+    expect(generationShiftApplies(tree, '親', 0)).toBe(true);
   });
 
   it('3世代を正しい深さに配置する', () => {
