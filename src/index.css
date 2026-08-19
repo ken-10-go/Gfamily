@@ -224,10 +224,18 @@ code {
   min-height: 100dvh;
 }
 
-/* 狭い画面では畳む要素 */
-@media (max-width: 40rem) {
+/*
+ * 広い画面でだけ出す要素。
+ * スマホ（375px）を出発点にして、幅が取れたら足していく（仕様書 1.1）。
+ * PC 向けを書いてから打ち消すのではなく、足りる幅になってから出す。
+ */
+.hide-narrow {
+  display: none;
+}
+
+@media (min-width: 40rem) {
   .hide-narrow {
-    display: none;
+    display: revert;
   }
 }
 
@@ -236,7 +244,7 @@ code {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.6rem 1.25rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
@@ -276,7 +284,7 @@ code {
   width: 100%;
   max-width: 60rem;
   margin: 0 auto;
-  padding: 1.25rem 1.15rem 2rem;
+  padding: 1rem 0.9rem 2rem;
 }
 
 .page--narrow {
@@ -399,10 +407,14 @@ code {
   white-space: nowrap;
 }
 
-/* ヘッダーが詰まる幅では権限のバッジまで出さない */
-@media (max-width: 30rem) {
+/* 権限のバッジは、ヘッダーに余裕のある幅でだけ出す */
+.badge--wide {
+  display: none;
+}
+
+@media (min-width: 30rem) {
   .badge--wide {
-    display: none;
+    display: revert;
   }
 }
 
@@ -448,12 +460,17 @@ code {
 
 .form__row {
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
+/*
+ * 横並びの flex-basis は、縦並びだと「高さ」として効いて間が空いてしまう。
+ * 縦のあいだは内容なりの高さにして、横に並べる幅になってから基準を与える。
+ */
 .form__row > .field {
-  flex: 1 1 8rem;
+  flex: 0 0 auto;
 }
 
 .form__actions {
@@ -467,7 +484,8 @@ code {
  */
 .form > [role='tabpanel'] {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  /* 狭い画面では1列。幅が取れたら2列に割る */
+  grid-template-columns: 1fr;
   align-items: start;
   gap: 0.55rem 0.75rem;
 }
@@ -882,6 +900,8 @@ input[type='radio'] {
 
 .tree-page__body {
   display: flex;
+  /* 狭い画面では、家系図の下に人物のパネルを積む */
+  flex-direction: column;
   flex: 1;
   min-height: 0;
 }
@@ -939,7 +959,7 @@ input[type='radio'] {
   position: relative;
   flex: 1;
   min-width: 0;
-  min-height: 20rem;
+  min-height: 0;
   /* 白いカードを浮かせるので、地はクリームの薄いグラデーション（デザイン 1a） */
   background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
 }
@@ -1216,7 +1236,7 @@ input[type='radio'] {
 .person-menu {
   position: fixed;
   z-index: 50;
-  min-width: 13rem;
+  min-width: 12rem;
   padding: 0.3rem;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -1235,7 +1255,7 @@ input[type='radio'] {
   align-items: center;
   width: 100%;
   min-height: var(--tap);
-  padding: 0.45rem 0.6rem;
+  padding: 0.65rem 0.7rem;
   border: 0;
   border-radius: 5px;
   background: none;
@@ -1711,11 +1731,14 @@ input[type='radio'] {
 .dialog {
   /* せり上がりをGPUに任せる。スマホでは transform の合成でないとカクつく（仕様 3.5） */
   will-change: transform;
-  width: min(32rem, calc(100vw - 2rem));
-  max-height: calc(100vh - 4rem);
+  /* 既定は下から出るシート。指の届く位置に寄せる（仕様書 4.2） */
+  width: 100%;
+  max-width: none;
+  max-height: 88dvh;
+  margin: auto auto 0;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--bg);
   color: var(--fg);
   box-shadow: var(--shadow-card);
@@ -1743,7 +1766,7 @@ input[type='radio'] {
 .dialog__body {
   padding: 0.5rem 1rem 1.25rem;
   overflow-y: auto;
-  max-height: calc(100vh - 9rem);
+  max-height: calc(88dvh - 3.5rem);
 }
 
 /* --- 表示設定 -------------------------------------------------------------- */
@@ -1875,7 +1898,7 @@ input[type='radio'] {
   flex-direction: column;
   gap: 0.1rem;
   width: 100%;
-  padding: 0.5rem 0.7rem;
+  padding: 0.65rem 0.7rem;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: none;
@@ -1924,11 +1947,11 @@ input[type='radio'] {
 /* --- 詳細パネル ----------------------------------------------------------- */
 
 .panel {
-  width: 22rem;
+  width: 100%;
   flex-shrink: 0;
   padding: 1rem 1.25rem 3rem;
   background: var(--surface);
-  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   overflow-y: auto;
 }
 
@@ -1975,79 +1998,65 @@ input[type='radio'] {
   margin-top: 1.5rem;
 }
 
-/* --- 狭い画面 ------------------------------------------------------------- */
+/* --- 幅が取れたときに足す（タブレット・PC）--------------------------------- */
 
-@media (max-width: 48rem) {
+@media (min-width: 48rem) {
   .tree-page__body {
-    flex-direction: column;
+    flex-direction: row;
   }
 
+  /* 人物のパネルは、家系図の右に並べる */
   .panel {
-    width: 100%;
-    border-left: 0;
-    border-top: 1px solid var(--border);
+    width: 22rem;
+    border-top: 0;
+    border-left: 1px solid var(--border);
   }
 
-  /* 家系図はヘッダー以外の全部を使う。min-height を残すと画面からはみ出す */
   .tree-canvas {
-    min-height: 0;
+    min-height: 20rem;
   }
 
   .app__header {
-    padding: 0.5rem 0.75rem;
+    padding: 0.6rem 1.25rem;
   }
 
   .page {
-    padding: 1rem 0.9rem 3rem;
+    padding: 1.25rem 1.15rem 2rem;
   }
 
-  /* モーダルは下から出るシート状にして、指の届く位置に寄せる */
+  /* 下から出すシートをやめ、画面の中央に置く */
   .dialog {
-    width: 100%;
-    max-width: none;
-    max-height: 88dvh;
-    margin: auto auto 0;
-    border-radius: 12px 12px 0 0;
-    border-bottom: 0;
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 4rem);
+    margin: auto;
+    border-radius: var(--radius-lg);
   }
 
   .dialog__body {
-    max-height: calc(88dvh - 3.5rem);
+    max-height: calc(100vh - 9rem);
   }
 
   .person-menu {
-    min-width: 12rem;
+    min-width: 13rem;
   }
 
   .person-menu__item,
   .picker__item {
-    padding: 0.65rem 0.7rem;
+    padding: 0.45rem 0.6rem;
   }
 
-  /* 狭い画面では2列に割らない。1列ぶんが狭すぎて、かえって読みにくくなる */
+  /* 入力の項目を2列に割る。縦に長い一枚ものだと、下の項目までスクロールが要る */
   .form > [role='tabpanel'] {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   }
 
   .form__row {
-    flex-direction: column;
-    gap: 0.5rem;
+    flex-direction: row;
+    gap: 0.75rem;
   }
 
-  /*
-   * 横並び用の flex-basis: 8rem は、縦並びにすると「高さ」として効いてしまい、
-   * 項目の間が極端に空く。縦のときは内容なりの高さに戻す。
-   */
   .form__row > .field {
-    flex: 0 0 auto;
-  }
-
-  .date-input__row {
-    gap: 0.2rem;
-  }
-
-  .date-input__year {
-    width: 4.5rem;
+    flex: 1 1 8rem;
   }
 }
 

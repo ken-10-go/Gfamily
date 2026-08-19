@@ -69,6 +69,12 @@ describe('index.css', () => {
     expect(css).toMatch(/--tap:\s*2\.75rem;/);
   });
 
+  it('スマホを出発点にして、幅が取れたら足す（モバイルファースト）', () => {
+    // PC 向けに書いてから狭い画面で打ち消す形にすると、打ち消し漏れが積もる
+    expect(css).not.toMatch(/@media \(max-width/);
+    expect(css).toMatch(/@media \(min-width/);
+  });
+
   it('暗所でも、配色の変数が出そろっている', () => {
     /*
      * 変数を足したときに暗所ぶんを書き忘れると、そこだけ明るい既定が残る
