@@ -1,5 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
+import { useScrollLock } from '@/features/app/useScrollLock';
+
 interface PersonDialogProps {
   title: string;
   onClose: () => void;
@@ -12,9 +14,11 @@ interface PersonDialogProps {
  * ネイティブの <dialog> を使う。フォーカスの閉じ込め、Esc で閉じる、
  * 背面の操作を止める、といった挙動がブラウザ側で用意されているため、
  * 自前で組むより取りこぼしが少ない。
+ * ただし背面の**スクロール**までは止まらないので、そこは自前で押さえる。
  */
 export function PersonDialog({ title, onClose, children }: PersonDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  useScrollLock();
 
   useEffect(() => {
     const dialog = ref.current;
