@@ -75,27 +75,13 @@ describe('index.css', () => {
     expect(css).toMatch(/@media \(min-width/);
   });
 
-  it('暗所でも、配色の変数が出そろっている', () => {
+  it('端末の暗所設定では配色を変えない', () => {
     /*
-     * 変数を足したときに暗所ぶんを書き忘れると、そこだけ明るい既定が残る
-     * （実際、クリーム地のまま暗所に出ていた）。同じ要素への上書きなので、
+     * 暗所ぶんを別に持つと、変数を足すたびに書き忘れが起きる（実際、
+     * クリームの地が暗所にそのまま出ていた）。同じ要素への上書きなので、
      * 定義が無い＝明るいまま、という形で静かに壊れる。
+     * どの端末でも同じ配色で出す、と決めた。
      */
-    const names = (block: string) => new Set([...block.matchAll(/(--[\w-]+):/g)].map((m) => m[1]));
-
-    const root = /^:root \{([\s\S]*?)\n\}/m.exec(css)?.[1] ?? '';
-    const dark =
-      /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme\]\) \{([\s\S]*?)\n {2}\}/.exec(
-        css,
-      )?.[1] ?? '';
-
-    expect(root).not.toBe('');
-    expect(dark).not.toBe('');
-
-    // 端末の向きや指の大きさで変わらないもの（角丸・書体・的の大きさ）は上書き不要
-    const fixed = /^--(radius|font|tap)/;
-    const missing = [...names(root)].filter((name) => !fixed.test(name) && !names(dark).has(name));
-
-    expect(missing).toEqual([]);
+    expect(css).not.toMatch(/prefers-color-scheme: dark/);
   });
 });

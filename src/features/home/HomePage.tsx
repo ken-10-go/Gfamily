@@ -6,9 +6,8 @@ import { Avatar } from '@/features/home/Avatar';
 import { detectHouses } from '@/features/tree-view/houses';
 import { useAuth } from '@/features/auth/useAuth';
 import * as api from '@/lib/api';
-import { ageLabel } from '@/lib/japanese-date';
-import { birthOrderLabel, compareForDisplay } from '@/lib/relations';
-import { displayName, type Person, type Tree, type TreeGraph } from '@/types/models';
+import { compareForDisplay } from '@/lib/relations';
+import { type Tree, type TreeGraph } from '@/types/models';
 
 /**
  * ホーム。開いている家系図の入口と、家族の顔ぶれを1画面にまとめる。
@@ -105,36 +104,6 @@ export function HomePage() {
         </Link>
       )}
 
-      {current && graph && (
-        <>
-          <div className="home__section">
-            <h2 className="home__label">家族 · {persons.length}人</h2>
-            <Link className="home__more" to={`/trees/${current.id}/people`}>
-              すべて見る
-            </Link>
-          </div>
-
-          <ul className="person-list">
-            {persons.slice(0, 6).map((person) => (
-              <li key={person.id}>
-                <Link className="person-row" to={`/trees/${current.id}?person=${person.id}`}>
-                  <Avatar person={person} />
-                  <span className="person-row__body">
-                    <span className="person-row__name">{displayName(person)}</span>
-                    <span className="person-row__meta">{metaOf(graph, person)}</span>
-                  </span>
-                  {/* 存命の印。故人は色を落とす */}
-                  <span
-                    className={person.isLiving ? 'person-row__dot' : 'person-row__dot is-gone'}
-                    aria-hidden="true"
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
       {trees.length > 1 && (
         <>
           <h2 className="home__label home__section">ほかの家系図</h2>
@@ -185,13 +154,6 @@ function Stat({ value, label }: { value: number; label: string }) {
       <span className="stats__label">{label}</span>
     </span>
   );
-}
-
-/** 一覧に添える1行。続柄があれば続柄、無ければ生没年。年齢は分かれば足す。 */
-function metaOf(graph: TreeGraph, person: Person): string {
-  const order = person.birthOrder ?? birthOrderLabel(graph, person);
-  const age = ageLabel(person);
-  return [order, age].filter(Boolean).join(' · ');
 }
 
 /** 何世代ぶんの家系かを、親子の線をたどった深さで数える。 */

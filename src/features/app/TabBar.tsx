@@ -15,6 +15,12 @@ export function TabBar() {
   const { pathname } = useLocation();
   // このタブは <Routes> の外に出しているので useParams では拾えない。URL から直接読む
   const current = /^\/trees\/([^/?#]+)/.exec(pathname)?.[1] ?? lastTreeId();
+  /*
+   * 「＋」は家系図の画面でだけ出す。
+   * 追加した人物は図の中に現れるので、図を見ていない画面で押せても
+   * 何が起きたのか分からない。
+   */
+  const onTree = /^\/trees\/[^/?#]+\/?$/.test(pathname);
 
   return (
     <nav className="tabbar" aria-label="メニュー">
@@ -30,22 +36,24 @@ export function TabBar() {
       </Tab>
 
       {/* 中央の丸。いちばんよく使う「人物を追加」を、いちばん押しやすい場所に置く */}
-      <NavLink
-        className="tabbar__add"
-        to={current ? `/trees/${current}?add=person` : '/'}
-        aria-label="人物を追加"
-      >
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
+      {onTree && current && (
+        <NavLink
+          className="tabbar__add"
+          to={`/trees/${current}?add=person`}
+          aria-label="人物を追加"
         >
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </NavLink>
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </NavLink>
+      )}
 
       <Tab to={current ? `/trees/${current}` : '/'} label="家系図" end>
         <path d="M12 3v6M6 21v-4M18 21v-4" />

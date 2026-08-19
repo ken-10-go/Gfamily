@@ -1,43 +1,37 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { Avatar } from '@/features/home/Avatar';
 import * as api from '@/lib/api';
-import { displayName, type AuditLog, type Person } from '@/types/models';
+import { displayName, lifespanLabel, type Person, type TreeRole } from '@/types/models';
 
-const ENTITY_LABELS: Record<string, string> = {
-  persons: '人物',
-  parentChild: '親子関係',
-  unions: '婚姻関係',
-  members: 'メンバー',
-};
-
-/** サーバー側で採番中の createdAt は一時的に null になりうる。 */
-function formatDateTime(value: string | null): string {
-  return value ? new Date(value).toLocaleString('ja-JP') : '—';
-}
-
-const ACTION_LABELS: Record<AuditLog['action'], string> = {
-  insert: '追加',
-  update: '編集',
-  delete: '削除',
-  restore: '復元',
-};
-
+/**
+ * ゴミ箱と、変更の記録の後始末。
+ *
+ * 記録の中身は出さない。誰がいつ何をしたかを並べても、家族で使ううえでは
+ * ほとんど読まれず、場所だけを取っていた。
+ * 残しているのは「戻す」「消す」という後始末の手立てのほう。
+ */
 export function HistoryPage() {
   const { treeId = '' } = useParams();
-  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [deleted, setDeleted] = useState<Person[]>([]);
+  const [logs, setLogs] = useState(0);
+  const [role, setRole] = useState<TreeRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [nextLogs, nextDeleted] = await Promise.all([
-        api.listAuditLogs(treeId),
+      const [nextDeleted, count, myRole] = await Promise.all([
         api.listDeletedPersons(treeId),
+        api.countAuditLogs(treeId),
+        api.getMyRole(treeId),
       ]);
-      setLogs(nextLogs);
       setDeleted(nextDeleted);
+      setLogs(count);
+      setRole(myRole);
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '読み込みに失敗しました');
@@ -50,73 +44,120 @@ export function HistoryPage() {
     void reload();
   }, [reload]);
 
-  async function handleRestore(personId: string) {
+  async function run(work: () => Promise<void>, failure: string) {
+    setError(null);
+    setDone(null);
+    setBusy(true);
     try {
-      await api.restorePerson(treeId, personId);
+      await work();
       await reload();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '復元に失敗しました');
+      setError(caught instanceof Error ? caught.message : failure);
+    } finally {
+      setBusy(false);
     }
+  }
+
+  function handleRestore(person: Person) {
+    void run(() => api.restorePerson(treeId, person.id), '復元に失敗しました');
+  }
+
+  /** ゴミ箱から完全に消す。戻せないので、名前を見せて確かめる。 */
+  function handlePurge(person: Person) {
+    const name = displayName(person);
+    if (
+      !window.confirm(
+        `「${name}」を完全に削除します。\nこの人につながる親子・婚姻の線も消え、元に戻せません。`,
+      )
+    ) {
+      return;
+    }
+
+    void run(async () => {
+      await api.purgePerson(treeId, person.id);
+      setDone(`「${name}」を完全に削除しました。`);
+    }, '削除に失敗しました');
+  }
+
+  /** 変更の記録を丸ごと消す。オーナーだけが行える。 */
+  function handleClearLogs() {
+    if (!window.confirm(`変更の記録 ${logs} 件をすべて消します。元に戻せません。`)) return;
+
+    void run(async () => {
+      const removed = await api.clearAuditLogs(treeId);
+      setDone(`変更の記録 ${removed} 件を消しました。`);
+    }, '記録を消せませんでした');
   }
 
   if (loading) return <p className="page__status">読み込み中…</p>;
 
+  const isOwner = role === 'owner';
+
   return (
     <main className="page">
-      <Link to={`/trees/${treeId}`} className="tree-page__back">
-        ← 家系図に戻る
-      </Link>
-      <h1>変更履歴</h1>
+      <p>
+        <Link to={`/trees/${treeId}/settings`}>← 設定へ戻る</Link>
+      </p>
+      <h1>ゴミ箱</h1>
 
       {error && <p className="alert alert--error">{error}</p>}
+      {done && <p className="note">{done}</p>}
 
-      <section>
-        <h2>ゴミ箱</h2>
-        {deleted.length === 0 ? (
-          <p className="note">削除された人物はありません。</p>
-        ) : (
-          <ul className="card-list">
-            {deleted.map((person) => (
-              <li key={person.id} className="card-list__item card-list__item--row">
-                <span>{displayName(person)}</span>
-                <button type="button" className="button" onClick={() => handleRestore(person.id)}>
-                  復元
+      {deleted.length === 0 ? (
+        <p className="note">削除された人物はありません。</p>
+      ) : (
+        <ul className="person-list">
+          {deleted.map((person) => (
+            <li key={person.id} className="person-row">
+              <Avatar person={person} />
+              <span className="person-row__body">
+                <span className="person-row__name">{displayName(person)}</span>
+                <span className="person-row__meta">{lifespanLabel(person)}</span>
+              </span>
+              <button
+                type="button"
+                className="button"
+                disabled={busy}
+                onClick={() => handleRestore(person)}
+              >
+                戻す
+              </button>
+              {isOwner && (
+                <button
+                  type="button"
+                  className="button button--danger"
+                  disabled={busy}
+                  onClick={() => handlePurge(person)}
+                >
+                  完全に削除
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
 
-      <section>
-        <h2>操作ログ</h2>
-        {logs.length === 0 ? (
-          <p className="note">履歴はまだありません。</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>日時</th>
-                <th>対象</th>
-                <th>操作</th>
-                <th>実行者</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log) => (
-                <tr key={log.id}>
-                  <td>{formatDateTime(log.createdAt)}</td>
-                  <td>{ENTITY_LABELS[log.entity] ?? log.entity}</td>
-                  <td>{ACTION_LABELS[log.action]}</td>
-                  <td>
-                    <code>{log.actorId ? `${log.actorId.slice(0, 8)}…` : '不明'}</code>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+      {!isOwner && deleted.length > 0 && (
+        <p className="note">完全に削除できるのはオーナーだけです。</p>
+      )}
+
+      <h2>変更の記録</h2>
+      <p className="note">
+        誰がいつ何を変えたかを {logs} 件ぶん残しています。中身はこの画面では出しません。
+      </p>
+
+      {isOwner ? (
+        <button
+          type="button"
+          className="button button--danger"
+          disabled={busy || logs === 0}
+          onClick={handleClearLogs}
+        >
+          記録をすべて消す
+        </button>
+      ) : (
+        <p className="note">記録を消せるのはオーナーだけです。</p>
+      )}
     </main>
   );
 }

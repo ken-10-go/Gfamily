@@ -502,6 +502,33 @@ export async function listDeletedPersons(treeId: string): Promise<Person[]> {
   return snapshot.docs.map(toPerson).filter((person) => person.deletedAt);
 }
 
+/**
+ * ゴミ箱から完全に消す。人物そのものと、その人につながる関係も消す。
+ *
+ * 復元できなくなるので、呼ぶ前に必ず確かめること。
+ * 関係を残すと、居ない人を指した線がゴミとして残り、図の計算で毎回はじかれる。
+ * 権限はオーナーだけ（ルール側でも同じ判定をしている）。
+ */
+export async function purgePerson(treeId: string, personId: string): Promise<void> {
+  const [parentChild, unions] = await Promise.all([
+    getDocs(sub(treeId, 'parentChild')),
+    getDocs(sub(treeId, 'unions')),
+  ]);
+
+  const batch = writeBatch(getDb());
+  for (const entry of parentChild.docs) {
+    const data = entry.data();
+    if (data.parentId === personId || data.childId === personId) batch.delete(entry.ref);
+  }
+  for (const entry of unions.docs) {
+    const data = entry.data();
+    if (data.partner1Id === personId || data.partner2Id === personId) batch.delete(entry.ref);
+  }
+  batch.delete(doc(getDb(), 'trees', treeId, 'persons', personId));
+
+  await batch.commit();
+}
+
 // --- 関係 -------------------------------------------------------------------
 
 export async function addParentChild(
@@ -938,6 +965,33 @@ async function loadForeignGraph(treeId: string): Promise<TreeGraph> {
 }
 
 // --- 変更履歴 ---------------------------------------------------------------
+
+/**
+ * 記録を丸ごと消す。オーナーだけが行える。
+ *
+ * 選んで消すことはできない。都合の悪い1件だけを消せると、残っている記録まで
+ * 信用できなくなるため（ルール側のコメントも参照）。
+ * 消した「記録を消した」という記録は残らない。トリガーは作成にしか反応しない。
+ */
+export async function clearAuditLogs(treeId: string): Promise<number> {
+  const snapshot = await getDocs(sub(treeId, 'auditLogs'));
+  if (snapshot.empty) return 0;
+
+  // Firestore のバッチは1回500件まで。長く使った家系図でも通るように分ける
+  for (let from = 0; from < snapshot.docs.length; from += 400) {
+    const batch = writeBatch(getDb());
+    for (const entry of snapshot.docs.slice(from, from + 400)) batch.delete(entry.ref);
+    await batch.commit();
+  }
+
+  return snapshot.size;
+}
+
+/** 記録が何件あるか。中身は出さずに、消す前の確認に使う。 */
+export async function countAuditLogs(treeId: string): Promise<number> {
+  const snapshot = await getDocs(sub(treeId, 'auditLogs'));
+  return snapshot.size;
+}
 
 export async function listAuditLogs(treeId: string, max = 100): Promise<AuditLog[]> {
   const snapshot = await getDocs(

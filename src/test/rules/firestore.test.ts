@@ -382,8 +382,12 @@ describe('監査ログ', () => {
     );
   });
 
-  it('オーナーでも削除できない', async () => {
-    await assertFails(deleteDoc(doc(as(env, OWNER), 'trees', TREE, 'auditLogs', 'log-1')));
+  it('オーナーは消せる（残したくない記録を消せるようにするため）', async () => {
+    await assertSucceeds(deleteDoc(doc(as(env, OWNER), 'trees', TREE, 'auditLogs', 'log-1')));
+  });
+
+  it('編集者は消せない', async () => {
+    await assertFails(deleteDoc(doc(as(env, EDITOR), 'trees', TREE, 'auditLogs', 'log-1')));
   });
 
   it('オーナーでも改ざんできない', async () => {

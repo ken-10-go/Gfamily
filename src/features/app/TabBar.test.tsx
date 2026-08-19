@@ -41,6 +41,18 @@ describe('TabBar', () => {
     renderAt('/');
 
     expect(linkTo('家族')).toBe('/');
-    expect(linkTo('人物を追加')).toBe('/');
+  });
+
+  it('「＋」は家系図の画面でだけ出す', () => {
+    // 図を見ていない画面で追加できても、何が起きたのか分からない
+    renderAt('/');
+    expect(screen.queryByRole('link', { name: '人物を追加' })).toBeNull();
+  });
+
+  it('家系図の中の別の画面（家族・設定）でも「＋」は出さない', () => {
+    rememberTree('t1');
+    renderAt('/trees/t1/people');
+
+    expect(screen.queryByRole('link', { name: '人物を追加' })).toBeNull();
   });
 });

@@ -43,16 +43,18 @@ export const CARD_FIELD_ORDER: CardField[] = [
 export const MAX_CARD_FIELDS = 6;
 
 /**
- * 配色のテーマ。auto は今までどおり OS の設定（ダークモード）に従う。
- * 既定は和風モダン。
+ * 配色のテーマ。既定は和風モダン（デザイン 1a ぬくもりの木漏れ日）。
+ *
+ * 端末の暗所設定には従わない。暗所ぶんの配色を別に持つと見え方がそろわず、
+ * かえって読みにくかったため、どの端末でも同じ配色で出す。
+ * `auto` は以前の設定が残っていても壊れないよう、名前だけ残して既定に寄せる。
  */
-export type ThemeName = 'washi' | 'monotone' | 'pastel' | 'auto';
+export type ThemeName = 'washi' | 'monotone' | 'pastel';
 
 export const THEME_LABELS: Record<ThemeName, string> = {
   washi: '和風モダン',
   monotone: 'モノトーン',
   pastel: 'パステル',
-  auto: '端末の設定に従う',
 };
 
 export interface ViewSettings {
@@ -186,6 +188,9 @@ export function migrateSettings(stored: Partial<ViewSettings> & LegacySettings):
     merged.cardFields = [...DEFAULT_VIEW_SETTINGS.cardFields];
   }
 
+  // 端末の設定に従う（auto）は廃止した。選んでいた人は既定の配色へ寄せる
+  if (!(merged.theme in THEME_LABELS)) merged.theme = DEFAULT_VIEW_SETTINGS.theme;
+
   // 別の版で保存された設定が混ざっても壊れないように、形だけ整える
   if (!Array.isArray(merged.collapsedHouses)) merged.collapsedHouses = [];
 
@@ -219,11 +224,7 @@ export function useViewSettings(treeId: string) {
   // 家系図の画面を離れたら元に戻し、一覧などには持ち込まない。
   useEffect(() => {
     const root = document.documentElement;
-    if (settings.theme === 'auto') {
-      delete root.dataset.theme;
-    } else {
-      root.dataset.theme = settings.theme;
-    }
+    root.dataset.theme = settings.theme;
 
     return () => {
       delete root.dataset.theme;

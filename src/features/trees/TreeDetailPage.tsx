@@ -749,7 +749,7 @@ export function TreeDetailPage() {
                     className="person-menu__item"
                     onClick={() => setMoreOpen(false)}
                   >
-                    設定（メンバー・家・履歴）
+                    設定（メンバー・家・ゴミ箱）
                   </Link>
                 </div>
               )}

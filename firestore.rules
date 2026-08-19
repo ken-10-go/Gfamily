@@ -155,11 +155,20 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // 監査ログは読み取り専用。書き込みを一切許さないことで、
-      // 「記録せずに編集する」「記録を消す」ができないようにする。
+      /*
+       * 監査ログは、書き足せない・書き換えられない。
+       * 記録そのものは Cloud Functions（Admin SDK）だけが作る。
+       *
+       * ⚠ 消すことだけはオーナーに許している。
+       * 「記録を消せない」ほうが監査としては強いが、家族で使う道具なので
+       * 「試した跡や消した人の記録をいつまでも残したくない」という求めのほうを採った。
+       * 消せるのは丸ごとで、選んで消すことはできない（都合の悪い1件だけを
+       * 消せると、残っている記録まで信用できなくなるため）。
+       */
       match /auditLogs/{logId} {
         allow read: if isMember(treeId);
-        allow write: if false;
+        allow create, update: if false;
+        allow delete: if isOwner(treeId);
       }
     }
 
