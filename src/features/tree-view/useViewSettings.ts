@@ -74,6 +74,8 @@ export interface ViewSettings {
   highlightLineage: boolean;
   /** 配偶者が未登録の人に「＋ 配偶者」の空カードを出す */
   showSpousePlaceholder: boolean;
+  /** カードの左端に丸アバター（姓の1文字）を添える */
+  showCardAvatar: boolean;
   /** 段（世代の行）の番号を図の左に出す */
   showGenerationNumbers: boolean;
   /** 編集操作を止める。閲覧中の誤操作を防ぐ */
@@ -96,6 +98,7 @@ export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   vertical: false,
   highlightLineage: true,
   showSpousePlaceholder: false,
+  showCardAvatar: true,
   showGenerationNumbers: false,
   locked: false,
   collapsedHouses: [],

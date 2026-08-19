@@ -16,6 +16,7 @@ import {
   verticalSegments,
   type Segment,
 } from '@/features/tree-view/hops';
+import { avatarColor, avatarInitial } from '@/features/home/avatar';
 import { collapseHouses, collapsedHouseTarget } from '@/features/tree-view/collapse';
 import { resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget, withSpousePlaceholders } from '@/features/tree-view/placeholders';
@@ -816,6 +817,20 @@ export function PersonCard({
         rx={14}
         className="person-card__box"
       />
+
+      {/*
+        左端に丸を添える。一覧と同じ色・同じ文字なので、
+        一覧で見た人を図の中から見つけやすい。
+        枠の外へ半分はみ出させて、カードの中の文字の幅は削らない。
+      */}
+      {settings.showCardAvatar && !placeholder && !settings.vertical && (
+        <g className="person-card__avatar" aria-hidden="true">
+          <circle cx={0} cy={metrics.nodeHeight / 2} r={11} fill={avatarColor(person.id)} />
+          <text x={0} y={metrics.nodeHeight / 2} className="person-card__initial">
+            {avatarInitial(person)}
+          </text>
+        </g>
+      )}
 
       {/* 中身の無い行は描かない。ただし添字は詰めないので、行の位置は動かない */}
       {settings.vertical

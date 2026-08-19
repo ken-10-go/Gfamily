@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { avatarColor } from '@/features/home/avatar';
 import { PersonCard } from '@/features/tree-view/TreeCanvas';
 import { DEFAULT_METRICS, type LayoutNode } from '@/features/tree-view/layout';
 import {
@@ -54,7 +55,8 @@ function draw(person: Partial<Person>, cardFields?: CardField[]) {
     </svg>,
   );
 
-  return [...container.querySelectorAll('text')].map((text) => ({
+  // 行の検査なので、左端に添える丸アバターの文字は数えない
+  return [...container.querySelectorAll('text:not(.person-card__initial)')].map((text) => ({
     text: text.textContent,
     className: text.getAttribute('class') ?? '',
     y: Number(text.getAttribute('y')),
@@ -112,5 +114,59 @@ describe('PersonCard', () => {
     expect(rows.find((row) => row.className.includes('person-card__name'))?.text).not.toContain(
       '享年',
     );
+  });
+});
+
+describe('カードの丸アバター', () => {
+  /** 丸アバターだけを取り出す。色と文字が一覧と同じかを見る */
+  function avatarOf(overrides: Partial<Person>, settings: Partial<ViewSettings> = {}) {
+    const { container } = render(
+      <svg>
+        <PersonCard
+          node={{
+            person: { ...EMPTY_PERSON, id: 'p1', familyName: '寺原', ...overrides },
+            x: 0,
+            y: 0,
+            generation: 0,
+            placedByHand: false,
+          }}
+          metrics={DEFAULT_METRICS}
+          settings={{ ...DEFAULT_VIEW_SETTINGS, ...settings }}
+          selected={false}
+          inLineage={false}
+          distant={false}
+          placeholder={false}
+          birthOrder={null}
+          draggable={false}
+          dragOffset={null}
+          swapOffset={0}
+          onSelect={vi.fn()}
+          onCenter={vi.fn()}
+          onPointerDown={vi.fn()}
+          onPointerMove={vi.fn()}
+          onPointerUp={vi.fn()}
+        />
+      </svg>,
+    );
+
+    return {
+      circle: container.querySelector('.person-card__avatar circle'),
+      initial: container.querySelector('.person-card__initial')?.textContent,
+    };
+  }
+
+  it('姓の1文字を、一覧と同じ色で出す', () => {
+    const { circle, initial } = avatarOf({});
+
+    expect(initial).toBe('寺');
+    expect(circle?.getAttribute('fill')).toBe(avatarColor('p1'));
+  });
+
+  it('出さない設定なら描かない', () => {
+    expect(avatarOf({}, { showCardAvatar: false }).circle).toBeNull();
+  });
+
+  it('縦書きでは添えない（列の並びが崩れるため）', () => {
+    expect(avatarOf({}, { vertical: true }).circle).toBeNull();
   });
 });

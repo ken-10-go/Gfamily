@@ -78,6 +78,11 @@ export function ViewSettingsPanel({ settings, onChange }: ViewSettingsPanelProps
         onChange={(value) => onChange('showSpousePlaceholder', value)}
       />
       <Toggle
+        label="カードに丸アバターを添える"
+        checked={settings.showCardAvatar}
+        onChange={(value) => onChange('showCardAvatar', value)}
+      />
+      <Toggle
         label="段の番号を図の左に出す"
         checked={settings.showGenerationNumbers}
         onChange={(value) => onChange('showGenerationNumbers', value)}

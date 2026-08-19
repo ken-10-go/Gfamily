@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { lastTreeId, rememberTree } from '@/features/app/lastTree';
 import { Avatar } from '@/features/home/Avatar';
+import { detectHouses } from '@/features/tree-view/houses';
 import { useAuth } from '@/features/auth/useAuth';
 import * as api from '@/lib/api';
 import { ageLabel } from '@/lib/japanese-date';
@@ -71,6 +72,7 @@ export function HomePage() {
     ? graph.persons.filter((person) => !person.deletedAt).sort(compareForDisplay)
     : [];
   const generations = graph ? countGenerations(graph) : 0;
+  const houseCount = graph ? detectHouses(graph).length : 0;
 
   return (
     <main className="home">
@@ -88,9 +90,12 @@ export function HomePage() {
 
       {current && graph && (
         <Link className="home__preview" to={`/trees/${current.id}`}>
-          <p className="home__label">
-            家系図 · {generations}世代 · {persons.length}人
-          </p>
+          {/* 家系図の大きさを数字で3つ。中を開かなくても、いまの規模が分かる */}
+          <div className="stats">
+            <Stat value={persons.length} label="人" />
+            <Stat value={generations} label="世代" />
+            <Stat value={houseCount} label="家" />
+          </div>
           <div className="home__faces">
             {persons.slice(0, 6).map((person) => (
               <Avatar key={person.id} person={person} size={34} />
@@ -169,6 +174,16 @@ export function HomePage() {
         </button>
       </form>
     </main>
+  );
+}
+
+/** 数字ひとつぶんのタイル。人数・世代・家の3つを並べる。 */
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="stats__tile">
+      <span className="stats__value">{value}</span>
+      <span className="stats__label">{label}</span>
+    </span>
   );
 }
 
