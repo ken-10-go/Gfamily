@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { rememberTree } from '@/features/app/lastTree';
@@ -18,6 +18,10 @@ export function SettingsPage() {
   const [treeName, setTreeName] = useState('');
   const [role, setRole] = useState<TreeRole | null>(null);
   const [loading, setLoading] = useState(true);
+  /** 名前の編集中の値。開いている間だけ持つ */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -29,12 +33,36 @@ export function SettingsPage() {
     }
   }, [treeId]);
 
+  /** 家系図の名前を変える。オーナーだけが行える。 */
+  async function handleRename(event: FormEvent) {
+    event.preventDefault();
+    const name = editing?.trim();
+    if (!name || name === treeName) {
+      setEditing(null);
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      await api.updateTree(treeId, { name });
+      setEditing(null);
+      await reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '名前を変えられませんでした');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     rememberTree(treeId);
     void reload();
   }, [reload, treeId]);
 
   if (loading) return <p className="page__status">読み込み中…</p>;
+
+  const isOwner = role === 'owner';
 
   return (
     <main className="home">
@@ -44,6 +72,50 @@ export function SettingsPage() {
           <h1 className="home__title">設定</h1>
         </div>
       </header>
+
+      {error && <p className="alert alert--error">{error}</p>}
+
+      {/* 家系図の名前。表札にあたるので、変えられるのはオーナーだけ */}
+      {isOwner &&
+        (editing === null ? (
+          <ul className="menu-list">
+            <li className="menu-list__row">
+              <span className="menu-list__title">家系図の名前</span>
+              <span className="menu-list__note">{treeName}</span>
+              <button
+                type="button"
+                className="button menu-list__action"
+                onClick={() => setEditing(treeName)}
+              >
+                変える
+              </button>
+            </li>
+          </ul>
+        ) : (
+          <form className="home__create" onSubmit={handleRename}>
+            <label className="field field--grow">
+              <span className="field__label">家系図の名前</span>
+              <input
+                type="text"
+                value={editing}
+                maxLength={120}
+                autoFocus
+                onChange={(event) => setEditing(event.target.value)}
+              />
+            </label>
+            <button type="submit" className="button button--primary" disabled={busy}>
+              保存
+            </button>
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={() => setEditing(null)}
+            >
+              やめる
+            </button>
+          </form>
+        ))}
 
       <ul className="menu-list">
         <MenuLink to={`/trees/${treeId}/people`} title="家族" note="登録されている人を一覧で見る" />
