@@ -127,6 +127,11 @@ export function SettingsPage() {
           note="他の家の家系図と合わせて見る"
         />
         <MenuLink
+          to={`/trees/${treeId}/import`}
+          title="家系図を取り込む"
+          note="すいすい家系図の書き出し（.ftz）から足す"
+        />
+        <MenuLink
           to={`/trees/${treeId}/history`}
           title="変更履歴"
           note="誰が何を変えたか・ゴミ箱"

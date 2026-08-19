@@ -12,6 +12,7 @@ import { MembersPage } from '@/features/members/MembersPage';
 import { DemoPage } from '@/features/tree-view/DemoPage';
 import { TabBar } from '@/features/app/TabBar';
 import { HomePage } from '@/features/home/HomePage';
+import { ImportPage } from '@/features/import/ImportPage';
 import { PeoplePage } from '@/features/people/PeoplePage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { TreeDetailPage } from '@/features/trees/TreeDetailPage';
@@ -44,6 +45,14 @@ export default function App() {
           element={
             <RequireAuth>
               <PeoplePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/trees/:treeId/import"
+          element={
+            <RequireAuth>
+              <ImportPage />
             </RequireAuth>
           }
         />
