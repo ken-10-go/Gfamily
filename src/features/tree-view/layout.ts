@@ -809,6 +809,39 @@ function applyGenerationShifts(
 }
 
 /**
+ * 人物 → いま何段目か。図に出している番号と同じ値を返す。
+ *
+ * 段を数値で指定するとき、「いまの段」を出したり、指定した段との差を
+ * 出したりするのに使う。描画を通さずに引けるようにしておく。
+ */
+export function generationsOf(graph: TreeGraph): Map<string, number> {
+  const { persons, parentChild, unions } = livingParts(graph);
+  return computeGenerations(persons, parentChild, unions);
+}
+
+/** 削除済みを除いた家系図。段の計算はどれもこの形を入力にする。 */
+function livingParts(graph: TreeGraph, override?: { personId: string; shift: number }) {
+  const persons = graph.persons
+    .filter((person) => !person.deletedAt)
+    .map((person) =>
+      override && person.id === override.personId
+        ? { ...person, generationShift: override.shift }
+        : person,
+    );
+  const alive = new Set(persons.map((person) => person.id));
+
+  return {
+    persons,
+    parentChild: graph.parentChild.filter(
+      (pc) => !pc.deletedAt && alive.has(pc.parentId) && alive.has(pc.childId),
+    ),
+    unions: graph.unions.filter(
+      (u) => !u.deletedAt && alive.has(u.partner1Id) && alive.has(u.partner2Id),
+    ),
+  };
+}
+
+/**
  * その段の指定が実際に効くかどうか。
  *
  * 親子の上下が入れ替わる指定は無効になる（`applyGenerationShifts`）。
@@ -818,16 +851,7 @@ function applyGenerationShifts(
 export function generationShiftApplies(graph: TreeGraph, personId: string, shift: number): boolean {
   if (shift === 0) return true;
 
-  const persons = graph.persons
-    .filter((person) => !person.deletedAt)
-    .map((person) => (person.id === personId ? { ...person, generationShift: shift } : person));
-  const alive = new Set(persons.map((person) => person.id));
-  const parentChild = graph.parentChild.filter(
-    (pc) => !pc.deletedAt && alive.has(pc.parentId) && alive.has(pc.childId),
-  );
-  const unions = graph.unions.filter(
-    (u) => !u.deletedAt && alive.has(u.partner1Id) && alive.has(u.partner2Id),
-  );
+  const { persons, parentChild, unions } = livingParts(graph, { personId, shift });
 
   const applied = new Set<string>();
   applyGenerationShifts(

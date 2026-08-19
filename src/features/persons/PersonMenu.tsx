@@ -21,6 +21,7 @@ export type PersonAction =
   | 'raise-generation'
   | 'lower-generation'
   | 'reset-generation'
+  | 'set-generation'
   | 'collapse-house'
   | 'delete';
 
@@ -82,6 +83,7 @@ const MORE_ITEMS: MenuItem[] = [
     editOnly: true,
     when: (person) => person.siblingOrder !== null,
   },
+  { action: 'set-generation', label: '段を数字で指定する…', editOnly: true },
   { action: 'raise-generation', label: '1つ上の段へ', editOnly: true },
   { action: 'lower-generation', label: '1つ下の段へ', editOnly: true },
   {

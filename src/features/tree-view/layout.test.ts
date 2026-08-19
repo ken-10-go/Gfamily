@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeLayout,
   generationShiftApplies,
+  generationsOf,
   NODE_HEIGHT,
   NODE_WIDTH,
   V_GAP,
@@ -585,6 +586,21 @@ describe('computeLayout', () => {
     );
 
     expect(nodeOf(layout, '夫').generation).toBe(nodeOf(layout, '妻').generation);
+  });
+
+  it('段の番号は、描画を通さずに引ける', () => {
+    const tree = graph({
+      persons: [person('親'), person('子'), person('孫')],
+      parentChild: [link('親', '子'), link('子', '孫')],
+    });
+
+    // 図に出している番号（LayoutNode.generation）と同じ値
+    const layout = computeLayout(tree);
+    const levels = generationsOf(tree);
+
+    for (const node of layout.nodes) {
+      expect(levels.get(node.person.id)).toBe(node.generation);
+    }
   });
 
   it('効かない指定は、保存する前に見分けられる', () => {

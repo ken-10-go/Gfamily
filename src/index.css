@@ -1356,6 +1356,19 @@ input[type='radio'] {
   line-height: 1.6;
 }
 
+/* 段の目盛り。図の邪魔をしないよう、細く薄く引く */
+.tree-canvas__ruler-line {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 2 6;
+}
+
+.tree-canvas__ruler-label {
+  fill: var(--muted);
+  font-size: 12px;
+  letter-spacing: normal;
+}
+
 /* --- モーダル -------------------------------------------------------------- */
 
 .dialog {

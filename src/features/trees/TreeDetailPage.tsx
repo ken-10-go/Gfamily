@@ -7,11 +7,12 @@ import { AddRelativeForm, type RelativeKind } from '@/features/persons/AddRelati
 import { ParentsForm, type ParentsDraft } from '@/features/persons/ParentsForm';
 import { PersonDetail } from '@/features/persons/PersonDetail';
 import { PersonDialog } from '@/features/persons/PersonDialog';
+import { GenerationDialog } from '@/features/persons/GenerationDialog';
 import { PersonForm } from '@/features/persons/PersonForm';
 import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { collapsedHouseTarget } from '@/features/tree-view/collapse';
-import { generationShiftApplies } from '@/features/tree-view/layout';
+import { generationShiftApplies, generationsOf } from '@/features/tree-view/layout';
 import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
 import { houseChoices, NEW_HOUSE_PREFIX, resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget } from '@/features/tree-view/placeholders';
@@ -44,6 +45,7 @@ type DialogMode =
   | { kind: 'add-relative'; personId: string; relation: RelativeKind }
   | { kind: 'add-parents'; personId: string }
   | { kind: 'connect'; personId: string; relation: ConnectionKind }
+  | { kind: 'generation'; personId: string }
   | { kind: 'add-person' }
   | { kind: 'settings' };
 
@@ -173,6 +175,9 @@ export function TreeDetailPage() {
     () => (focus.centerId ? focusBoundary(baseGraph, focus.centerId, focus) : new Set<string>()),
     [baseGraph, focus],
   );
+
+  /** 人物 → いま何段目か。図の左に出している番号と同じ値 */
+  const generations = useMemo(() => generationsOf(baseGraph), [baseGraph]);
 
   /** 1枚に畳んでいる家。表示の好みなので端末の設定に持つ */
   const collapsedHouses = useMemo(
@@ -328,6 +333,9 @@ export function TreeDetailPage() {
         break;
       case 'reset-generation':
         void handleShiftGeneration(personId, 0, true);
+        break;
+      case 'set-generation':
+        setDialog({ kind: 'generation', personId });
         break;
       case 'connect-parent':
       case 'connect-spouse':
@@ -534,6 +542,30 @@ export function TreeDetailPage() {
       await reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '段を変えられませんでした');
+    }
+  }
+
+  /**
+   * 数値で指定された段へ移す。
+   *
+   * 保存するのは「自動からのずれ」なので、いまの段との差を今のずれに足す。
+   * 絶対の段で持たないのは、人物を足して自動側が動いたときに
+   * 指定の意味が失われないようにするため。
+   */
+  async function handleSetGeneration(personId: string, generation: number) {
+    const person = personOf(personId);
+    if (!person) return;
+
+    const delta = generation - (generations.get(personId) ?? 0);
+    if (delta === 0) {
+      setDialog(null);
+      return;
+    }
+
+    await handleShiftGeneration(personId, delta);
+    // 効かない指定のときは理由が出ているので、画面は開いたままにする
+    if (generationShiftApplies(baseGraph, personId, (person.generationShift ?? 0) + delta)) {
+      setDialog(null);
     }
   }
 
@@ -811,6 +843,8 @@ export function TreeDetailPage() {
             graph={baseGraph}
             houses={houses}
             onRegisterHouses={withRegisteredHouses}
+            generations={generations}
+            onSetGeneration={handleSetGeneration}
             canEdit={canEdit}
             settings={{ settings, updateSetting }}
             onClose={() => setDialog(null)}
@@ -835,6 +869,8 @@ function DialogContent({
   graph,
   houses,
   onRegisterHouses,
+  generations,
+  onSetGeneration,
   canEdit,
   settings,
   onClose,
@@ -852,6 +888,9 @@ function DialogContent({
   houses: House[];
   /** 選ばれた家のうち、未登録のものを登録して ID に置き換える */
   onRegisterHouses: (input: PersonInput) => Promise<PersonInput>;
+  /** 人物 → いま何段目か */
+  generations: Map<string, number>;
+  onSetGeneration: (personId: string, generation: number) => Promise<void>;
   canEdit: boolean;
   settings: {
     settings: ReturnType<typeof useViewSettings>['settings'];
@@ -924,6 +963,19 @@ function DialogContent({
           canEdit={canEdit}
           onSelectPerson={onSelectPerson}
           onChanged={onChanged}
+        />
+      </PersonDialog>
+    );
+  }
+
+  if (dialog.kind === 'generation') {
+    return (
+      <PersonDialog title={`${displayName(person)} の段`} onClose={onClose}>
+        <GenerationDialog
+          person={person}
+          current={generations.get(person.id) ?? 0}
+          onSubmit={(generation) => onSetGeneration(person.id, generation)}
+          onCancel={onClose}
         />
       </PersonDialog>
     );

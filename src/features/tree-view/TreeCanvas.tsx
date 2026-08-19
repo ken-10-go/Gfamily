@@ -450,6 +450,10 @@ export function TreeCanvas({
           {/* 動かしている間だけ格子を出して、置きたい位置を狙いやすくする */}
           {drag?.moved && <GridLines grid={grid} width={layout.width} height={layout.height} />}
 
+          {settings.showGenerationNumbers && (
+            <GenerationRuler nodes={layout.nodes} metrics={metrics} width={layout.width} />
+          )}
+
           <g className="tree-canvas__links">
             {layout.couples.map((couple) => (
               <CoupleLine
@@ -629,6 +633,51 @@ function fieldText(field: CardField, person: Person, birthOrder: string | null):
     case 'note':
       return person.note?.split('\n')[0] ?? '';
   }
+}
+
+/**
+ * 段の目盛り。左端に段の番号を出す。
+ *
+ * 「1つ上／下の段へ」で思ったところへ行かないとき、いま何段目に居るのかが
+ * 見えないと直しようがない。番号で言えるようにしておく。
+ */
+function GenerationRuler({
+  nodes,
+  metrics,
+  width,
+}: {
+  nodes: LayoutNode[];
+  metrics: LayoutMetrics;
+  width: number;
+}) {
+  // 段ごとの上端。同じ段は同じ y なので、番号と対にして拾う
+  const rows = new Map<number, number>();
+  for (const node of nodes) rows.set(node.generation, node.y);
+
+  return (
+    <g className="tree-canvas__ruler" aria-hidden="true">
+      {[...rows].map(([generation, y]) => (
+        <g key={generation}>
+          <line
+            className="tree-canvas__ruler-line"
+            x1={-metrics.nodeWidth / 2}
+            y1={y - metrics.vGap / 4}
+            x2={width}
+            y2={y - metrics.vGap / 4}
+          />
+          <text
+            className="tree-canvas__ruler-label"
+            x={-metrics.nodeWidth / 2 - 8}
+            y={y + metrics.nodeHeight / 2}
+            textAnchor="end"
+            dominantBaseline="middle"
+          >
+            {generation}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
 }
 
 /** 1枚のカード。行の並びを単体で確かめられるよう export している。 */

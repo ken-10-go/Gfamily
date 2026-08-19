@@ -78,6 +78,11 @@ export function ViewSettingsPanel({ settings, onChange }: ViewSettingsPanelProps
         onChange={(value) => onChange('showSpousePlaceholder', value)}
       />
       <Toggle
+        label="段の番号を図の左に出す"
+        checked={settings.showGenerationNumbers}
+        onChange={(value) => onChange('showGenerationNumbers', value)}
+      />
+      <Toggle
         label="縦書きにする"
         checked={settings.vertical}
         onChange={(value) => onChange('vertical', value)}
