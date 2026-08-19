@@ -156,15 +156,26 @@ body {
   color: var(--fg);
 }
 
-h1 {
-  font-size: 1.5rem;
+/* 見出しは Fraunces。本文（Nunito）と字の骨格を変えて、段落の始まりを分かりやすくする */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
 }
+
+h1 {
+  font-size: 1.6rem;
+  line-height: 1.25;
+}
+
 h2 {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   margin-top: 2rem;
 }
+
 h3 {
-  font-size: 0.95rem;
+  font-size: 1rem;
   margin-bottom: 0.25rem;
 }
 
@@ -234,7 +245,7 @@ code {
   width: 100%;
   max-width: 60rem;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
+  padding: 1.25rem 1.15rem 2rem;
 }
 
 .page--narrow {
@@ -260,9 +271,9 @@ code {
   justify-content: center;
   gap: 0.35rem;
   min-height: var(--tap);
-  padding: 0.45rem 0.9rem;
+  padding: 0.45rem 1.05rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-pill);
   background: var(--bg);
   color: var(--fg);
   font: inherit;
@@ -295,6 +306,8 @@ code {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-fg);
+  font-weight: 700;
+  box-shadow: var(--shadow-float);
 }
 
 .button--danger {
@@ -516,9 +529,9 @@ select,
 textarea {
   appearance: none;
   min-height: var(--tap);
-  padding: 0.45rem 0.6rem;
+  padding: 0.45rem 0.7rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--fg);
   font: inherit;
@@ -587,9 +600,11 @@ input[type='radio'] {
 }
 
 .card-list__item {
-  padding: 0.75rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-row);
 }
 
 .card-list__item--row {
@@ -716,8 +731,9 @@ input[type='radio'] {
 .tree-page__header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
@@ -725,19 +741,12 @@ input[type='radio'] {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 1.05rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
   /* 長い家系図名でヘッダーが折り返さないようにする */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.tree-page__back {
-  flex-shrink: 0;
-  padding: 0.25rem 0.4rem;
-  color: var(--link);
-  font-size: 1.1rem;
-  text-decoration: none;
 }
 
 .page__actions {
@@ -900,7 +909,8 @@ input[type='radio'] {
   flex: 1;
   min-width: 0;
   min-height: 20rem;
-  background: var(--surface);
+  /* 白いカードを浮かせるので、地はクリームの薄いグラデーション（デザイン 1a） */
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
 }
 
 .tree-canvas--empty {
@@ -1038,7 +1048,7 @@ input[type='radio'] {
 }
 
 .person-card__box {
-  fill: var(--neutral);
+  fill: var(--surface);
   stroke: var(--border);
   stroke-width: 1.5;
 }
@@ -1670,10 +1680,11 @@ input[type='radio'] {
   width: min(32rem, calc(100vw - 2rem));
   max-height: calc(100vh - 4rem);
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 0;
+  border-radius: var(--radius-lg);
   background: var(--bg);
   color: var(--fg);
+  box-shadow: var(--shadow-card);
 }
 
 .dialog::backdrop {
@@ -1691,7 +1702,8 @@ input[type='radio'] {
 
 .dialog__head h2 {
   margin: 0;
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
 }
 
 .dialog__body {
@@ -1881,6 +1893,7 @@ input[type='radio'] {
   width: 22rem;
   flex-shrink: 0;
   padding: 1rem 1.25rem 3rem;
+  background: var(--surface);
   border-left: 1px solid var(--border);
   overflow-y: auto;
 }
@@ -1891,6 +1904,24 @@ input[type='radio'] {
 
 .panel--placeholder {
   color: var(--muted);
+}
+
+.panel__person {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
+.panel__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.panel__person .panel__subtitle {
+  margin: 0;
 }
 
 .panel__subtitle {

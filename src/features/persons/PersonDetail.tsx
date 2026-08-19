@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useTreeKey } from '@/features/e2ee/useTreeKey';
 import { houseMemberships } from '@/features/tree-view/houses';
+import { Avatar } from '@/features/home/Avatar';
 import * as api from '@/lib/api';
 import type { SensitiveFields } from '@/lib/crypto';
 import { ageLabel, formatWithEra } from '@/lib/japanese-date';
@@ -93,8 +94,15 @@ export function PersonDetail({
 
   return (
     <div>
-      {kana && <p className="panel__subtitle">{kana}</p>}
-      {person.maidenName && <p className="panel__subtitle">旧姓: {person.maidenName}</p>}
+      {/* 名前だけの見出しは素っ気ないので、一覧と同じ丸を添えて誰の画面かを分かりやすくする */}
+      <div className="panel__person">
+        <Avatar person={person} size={44} />
+        <div>
+          {kana && <p className="panel__subtitle">{kana}</p>}
+          <p className="panel__name">{displayName(person)}</p>
+          {person.maidenName && <p className="panel__subtitle">旧姓: {person.maidenName}</p>}
+        </div>
+      </div>
 
       {error && <p className="alert alert--error">{error}</p>}
 

@@ -122,28 +122,6 @@ export function TreeDetailPage() {
     rememberTree(treeId);
   }, [treeId]);
 
-  /*
-   * 他の画面からの指示を URL で受け取る。
-   *   ?add=person   … タブの「＋」から。人物を追加する画面を開く
-   *   ?person=<id>  … 家族の一覧から。その人の詳細を開いて中央に寄せる
-   * 一度使ったら URL からは消す（読み込み直すたびに開き直さないように）。
-   */
-  useEffect(() => {
-    if (params.get('add') === 'person') {
-      setDialog({ kind: 'add-person' });
-      setParams({}, { replace: true });
-      return;
-    }
-
-    const personId = params.get('person');
-    if (personId) {
-      setSelectedId(personId);
-      setDialog({ kind: 'detail', personId });
-      setCenterRequest(personId);
-      setParams({}, { replace: true });
-    }
-  }, [params, setParams]);
-
   // 合同表示に切り替えたときだけ、相手の家を読みに行く
   useEffect(() => {
     if (!combined) {
@@ -186,6 +164,37 @@ export function TreeDetailPage() {
   // 権限があっても、ロック中は編集させない（閲覧中の誤操作を防ぐ）。
   // 合同表示は他家の人物が混ざるため、まるごと閲覧専用にする。
   const canEdit = (role === 'owner' || role === 'editor') && !settings.locked && !combined;
+
+  /*
+   * 他の画面からの指示を URL で受け取る。
+   *   ?add=person   … タブの「＋」から。人物を追加する画面を開く
+   *   ?person=<id>  … 家族の一覧から。その人の詳細を開いて中央に寄せる
+   * 一度使ったら URL からは消す（読み込み直すたびに開き直さないように）。
+   */
+  useEffect(() => {
+    // 権限が決まる前に消費すると、何も開かないまま指示だけ消えてしまう
+    if (loading) return;
+
+    if (params.get('add') === 'person') {
+      if (!canEdit) {
+        setError('この家系図では人物を追加できません（閲覧のみの権限です）');
+        setParams({}, { replace: true });
+        return;
+      }
+
+      setDialog({ kind: 'add-person' });
+      setParams({}, { replace: true });
+      return;
+    }
+
+    const personId = params.get('person');
+    if (personId) {
+      setSelectedId(personId);
+      setDialog({ kind: 'detail', personId });
+      setCenterRequest(personId);
+      setParams({}, { replace: true });
+    }
+  }, [params, setParams, canEdit, loading]);
 
   // 描画のもとになる家系図。合同表示のときは他家ぶんも入る。
   // 人物を引くのもこちらから行う（合同表示では ID が「ツリーID:人物ID」になるため）。
@@ -647,9 +656,6 @@ export function TreeDetailPage() {
         検索はアイコンから開き、頻度の低い操作は「⋯」にまとめる。
       */}
         <header className="tree-page__header">
-          <Link to="/" className="tree-page__back" aria-label="家系図の一覧へ">
-            ←
-          </Link>
           <h1 className="tree-page__title">{tree?.name}</h1>
           {role && <span className="badge badge--wide">{ROLE_LABELS[role]}</span>}
           {settings.locked && <span className="badge">ロック中</span>}
@@ -687,16 +693,6 @@ export function TreeDetailPage() {
             >
               🎯
             </button>
-
-            {canEdit && (
-              <button
-                type="button"
-                className="button button--primary"
-                onClick={() => setDialog({ kind: 'add-person' })}
-              >
-                ＋<span className="hide-narrow">人物を追加</span>
-              </button>
-            )}
 
             <div className="more">
               <button
@@ -748,36 +744,12 @@ export function TreeDetailPage() {
                     </button>
                   )}
                   <Link
-                    to={`/trees/${treeId}/members`}
+                    to={`/trees/${treeId}/settings`}
                     role="menuitem"
                     className="person-menu__item"
                     onClick={() => setMoreOpen(false)}
                   >
-                    メンバー
-                  </Link>
-                  <Link
-                    to={`/trees/${treeId}/bridges`}
-                    role="menuitem"
-                    className="person-menu__item"
-                    onClick={() => setMoreOpen(false)}
-                  >
-                    家どうしのつながり
-                  </Link>
-                  <Link
-                    to={`/trees/${treeId}/houses`}
-                    role="menuitem"
-                    className="person-menu__item"
-                    onClick={() => setMoreOpen(false)}
-                  >
-                    家の管理
-                  </Link>
-                  <Link
-                    to={`/trees/${treeId}/history`}
-                    role="menuitem"
-                    className="person-menu__item"
-                    onClick={() => setMoreOpen(false)}
-                  >
-                    変更履歴
+                    設定（メンバー・家・履歴）
                   </Link>
                 </div>
               )}

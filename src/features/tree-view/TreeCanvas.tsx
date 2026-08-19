@@ -813,7 +813,7 @@ export function PersonCard({
       <rect
         width={metrics.nodeWidth}
         height={metrics.nodeHeight}
-        rx={8}
+        rx={14}
         className="person-card__box"
       />
 
