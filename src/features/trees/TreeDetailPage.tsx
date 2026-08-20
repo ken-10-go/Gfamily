@@ -13,7 +13,7 @@ import { PersonMenu, type PersonAction } from '@/features/persons/PersonMenu';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { rememberTree } from '@/features/app/lastTree';
 import { collapsedHouseTarget } from '@/features/tree-view/collapse';
-import { generationShiftApplies, generationsOf } from '@/features/tree-view/layout';
+import { generationShiftBlocker, generationsOf } from '@/features/tree-view/layout';
 import { DEFAULT_FOCUS_OPTIONS, focusBoundary, focusGraph } from '@/features/tree-view/focus';
 import { houseChoices, NEW_HOUSE_PREFIX, resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget } from '@/features/tree-view/placeholders';
@@ -566,11 +566,15 @@ export function TreeDetailPage() {
 
     const next = absolute ? 0 : (person.generationShift ?? 0) + delta;
 
-    if (!generationShiftApplies(baseGraph, personId, next)) {
+    const blocker = generationShiftBlocker(baseGraph, personId, next);
+    if (blocker) {
+      // 誰が引っかかっているのかまで出す。名前が分かれば、線を直すか段を直すか選べる
+      const who = personOf(blocker.id);
+      const name = who ? displayName(who) : '相手';
       setError(
-        delta < 0
-          ? 'これ以上は上げられません（親と同じ段か、それより上になってしまいます）'
-          : 'これ以上は下げられません（子と同じ段か、それより下になってしまいます）',
+        blocker.relation === 'child'
+          ? `これ以上は下げられません（子の「${name}」と同じ段になってしまいます）`
+          : `これ以上は上げられません（親の「${name}」と同じ段になってしまいます）`,
       );
       return;
     }
@@ -602,7 +606,7 @@ export function TreeDetailPage() {
 
     await handleShiftGeneration(personId, delta);
     // 効かない指定のときは理由が出ているので、画面は開いたままにする
-    if (generationShiftApplies(baseGraph, personId, (person.generationShift ?? 0) + delta)) {
+    if (!generationShiftBlocker(baseGraph, personId, (person.generationShift ?? 0) + delta)) {
       setDialog(null);
     }
   }

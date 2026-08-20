@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeLayout,
   generationShiftApplies,
+  generationShiftBlocker,
   generationsOf,
   NODE_HEIGHT,
   NODE_WIDTH,
@@ -601,6 +602,18 @@ describe('computeLayout', () => {
     for (const node of layout.nodes) {
       expect(levels.get(node.person.id)).toBe(node.generation);
     }
+  });
+
+  it('効かない指定は、誰が引っかかっているのかまで分かる', () => {
+    const tree = graph({
+      persons: [person('親'), person('子')],
+      parentChild: [link('親', '子')],
+    });
+
+    // 何が邪魔をしているのかを名前で言えないと、直しようがない
+    expect(generationShiftBlocker(tree, '親', 1)).toEqual({ id: '子', relation: 'child' });
+    expect(generationShiftBlocker(tree, '子', -1)).toEqual({ id: '親', relation: 'parent' });
+    expect(generationShiftBlocker(tree, '親', -1)).toBeNull();
   });
 
   it('効かない指定は、保存する前に見分けられる', () => {

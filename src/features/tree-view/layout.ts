@@ -849,20 +849,48 @@ function livingParts(graph: TreeGraph, override?: { personId: string; shift: num
  * これが無いと「押しても動かない」ようにしか見えず、何度も押すことになる。
  */
 export function generationShiftApplies(graph: TreeGraph, personId: string, shift: number): boolean {
-  if (shift === 0) return true;
+  return generationShiftBlocker(graph, personId, shift) === null;
+}
+
+/**
+ * その指定を邪魔している人を返す。効くなら null。
+ *
+ * 「これ以上は下げられません」とだけ出しても、何が引っかかっているのか分からず
+ * 直しようがない。**どの親子の線が壊れるのか**を名前で言えるようにする。
+ * 段がおかしく見えるときは、たいてい思っていない線がつながっている。
+ */
+export function generationShiftBlocker(
+  graph: TreeGraph,
+  personId: string,
+  shift: number,
+): { id: string; relation: 'parent' | 'child' } | null {
+  if (shift === 0) return null;
 
   const { persons, parentChild, unions } = livingParts(graph, { personId, shift });
+  const base = relaxGenerations(persons, parentChild, unions);
 
   const applied = new Set<string>();
-  applyGenerationShifts(
-    relaxGenerations(persons, parentChild, unions),
-    persons,
-    parentChild,
-    unions,
-    applied,
-  );
+  const levels = applyGenerationShifts(base, persons, parentChild, unions, applied);
+  if (applied.has(personId)) return null;
 
-  return applied.has(personId);
+  /*
+   * 指定を当てたつもりの段を作って、どの線が壊れるのかを見る。
+   * 本人と、連れて動く配偶者を同じだけずらす（applyGenerationShifts と同じ動き）。
+   */
+  const wanted = new Map(levels);
+  const spouses = unions
+    .filter((union) => union.partner1Id === personId || union.partner2Id === personId)
+    .map((union) => (union.partner1Id === personId ? union.partner2Id : union.partner1Id));
+
+  for (const id of [personId, ...spouses]) wanted.set(id, (levels.get(id) ?? 0) + shift);
+
+  for (const pc of parentChild) {
+    if ((wanted.get(pc.parentId) ?? 0) < (wanted.get(pc.childId) ?? 0)) continue;
+    if (pc.parentId === personId) return { id: pc.childId, relation: 'child' };
+    if (pc.childId === personId) return { id: pc.parentId, relation: 'parent' };
+  }
+
+  return { id: personId, relation: shift > 0 ? 'child' : 'parent' };
 }
 
 /**
