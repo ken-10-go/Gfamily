@@ -882,15 +882,23 @@ export function generationShiftBlocker(
     .filter((union) => union.partner1Id === personId || union.partner2Id === personId)
     .map((union) => (union.partner1Id === personId ? union.partner2Id : union.partner1Id));
 
-  for (const id of [personId, ...spouses]) wanted.set(id, (levels.get(id) ?? 0) + shift);
+  /*
+   * 動くのは本人だけではない。配偶者も連れて動くので、
+   * **配偶者側につながっている親子の線**も壊れうる。
+   * ここを本人の線だけで見ていると、壊れている線を見つけられず、
+   * 「子の『本人の名前』と同じ段になります」という意味の通らない案内になっていた。
+   */
+  const moved = new Set([personId, ...spouses]);
+  for (const id of moved) wanted.set(id, (levels.get(id) ?? 0) + shift);
 
   for (const pc of parentChild) {
     if ((wanted.get(pc.parentId) ?? 0) < (wanted.get(pc.childId) ?? 0)) continue;
-    if (pc.parentId === personId) return { id: pc.childId, relation: 'child' };
-    if (pc.childId === personId) return { id: pc.parentId, relation: 'parent' };
+    if (moved.has(pc.parentId)) return { id: pc.childId, relation: 'child' };
+    if (moved.has(pc.childId)) return { id: pc.parentId, relation: 'parent' };
   }
 
-  return { id: personId, relation: shift > 0 ? 'child' : 'parent' };
+  // どの線とも言えないとき（輪になっている場合など）は、相手を挙げずに知らせる
+  return { id: '', relation: shift > 0 ? 'child' : 'parent' };
 }
 
 /**

@@ -616,6 +616,21 @@ describe('computeLayout', () => {
     expect(generationShiftBlocker(tree, '親', -1)).toBeNull();
   });
 
+  it('連れて動く配偶者の側で壊れる線も、相手の名前で言える', () => {
+    /*
+     * 報告のあった不具合。和博を下げようとすると、連れて動く妻（しのぶ）の
+     * 子と上下が入れ替わる。配偶者側の線を見ていなかったので相手を挙げられず、
+     * 「子の『和博』と同じ段になります」という意味の通らない案内が出ていた。
+     */
+    const tree = graph({
+      persons: [person('和博'), person('しのぶ'), person('奈保')],
+      parentChild: [link('しのぶ', '奈保')],
+      unions: [union('和博', 'しのぶ')],
+    });
+
+    expect(generationShiftBlocker(tree, '和博', 1)).toEqual({ id: '奈保', relation: 'child' });
+  });
+
   it('効かない指定は、保存する前に見分けられる', () => {
     const tree = graph({
       persons: [person('親'), person('子')],

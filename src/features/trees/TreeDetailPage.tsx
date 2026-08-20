@@ -569,12 +569,14 @@ export function TreeDetailPage() {
     const blocker = generationShiftBlocker(baseGraph, personId, next);
     if (blocker) {
       // 誰が引っかかっているのかまで出す。名前が分かれば、線を直すか段を直すか選べる
-      const who = personOf(blocker.id);
-      const name = who ? displayName(who) : '相手';
+      const who = blocker.id ? personOf(blocker.id) : null;
+      const target = blocker.relation === 'child' ? '子' : '親';
       setError(
-        blocker.relation === 'child'
-          ? `これ以上は下げられません（子の「${name}」と同じ段になってしまいます）`
-          : `これ以上は上げられません（親の「${name}」と同じ段になってしまいます）`,
+        who
+          ? `これ以上は${blocker.relation === 'child' ? '下げ' : '上げ'}られません` +
+              `（${target}の「${displayName(who)}」と同じ段になってしまいます）`
+          : `これ以上は${blocker.relation === 'child' ? '下げ' : '上げ'}られません` +
+              `（${target}との上下が入れ替わってしまいます）`,
       );
       return;
     }
