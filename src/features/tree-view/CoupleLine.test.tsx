@@ -1,6 +1,8 @@
+import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { computeLayout } from '@/features/tree-view/layout';
+import { computeLayout, DEFAULT_METRICS, type LayoutNode } from '@/features/tree-view/layout';
+import { CoupleLine, FamilyLines } from '@/features/tree-view/TreeCanvas';
 import {
   EMPTY_PERSON,
   type ParentChild,
@@ -100,5 +102,58 @@ describe('夫婦は同じ段に並ぶ', () => {
     for (const couple of layout.couples) {
       expect(generationOf(layout, couple.partner1Id)).toBe(generationOf(layout, couple.partner2Id));
     }
+  });
+});
+
+describe('血のつながりの色分け', () => {
+  const metrics = DEFAULT_METRICS;
+  const node = (id: string, x: number, y: number): LayoutNode => ({
+    person: person(id),
+    x,
+    y,
+    generation: 0,
+    placedByHand: false,
+  });
+
+  it('夫婦線は、二人とも筋に入っているときだけ色を付ける', () => {
+    const draw = (inLineage: boolean) =>
+      render(
+        <svg>
+          <CoupleLine
+            id="u1"
+            a={node('夫', 0, 0)}
+            b={node('妻', 200, 0)}
+            metrics={metrics}
+            status="married"
+            dimmed={false}
+            verticals={[]}
+            inLineage={inLineage}
+          />
+        </svg>,
+      ).container;
+
+    expect(draw(true).querySelector('.link--lineage')).not.toBeNull();
+    expect(draw(false).querySelector('.link--lineage')).toBeNull();
+  });
+
+  it('きょうだいの横棒も、親子と同じ色でつながる', () => {
+    // 縦線だけ色が付いていると、きょうだいの間で筋が途切れて見える
+    const { container } = render(
+      <svg>
+        <FamilyLines
+          owner="f1"
+          parents={[node('親', 100, 0)]}
+          children={[node('兄', 0, 200), node('弟', 200, 200)]}
+          childKinds={{}}
+          metrics={metrics}
+          lineage={new Set(['親', '兄', '弟'])}
+          dimmed={new Set()}
+          verticals={[]}
+        />
+      </svg>,
+    );
+
+    // 幹・横棒・枝のすべてに色が乗る
+    expect(container.querySelectorAll('.link--lineage').length).toBe(4);
   });
 });

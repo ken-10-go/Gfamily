@@ -154,11 +154,34 @@ export function ancestorsOf(graph: TreeGraph, personId: string): Set<string> {
   return found;
 }
 
+/** その人から下へ、親子の線をたどって出てくる全員（子・孫・ひ孫…）。 */
+export function descendantsOf(graph: TreeGraph, personId: string): Set<string> {
+  const parentChild = graph.parentChild.filter((pc) => !pc.deletedAt);
+  const found = new Set<string>();
+  const queue = [personId];
+
+  while (queue.length > 0) {
+    const current = queue.pop() as string;
+    for (const pc of parentChild) {
+      if (pc.parentId !== current || found.has(pc.childId)) continue;
+      found.add(pc.childId);
+      queue.push(pc.childId);
+    }
+  }
+
+  return found;
+}
+
 /**
- * 選んだ人物と、その直系尊属をまとめて返す。
+ * 選んだ人物を中心にした血のつながり。
  *
- * 家系図の上で「自分はどの筋から来たのか」を一目で追えるようにするための強調表示に使う。
- * 配偶者やきょうだいは含めない。含めると、たどってきた筋が太線に埋もれてしまう。
+ * 上は直系尊属（親・祖父母…）、下は子孫（子・孫…）、横はきょうだい。
+ * 「自分はどの筋から来て、どこへ続いているのか」を一目で追えるようにする。
+ * きょうだいの子（甥・姪）から先はたどらない。そこまで広げると、
+ * 図のほとんどが色付きになって「たどれる」意味が無くなる。
+ *
+ * 配偶者は含めない（血のつながりではないため）。ただし、きょうだいは親の組で
+ * 決まるので、親が登録されていない人にはきょうだいが出ない。
  * 人物が指定されていなければ空集合を返す（強調しない）。
  */
 export function lineageOf(graph: TreeGraph, personId: string | null): Set<string> {
@@ -166,7 +189,32 @@ export function lineageOf(graph: TreeGraph, personId: string | null): Set<string
 
   const lineage = ancestorsOf(graph, personId);
   lineage.add(personId);
+
+  for (const id of descendantsOf(graph, personId)) lineage.add(id);
+  for (const id of bloodSiblings(graph, personId)) lineage.add(id);
+
   return lineage;
+}
+
+/**
+ * 親を1人でも共有する人（本人は含めない）。
+ *
+ * `siblingsOf` は「親の組が同じ」まで求めるが、強調表示では片親だけ同じ
+ * きょうだい（異母・異父）も同じ血筋として扱う。並べ替えには使わないので、
+ * 順番も気にしない。
+ */
+function bloodSiblings(graph: TreeGraph, personId: string): Set<string> {
+  const parentChild = graph.parentChild.filter((pc) => !pc.deletedAt);
+  const parents = new Set(
+    parentChild.filter((pc) => pc.childId === personId).map((pc) => pc.parentId),
+  );
+
+  const siblings = new Set<string>();
+  for (const pc of parentChild) {
+    if (parents.has(pc.parentId) && pc.childId !== personId) siblings.add(pc.childId);
+  }
+
+  return siblings;
 }
 
 /**

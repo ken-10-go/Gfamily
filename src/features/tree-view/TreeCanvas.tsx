@@ -466,6 +466,7 @@ export function TreeCanvas({
                 status={couple.status}
                 dimmed={dimmed.has(couple.partner1Id) && dimmed.has(couple.partner2Id)}
                 verticals={verticals}
+                inLineage={lineage.has(couple.partner1Id) && lineage.has(couple.partner2Id)}
               />
             ))}
             {layout.families.map((family) => (
@@ -903,7 +904,7 @@ function GridLines({
  * 婚姻（死別を含む）は伝統的な書き方に合わせて二重の実線、
  * 婚姻届のないパートナーは一本の実線、離婚は破線で表す（仕様書 3.5-3）。
  */
-function CoupleLine({
+export function CoupleLine({
   id,
   a,
   b,
@@ -911,6 +912,7 @@ function CoupleLine({
   status,
   dimmed,
   verticals,
+  inLineage,
 }: {
   /** この線の持ち主。自分につながる縦線をまたがないために使う */
   id: string;
@@ -922,6 +924,8 @@ function CoupleLine({
   dimmed: boolean;
   /** 図の中の縦線すべて。交差したところに弧を出す */
   verticals: Segment[];
+  /** 二人とも血のつながりの筋に入っているか。入っていれば色を付ける */
+  inLineage?: boolean;
 }) {
   if (!a || !b) return null;
 
@@ -931,7 +935,13 @@ function CoupleLine({
   const y1 = left.y + metrics.nodeHeight / 2;
   const y2 = right.y + metrics.nodeHeight / 2;
 
-  const className = status === 'divorced' ? 'link link--divorced' : 'link link--couple';
+  const className = [
+    'link',
+    status === 'divorced' ? 'link--divorced' : 'link--couple',
+    inLineage ? 'link--lineage' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   // 二重線は上下に2本引いて表す。線の太さを変えるより、和装の家系図の見た目に近い
   const offsets = status === 'married' || status === 'widowed' ? [-2, 2] : [0];
 
@@ -967,8 +977,10 @@ function CoupleLine({
 /**
  * 親から子へ引く線。
  * 親の下端 → 世代間の中間にある横棒（きょうだいバス） → 各子の上端、の3段で描く。
+ *
+ * 線の色分けを単体で確かめられるよう export している。
  */
-function FamilyLines({
+export function FamilyLines({
   owner,
   parents,
   children,
@@ -1027,7 +1039,11 @@ function FamilyLines({
         y2={busY}
         className={linkClass(highlighted)}
       />
-      {/* きょうだいの横棒。よその家の縦線とぶつかるところは弧でまたぐ */}
+      {/*
+        きょうだいの横棒。よその家の縦線とぶつかるところは弧でまたぐ。
+        筋をたどれるように、ここにも色を付ける（縦線だけ色が付いていると、
+        きょうだいの間で筋が途切れて見える）。
+      */}
       {busRight - busLeft > 1 && (
         <path
           d={hopPath(
@@ -1036,7 +1052,7 @@ function FamilyLines({
             busRight,
             crossingsOn({ x1: busLeft, y1: busY, x2: busRight, y2: busY, owner }, verticals),
           )}
-          className="link"
+          className={linkClass(highlighted)}
         />
       )}
       {presentChildren.map((child) => {

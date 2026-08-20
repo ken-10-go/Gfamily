@@ -68,7 +68,7 @@ export function ViewSettingsPanel({ settings, onChange }: ViewSettingsPanelProps
         onChange={(value) => onChange('showAge', value)}
       />
       <Toggle
-        label="選んだ人の直系をたどって強調"
+        label="選んだ人の血縁（親・きょうだい・子孫）を強調"
         checked={settings.highlightLineage}
         onChange={(value) => onChange('highlightLineage', value)}
       />

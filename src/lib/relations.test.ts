@@ -11,7 +11,13 @@ import {
   spousesOf,
   wouldCreateCycle,
 } from '@/lib/relations';
-import { EMPTY_PERSON, type Gender, type ParentChild, type Person, type TreeGraph } from '@/types/models';
+import {
+  EMPTY_PERSON,
+  type Gender,
+  type ParentChild,
+  type Person,
+  type TreeGraph,
+} from '@/types/models';
 
 function person(id: string, gender: Gender, birthDate: string | null): Person {
   return {
@@ -146,7 +152,10 @@ describe('deriveBirthOrder', () => {
   });
 
   it('削除済みのきょうだいは数に入れない', () => {
-    const removed = { ...person('削除済', 'male', '1958-01-01'), deletedAt: '2026-01-01T00:00:00Z' };
+    const removed = {
+      ...person('削除済', 'male', '1958-01-01'),
+      deletedAt: '2026-01-01T00:00:00Z',
+    };
     const alive = person('存命', 'male', '1960-01-01');
     const g = graph([father, removed, alive], [link('父', '削除済'), link('父', '存命')]);
 
@@ -157,10 +166,7 @@ describe('deriveBirthOrder', () => {
 describe('siblingsOf', () => {
   it('本人を含めて年長者順に返す', () => {
     const father = person('父', 'male', '1930-01-01');
-    const children = [
-      person('弟', 'male', '1965-01-01'),
-      person('兄', 'male', '1960-01-01'),
-    ];
+    const children = [person('弟', 'male', '1965-01-01'), person('兄', 'male', '1960-01-01')];
     const g = graph(
       [father, ...children],
       children.map((c) => link('父', c.id)),
@@ -182,13 +188,22 @@ describe('lineageOf', () => {
     [link('祖父', '父'), link('父', '本人'), link('母', '本人'), link('父', '妹')],
   );
 
-  it('本人と直系尊属をすべて返す', () => {
-    expect([...lineageOf(g, '本人')].sort()).toEqual(['本人', '父', '母', '祖父'].sort());
+  it('本人・直系尊属・きょうだいを返す', () => {
+    expect([...lineageOf(g, '本人')].sort()).toEqual(['本人', '妹', '父', '母', '祖父'].sort());
   });
 
-  it('きょうだいや子孫は含めない', () => {
-    expect(lineageOf(g, '本人').has('妹')).toBe(false);
-    expect(lineageOf(g, '祖父')).toEqual(new Set(['祖父']));
+  it('片親だけ同じきょうだいも、同じ血筋として含める', () => {
+    // 妹は父だけが同じ。並べ替えの「きょうだい」より広く取る
+    expect(lineageOf(g, '本人').has('妹')).toBe(true);
+  });
+
+  it('子・孫もすべて含める（どこへ続いているかを追えるように）', () => {
+    expect([...lineageOf(g, '祖父')].sort()).toEqual(['本人', '妹', '父', '祖父'].sort());
+  });
+
+  it('配偶者は含めない（血のつながりではない）', () => {
+    // 母は本人の親なので入るが、父の配偶者としては入らない
+    expect(lineageOf(g, '妹').has('母')).toBe(false);
   });
 
   it('人物を選んでいなければ空', () => {
@@ -255,10 +270,7 @@ describe('接続の検査', () => {
   const grandchild = person('孫', 'male', '1990-01-01');
   const outsider = person('他人', 'female', '1962-01-01');
 
-  const family = graph(
-    [father, child, grandchild, outsider],
-    [link('父', '子'), link('子', '孫')],
-  );
+  const family = graph([father, child, grandchild, outsider], [link('父', '子'), link('子', '孫')]);
 
   it('先祖をすべて集める', () => {
     expect([...ancestorsOf(family, '孫')].sort()).toEqual(['子', '父']);
@@ -343,7 +355,10 @@ describe('compareForDisplay', () => {
     const ordered = withOrder('指定あり', '1970-01-01', 0);
     const auto = withOrder('指定なし', '1960-01-01', null);
 
-    expect([auto, ordered].sort(compareForDisplay).map((p) => p.id)).toEqual(['指定あり', '指定なし']);
+    expect([auto, ordered].sort(compareForDisplay).map((p) => p.id)).toEqual([
+      '指定あり',
+      '指定なし',
+    ]);
   });
 
   it('手動指定が無ければ生年順にする', () => {

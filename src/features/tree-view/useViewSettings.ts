@@ -72,7 +72,7 @@ export interface ViewSettings {
   uiSize: 'small' | 'medium' | 'large';
   /** 縦書きにする */
   vertical: boolean;
-  /** 選んだ人物とその直系尊属を強調する */
+  /** 選んだ人物と血のつながり（直系尊属・きょうだい・子孫）を強調する */
   highlightLineage: boolean;
   /** 配偶者が未登録の人に「＋ 配偶者」の空カードを出す */
   showSpousePlaceholder: boolean;
