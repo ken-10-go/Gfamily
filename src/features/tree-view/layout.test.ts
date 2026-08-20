@@ -616,6 +616,29 @@ describe('computeLayout', () => {
     expect(generationShiftBlocker(tree, '親', -1)).toBeNull();
   });
 
+  it('子を下げてから親を下げる指定も、両方とも効く', () => {
+    /*
+     * 報告のあった不具合。指定を ID 順に1周だけ当てていたため、
+     * 親のほうを先に評価したときに「まだ下りていない子」と重なると判定され、
+     * 親の指定だけが捨てられていた（和博が0段目に取り残された）。
+     * 当てられなくなるまで繰り返せば、順番によらず同じ結果になる。
+     */
+    const layout = computeLayout(
+      graph({
+        persons: [
+          person('祖父'),
+          person('a親', { generationShift: 1 }),
+          person('b子', { generationShift: 1 }),
+        ],
+        parentChild: [link('祖父', 'a親'), link('a親', 'b子')],
+      }),
+    );
+
+    expect(nodeOf(layout, '祖父').generation).toBe(0);
+    expect(nodeOf(layout, 'a親').generation).toBe(2);
+    expect(nodeOf(layout, 'b子').generation).toBe(3);
+  });
+
   it('連れて動く配偶者の側で壊れる線も、相手の名前で言える', () => {
     /*
      * 報告のあった不具合。和博を下げようとすると、連れて動く妻（しのぶ）の

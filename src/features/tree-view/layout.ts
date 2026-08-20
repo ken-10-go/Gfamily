@@ -759,6 +759,13 @@ function normalize(generations: Map<string, number>): Map<string, number> {
  * しかも押すたびに離れていくので、効かないと思って押すほど差が開いた。
  *
  * 順に1人ずつ当てていき、壊す指定だけを飛ばす。他の人の指定は生かす。
+ *
+ * ⚠ **当てられなくなるまで繰り返す。** 1周で打ち切ると、当てる順しだいで
+ * 結果が変わってしまう。たとえば「子を下げてから親を下げる」と指定したとき、
+ * 親のほうを先に評価すると、まだ子が下りていないので「親が子と同じ段になる」と
+ * 見なされて捨てられる。あとから子が下りても、捨てた指定は戻らない。
+ * 1周で1つでも当たったらもう1周する。当たる数は増える一方なので必ず止まる。
+ *
  * 当てる順は ID 順に固定して、同じ入力からは必ず同じ結果になるようにする。
  */
 function applyGenerationShifts(
@@ -792,20 +799,40 @@ function applyGenerationShifts(
     );
 
   let current = generations;
+  let waiting = [...shifts].sort(([a], [b]) => a.localeCompare(b));
 
-  for (const [personId, shift] of [...shifts].sort(([a], [b]) => a.localeCompare(b))) {
-    const next = new Map(current);
-    // 本人と、自分では指定していない配偶者を、同じだけずらす
-    const together = [personId, ...(spousesOf.get(personId) ?? []).filter((id) => !shifts.has(id))];
-    for (const id of together) next.set(id, (current.get(id) ?? 0) + shift);
+  for (let pass = 0; pass < shifts.size && waiting.length > 0; pass++) {
+    const rest: [string, number][] = [];
 
-    if (!sound(next)) continue;
+    for (const [personId, shift] of waiting) {
+      const next = new Map(current);
+      for (const id of movedWith(personId, spousesOf, shifts)) {
+        next.set(id, (current.get(id) ?? 0) + shift);
+      }
 
-    current = next;
-    applied?.add(personId);
+      if (sound(next)) {
+        current = next;
+        applied?.add(personId);
+      } else {
+        rest.push([personId, shift]);
+      }
+    }
+
+    // 1つも当たらなかったら、これ以上は何周しても当たらない
+    if (rest.length === waiting.length) break;
+    waiting = rest;
   }
 
   return current;
+}
+
+/** その指定で動く人。本人と、自分では指定していない配偶者。 */
+function movedWith(
+  personId: string,
+  spousesOf: Map<string, string[]>,
+  shifts: Map<string, number>,
+): string[] {
+  return [personId, ...(spousesOf.get(personId) ?? []).filter((id) => !shifts.has(id))];
 }
 
 /**
@@ -878,9 +905,20 @@ export function generationShiftBlocker(
    * 本人と、連れて動く配偶者を同じだけずらす（applyGenerationShifts と同じ動き）。
    */
   const wanted = new Map(levels);
-  const spouses = unions
-    .filter((union) => union.partner1Id === personId || union.partner2Id === personId)
-    .map((union) => (union.partner1Id === personId ? union.partner2Id : union.partner1Id));
+  const spousesOf = new Map<string, string[]>();
+  for (const union of unions) {
+    if (union.deletedAt) continue;
+    const [a, b] = [union.partner1Id, union.partner2Id];
+    spousesOf.set(a, [...(spousesOf.get(a) ?? []), b]);
+    spousesOf.set(b, [...(spousesOf.get(b) ?? []), a]);
+  }
+
+  const shifts = new Map(
+    persons
+      .filter((entry) => (entry.generationShift ?? 0) !== 0)
+      .map((entry) => [entry.id, entry.generationShift as number]),
+  );
+  const spouses = movedWith(personId, spousesOf, shifts).filter((id) => id !== personId);
 
   /*
    * 動くのは本人だけではない。配偶者も連れて動くので、
