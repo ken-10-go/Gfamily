@@ -130,7 +130,7 @@ function AppHeader() {
   return (
     <header className="app__header">
       <Link to="/" className="app__brand">
-        絆ツリー
+        家系図G
       </Link>
       <VersionBadge />
     </header>
