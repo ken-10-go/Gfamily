@@ -297,16 +297,60 @@ export function ageInYears(
 }
 
 /**
+ * 年齢の数え方。
+ *
+ * - `exact`  … 満年齢。誕生日を迎えていなければ、まだ上がらない
+ * - `school` … 学年の数え方。**その年度のうちに何歳になるか**を出す
+ *
+ * 家族の間では「今いくつ？」より「学年でいくつ」のほうが通りが良い。
+ * 同じ学年の子は、誕生日が来ていなくても同じ数字で語られる。
+ */
+export type AgeBasis = 'exact' | 'school';
+
+export const AGE_BASIS_LABELS: Record<AgeBasis, string> = {
+  exact: '満年齢（誕生日が来たら上がる）',
+  school: '学年（その年度に何歳になるか）',
+};
+
+/**
+ * 学年の数え方での年齢。その年度のうちに到達する年齢。
+ *
+ * 学年は4月から翌年3月まで。基準は年度末の翌日（4月1日）に置く。
+ * 3月31日を基準にすると、4月1日生まれが1つ下の数字になってしまう
+ * （日本では誕生日の前日に歳を取るので、4月1日生まれは早生まれの最後になる）。
+ */
+export function schoolAgeInYears(
+  person: { birthDate: string | null; deathDate: string | null; isLiving: boolean },
+  today = new Date(),
+): number | null {
+  if (!person.isLiving) return ageInYears(person, today);
+
+  const birth = parsePartialDate(person.birthDate);
+  if (!birth) return null;
+
+  // 1〜3月は前の年に始まった年度の中にいる
+  const startYear = today.getMonth() + 1 >= 4 ? today.getFullYear() : today.getFullYear() - 1;
+  const nextApril: PartialDate = { year: startYear + 1, month: 4, day: 1, precision: 'day' };
+
+  const years = fullYearsBetween(birth, nextApril);
+  return years >= 0 ? years : null;
+}
+
+/**
  * 年齢の表示。存命なら「◯歳」、没後は「享年◯」。
  *
  * 月日まで分からない日付では1歳ずれることがあるが、「約」は付けない。
  * 曖昧な日付は古い記録ではむしろふつうで、ほとんどのカードに「約」が並ぶと読みにくい。
+ *
+ * 数え方は `basis` で切り替える。故人の享年は、どちらでも没年時点の満年齢のまま
+ * （亡くなったあとに年度で歳を取らせても意味がない）。
  */
 export function ageLabel(
   person: { birthDate: string | null; deathDate: string | null; isLiving: boolean },
   today = new Date(),
+  basis: AgeBasis = 'school',
 ): string {
-  const years = ageInYears(person, today);
+  const years = basis === 'school' ? schoolAgeInYears(person, today) : ageInYears(person, today);
   if (years === null) return '';
 
   return person.isLiving ? `${years}歳` : `享年${years}`;

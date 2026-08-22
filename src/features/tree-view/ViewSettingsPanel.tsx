@@ -1,3 +1,4 @@
+import { AGE_BASIS_LABELS } from '@/lib/japanese-date';
 import {
   CARD_FIELD_LABELS,
   CARD_FIELD_ORDER,
@@ -92,6 +93,20 @@ export function ViewSettingsPanel({ settings, onChange }: ViewSettingsPanelProps
         checked={settings.vertical}
         onChange={(value) => onChange('vertical', value)}
       />
+
+      <label className="settings__row">
+        <span>年齢の数え方</span>
+        <select
+          value={settings.ageBasis}
+          onChange={(event) => onChange('ageBasis', event.target.value as ViewSettings['ageBasis'])}
+        >
+          {Object.entries(AGE_BASIS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <label className="settings__row">
         <span>姓名の順</span>

@@ -217,18 +217,43 @@ describe('ageLabel', () => {
   });
 
   it('存命の満年齢を出す', () => {
-    expect(ageLabel(living('1960-05-15'), today)).toBe('66歳');
+    expect(ageLabel(living('1960-05-15'), today, 'exact')).toBe('66歳');
   });
 
-  it('誕生日前ならまだ歳を取っていない', () => {
-    expect(ageLabel(living('1960-12-31'), today)).toBe('65歳');
-    expect(ageLabel(living('1960-08-13'), today)).toBe('66歳');
-    expect(ageLabel(living('1960-08-14'), today)).toBe('65歳');
+  it('満年齢では、誕生日前ならまだ歳を取っていない', () => {
+    expect(ageLabel(living('1960-12-31'), today, 'exact')).toBe('65歳');
+    expect(ageLabel(living('1960-08-13'), today, 'exact')).toBe('66歳');
+    expect(ageLabel(living('1960-08-14'), today, 'exact')).toBe('65歳');
   });
 
   it('月日が分からなくても「約」は付けない', () => {
-    expect(ageLabel(living('1960'), today)).toBe('66歳');
-    expect(ageLabel(living('1960-05'), today)).toBe('66歳');
+    expect(ageLabel(living('1960'), today, 'exact')).toBe('66歳');
+    expect(ageLabel(living('1960-05'), today, 'exact')).toBe('66歳');
+  });
+
+  it('学年では、その年度に何歳になるかを出す（誕生日の前でも上がる）', () => {
+    // 2026年8月 → 2026年度（2027年3月31日まで）
+    expect(ageLabel(living('1960-12-31'), today)).toBe('66歳');
+    expect(ageLabel(living('1960-05-15'), today)).toBe('66歳');
+  });
+
+  it('4月1日生まれは、前の学年（1つ上の数字）に入る', () => {
+    // 誕生日の前日に歳を取るので、4月1日生まれが早生まれの最後になる
+    expect(ageLabel(living('2015-04-01'), today)).toBe('12歳');
+    expect(ageLabel(living('2015-04-02'), today)).toBe('11歳');
+  });
+
+  it('年度が変わると数字が上がる', () => {
+    const march = new Date('2027-03-31T00:00:00Z');
+    const april = new Date('2027-04-01T00:00:00Z');
+
+    expect(ageLabel(living('2015-05-24'), march)).toBe('11歳');
+    expect(ageLabel(living('2015-05-24'), april)).toBe('12歳');
+  });
+
+  it('享年は数え方によらず、亡くなった時点の満年齢', () => {
+    expect(ageLabel(dead('1930-04-02', '2005-11-18'), today)).toBe('享年75');
+    expect(ageLabel(dead('1930-04-02', '2005-11-18'), today, 'exact')).toBe('享年75');
   });
 
   it('没後は享年で表す', () => {
@@ -250,7 +275,9 @@ describe('ageInYears', () => {
   const today = new Date('2026-08-13T00:00:00Z');
 
   it('満年齢を数値で返す', () => {
-    expect(ageInYears({ birthDate: '1960-05-15', deathDate: null, isLiving: true }, today)).toBe(66);
+    expect(ageInYears({ birthDate: '1960-05-15', deathDate: null, isLiving: true }, today)).toBe(
+      66,
+    );
   });
 
   it('求められなければ null', () => {

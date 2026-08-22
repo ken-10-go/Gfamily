@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import type { AgeBasis } from '@/lib/japanese-date';
+
 /**
  * 家系図の見た目の設定。
  *
@@ -58,6 +60,8 @@ export const THEME_LABELS: Record<ThemeName, string> = {
 };
 
 export interface ViewSettings {
+  /** 年齢の数え方。既定は学年（その年度に何歳になるか） */
+  ageBasis: AgeBasis;
   /** 配色のテーマ */
   theme: ThemeName;
   /** 年齢（存命なら満年齢、没後は享年）を氏名の横に出す */
@@ -90,6 +94,7 @@ export interface ViewSettings {
 }
 
 export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
+  ageBasis: 'school',
   theme: 'washi',
   showAge: true,
   // ふりがな・氏名・生没年（年齢つき）の3行。続柄は必要な人だけが足せばよい

@@ -732,7 +732,7 @@ export function PersonCard({
   const top = node.y + (dragOffset?.y ?? 0);
 
   const names = nameLines(person, settings);
-  const age = settings.showAge ? ageLabel(person) : '';
+  const age = settings.showAge ? ageLabel(person, new Date(), settings.ageBasis) : '';
 
   /*
    * 表示すると決めた項目の数だけ、中身が空でも行の枠を取る。
