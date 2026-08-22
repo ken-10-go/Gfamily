@@ -11,6 +11,18 @@ if (!rootElement) {
   throw new Error('#root が見つかりません');
 }
 
+/*
+ * ホーム画面へ入れられるようにするための登録。
+ *
+ * 開発中は入れない。溜め込みはしない作りだが、居座ると紛らわしいため。
+ * 失敗しても画面は動くので、握りつぶしてよい（対応していない端末もある）。
+ */
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter basename={import.meta.env.BASE_URL}>

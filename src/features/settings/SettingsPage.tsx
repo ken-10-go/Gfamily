@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { rememberTree } from '@/features/app/lastTree';
+import { useInstallPrompt } from '@/features/app/useInstallPrompt';
 import { useAuth } from '@/features/auth/useAuth';
 import * as api from '@/lib/api';
 import { ROLE_LABELS, type TreeRole } from '@/types/models';
@@ -15,6 +16,7 @@ import { ROLE_LABELS, type TreeRole } from '@/types/models';
 export function SettingsPage() {
   const { treeId = '' } = useParams();
   const { user, signOut } = useAuth();
+  const install = useInstallPrompt();
   const [treeName, setTreeName] = useState('');
   const [role, setRole] = useState<TreeRole | null>(null);
   const [loading, setLoading] = useState(true);
@@ -137,6 +139,31 @@ export function SettingsPage() {
           note="誰が何を変えたか・ゴミ箱"
         />
       </ul>
+
+      {!install.installed && (
+        <>
+          <p className="home__label home__section">アプリとして使う</p>
+          <ul className="menu-list">
+            <li className="menu-list__row">
+              <span className="menu-list__title">ホーム画面に追加</span>
+              <span className="menu-list__note">
+                {install.available
+                  ? 'アドレスバーの無い画面で開けます'
+                  : 'ブラウザの共有メニュー →「ホーム画面に追加」'}
+              </span>
+              {install.available && (
+                <button
+                  type="button"
+                  className="button menu-list__action"
+                  onClick={() => void install.install()}
+                >
+                  追加
+                </button>
+              )}
+            </li>
+          </ul>
+        </>
+      )}
 
       <p className="home__label home__section">アカウント</p>
       <ul className="menu-list">
