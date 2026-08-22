@@ -102,7 +102,8 @@ export const DEFAULT_VIEW_SETTINGS: ViewSettings = {
   nameOrder: 'family-first',
   nameLines: 1,
   uiSize: 'medium',
-  vertical: false,
+  // 和装の家系図は縦書き。既定をこちらにする
+  vertical: true,
   highlightLineage: true,
   showSpousePlaceholder: false,
   showCardAvatar: true,

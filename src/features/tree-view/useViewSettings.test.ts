@@ -69,9 +69,11 @@ describe('migrateSettings', () => {
 
 describe('cardMetrics', () => {
   it('カードの高さは氏名の行数と項目数で決まる', () => {
-    const one = cardMetrics({ ...DEFAULT_VIEW_SETTINGS, cardFields: ['meta'] });
+    // 高さの決まり方は横書きの話。縦書きでは行ではなく列が増える
+    const one = cardMetrics({ ...DEFAULT_VIEW_SETTINGS, vertical: false, cardFields: ['meta'] });
     const three = cardMetrics({
       ...DEFAULT_VIEW_SETTINGS,
+      vertical: false,
       cardFields: ['kana', 'meta', 'birthPlace'],
     });
 
@@ -81,8 +83,8 @@ describe('cardMetrics', () => {
   });
 
   it('氏名を2行にすると、そのぶん高くなる', () => {
-    const single = cardMetrics({ ...DEFAULT_VIEW_SETTINGS, nameLines: 1 });
-    const double = cardMetrics({ ...DEFAULT_VIEW_SETTINGS, nameLines: 2 });
+    const single = cardMetrics({ ...DEFAULT_VIEW_SETTINGS, vertical: false, nameLines: 1 });
+    const double = cardMetrics({ ...DEFAULT_VIEW_SETTINGS, vertical: false, nameLines: 2 });
 
     expect(double.nodeHeight).toBeGreaterThan(single.nodeHeight);
   });

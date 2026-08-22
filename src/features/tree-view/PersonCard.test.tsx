@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { avatarColor } from '@/features/home/avatar';
 import { PersonCard } from '@/features/tree-view/TreeCanvas';
+import { verticalText } from '@/features/tree-view/verticalText';
 import { DEFAULT_METRICS, type LayoutNode } from '@/features/tree-view/layout';
 import {
   DEFAULT_VIEW_SETTINGS,
@@ -10,6 +11,12 @@ import {
   type ViewSettings,
 } from '@/features/tree-view/useViewSettings';
 import { EMPTY_PERSON, type Person } from '@/types/models';
+
+/*
+ * 行の並びを見るテストなので、横書きで確かめる。
+ * 既定は縦書きだが、縦書きでは1行が1列になり、行の高さという考え方が無い。
+ */
+const HORIZONTAL: ViewSettings = { ...DEFAULT_VIEW_SETTINGS, vertical: false };
 
 function node(overrides: Partial<Person>): LayoutNode {
   return {
@@ -28,9 +35,7 @@ function node(overrides: Partial<Person>): LayoutNode {
 
 /** カードを1枚描いて、行ごとの文字と Y 座標を取り出す。 */
 function draw(person: Partial<Person>, cardFields?: CardField[]) {
-  const settings: ViewSettings = cardFields
-    ? { ...DEFAULT_VIEW_SETTINGS, cardFields }
-    : DEFAULT_VIEW_SETTINGS;
+  const settings: ViewSettings = cardFields ? { ...HORIZONTAL, cardFields } : HORIZONTAL;
 
   const { container } = render(
     <svg>
@@ -131,7 +136,7 @@ describe('カードの丸アバター', () => {
             placedByHand: false,
           }}
           metrics={DEFAULT_METRICS}
-          settings={{ ...DEFAULT_VIEW_SETTINGS, ...settings }}
+          settings={{ ...HORIZONTAL, ...settings }}
           selected={false}
           inLineage={false}
           distant={false}
@@ -168,5 +173,51 @@ describe('カードの丸アバター', () => {
 
   it('縦書きでは添えない（列の並びが崩れるため）', () => {
     expect(avatarOf({}, { vertical: true }).circle).toBeNull();
+  });
+});
+
+describe('縦書きの文字', () => {
+  it('生没年の横棒を、縦の棒に置き換える', () => {
+    // 字を立てて組むので、横棒のままだと線が寝て途切れて見える
+    expect(verticalText('1931–2025')).toBe('1931｜2025');
+    expect(verticalText('1958–')).toBe('1958｜');
+  });
+
+  it('横棒でない文字はそのまま', () => {
+    expect(verticalText('寺原 サツエ')).toBe('寺原 サツエ');
+    expect(verticalText('享年94')).toBe('享年94');
+  });
+
+  it('縦書きのカードでは、置き換えた文字で描く', () => {
+    const { container } = render(
+      <svg>
+        <PersonCard
+          node={node({
+            givenName: 'サツエ',
+            birthDate: '1931',
+            deathDate: '2025',
+            isLiving: false,
+          })}
+          metrics={DEFAULT_METRICS}
+          settings={{ ...DEFAULT_VIEW_SETTINGS, vertical: true }}
+          selected={false}
+          inLineage={false}
+          distant={false}
+          placeholder={false}
+          birthOrder={null}
+          draggable={false}
+          dragOffset={null}
+          swapOffset={0}
+          onSelect={vi.fn()}
+          onCenter={vi.fn()}
+          onPointerDown={vi.fn()}
+          onPointerMove={vi.fn()}
+          onPointerUp={vi.fn()}
+        />
+      </svg>,
+    );
+
+    expect(container.textContent).toContain('1931｜2025');
+    expect(container.textContent).not.toContain('1931–2025');
   });
 });

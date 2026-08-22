@@ -18,6 +18,7 @@ import {
 } from '@/features/tree-view/hops';
 import { avatarColor, avatarInitial } from '@/features/home/avatar';
 import { collapseHouses, collapsedHouseTarget } from '@/features/tree-view/collapse';
+import { verticalText } from '@/features/tree-view/verticalText';
 import { resolveHouses } from '@/features/tree-view/houses';
 import { placeholderTarget, withSpousePlaceholders } from '@/features/tree-view/placeholders';
 import {
@@ -844,7 +845,7 @@ export function PersonCard({
                 y={12}
                 className={`${row.className} person-card__text--vertical`}
               >
-                {row.text}
+                {verticalText(row.text)}
               </text>
             ) : null,
           )
