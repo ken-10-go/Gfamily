@@ -45,6 +45,14 @@ describe('ホーム画面へのインストール', () => {
     expect(html).toContain('theme-color');
   });
 
+  it('版を確かめる先を、ビルドのたびに置いている', () => {
+    // これが無いと、ホーム画面に入れたアプリが古いまま気付けない
+    const config = read('vite.config.ts');
+
+    expect(config).toContain("fileName: 'version.json'");
+    expect(read('src/features/app/useAppUpdate.ts')).toContain('version.json');
+  });
+
   it('サービスワーカーは取得に手を出さない（古い版を掴ませない）', () => {
     // 溜め込むと、自動デプロイで新しい版が出ても古い画面のままになる
     const sw = read('public/sw.js');

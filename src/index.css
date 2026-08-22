@@ -1418,6 +1418,19 @@ input[type='radio'] {
   letter-spacing: normal;
 }
 
+/* 新しい版が出たときの帯。押せば入れ替わる */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.9rem;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 /* --- 画面下のタブ ---------------------------------------------------------
  * 親指の届く下半分に行き先を集める（モバイルデザイン仕様 4.2）。
  * ------------------------------------------------------------------------ */

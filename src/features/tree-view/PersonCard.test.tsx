@@ -179,8 +179,12 @@ describe('カードの丸アバター', () => {
 describe('縦書きの文字', () => {
   it('生没年の横棒を、縦の棒に置き換える', () => {
     // 字を立てて組むので、横棒のままだと線が寝て途切れて見える
-    expect(verticalText('1931–2025')).toBe('1931｜2025');
-    expect(verticalText('1958–')).toBe('1958｜');
+    expect(verticalText('1931–2025')).toBe('1931丨2025');
+    expect(verticalText('1958–')).toBe('1958丨');
+  });
+
+  it('全角の縦線も、漢字の縦棒に直す（記号は縦書き字形で横に寝てしまう）', () => {
+    expect(verticalText('1931｜2025')).toBe('1931丨2025');
   });
 
   it('横棒でない文字はそのまま', () => {
@@ -217,7 +221,7 @@ describe('縦書きの文字', () => {
       </svg>,
     );
 
-    expect(container.textContent).toContain('1931｜2025');
+    expect(container.textContent).toContain('1931丨2025');
     expect(container.textContent).not.toContain('1931–2025');
   });
 });

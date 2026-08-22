@@ -43,7 +43,24 @@ export default defineConfig(({ mode }) => {
       __APP_REPOSITORY__: JSON.stringify(build.repository),
       __APP_BUILT_AT__: JSON.stringify(build.builtAt),
     },
-    plugins: [react()],
+    plugins: [
+      react(),
+      /*
+       * いま出ている版を、画面から確かめられるように置いておく。
+       * アプリはこれを読みに行って、自分より新しければ「更新があります」と出す。
+       * ホーム画面に入れたまま開きっぱなしにされると、放っておいては古いままになる。
+       */
+      {
+        name: 'app-version-file',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'version.json',
+            source: JSON.stringify({ commit: build.commit, builtAt: build.builtAt }),
+          });
+        },
+      },
+    ],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

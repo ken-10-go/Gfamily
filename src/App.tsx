@@ -11,6 +11,7 @@ import { AcceptInvitePage } from '@/features/members/AcceptInvitePage';
 import { MembersPage } from '@/features/members/MembersPage';
 import { DemoPage } from '@/features/tree-view/DemoPage';
 import { TabBar } from '@/features/app/TabBar';
+import { UpdateBanner } from '@/features/app/UpdateBanner';
 import { HomePage } from '@/features/home/HomePage';
 import { ImportPage } from '@/features/import/ImportPage';
 import { PeoplePage } from '@/features/people/PeoplePage';
@@ -21,6 +22,7 @@ export default function App() {
   return (
     <div className="app">
       <AppHeader />
+      <UpdateBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/invite/:token" element={<AcceptInvitePage />} />

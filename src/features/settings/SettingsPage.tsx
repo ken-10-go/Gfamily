@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { rememberTree } from '@/features/app/lastTree';
+import { useAppUpdate } from '@/features/app/useAppUpdate';
 import { useInstallPrompt } from '@/features/app/useInstallPrompt';
 import { useAuth } from '@/features/auth/useAuth';
 import * as api from '@/lib/api';
@@ -17,6 +18,7 @@ export function SettingsPage() {
   const { treeId = '' } = useParams();
   const { user, signOut } = useAuth();
   const install = useInstallPrompt();
+  const app = useAppUpdate();
   const [treeName, setTreeName] = useState('');
   const [role, setRole] = useState<TreeRole | null>(null);
   const [loading, setLoading] = useState(true);
@@ -164,6 +166,26 @@ export function SettingsPage() {
           </ul>
         </>
       )}
+
+      <p className="home__label home__section">アプリの更新</p>
+      <ul className="menu-list">
+        <li className="menu-list__row">
+          <span className="menu-list__title">
+            {app.available ? '新しい版があります' : 'いまが最新です'}
+          </span>
+          <span className="menu-list__note">
+            この端末の版: {app.current ? app.current.slice(0, 7) : '開発中'}
+          </span>
+          <button
+            type="button"
+            className="button menu-list__action"
+            disabled={app.checking}
+            onClick={() => (app.available ? void app.update() : void app.check())}
+          >
+            {app.available ? '更新する' : '確認'}
+          </button>
+        </li>
+      </ul>
 
       <p className="home__label home__section">アカウント</p>
       <ul className="menu-list">
