@@ -693,6 +693,17 @@ export function TreeDetailPage() {
             <button
               type="button"
               className="icon-button icon-button--tap"
+              onClick={() => updateSetting('vertical', !settings.vertical)}
+              aria-label={settings.vertical ? '横書きにする' : '縦書きにする'}
+              aria-pressed={settings.vertical}
+              title={settings.vertical ? '横書きにする' : '縦書きにする'}
+            >
+              {settings.vertical ? '横' : '縦'}
+            </button>
+
+            <button
+              type="button"
+              className="icon-button icon-button--tap"
               onClick={toggleFocusBar}
               aria-label="表示する範囲を絞り込む"
               aria-expanded={focusOpen}
