@@ -7,7 +7,7 @@ import { isFirebaseConfigured } from '@/lib/firebase';
 type Mode = 'password' | 'magic-link';
 
 export function LoginPage() {
-  const { user, signInWithPassword, signInWithGoogle, sendMagicLink } = useAuth();
+  const { user, signInWithNickname, signInWithGoogle, sendMagicLink } = useAuth();
   const location = useLocation();
   const [mode, setMode] = useState<Mode>('password');
   const [email, setEmail] = useState('');
@@ -30,7 +30,8 @@ export function LoginPage() {
 
     try {
       if (mode === 'password') {
-        await signInWithPassword(email, password);
+        // ニックネームでもメールアドレスでも入れる（@ の有無で見分ける）
+        await signInWithNickname(email, password);
       } else {
         await sendMagicLink(email);
         setNotice('ログインリンクを送信しました。メールをご確認ください。');
@@ -103,9 +104,12 @@ export function LoginPage() {
 
       <form onSubmit={handleSubmit} className="form">
         <label className="field">
-          <span className="field__label">メールアドレス</span>
+          <span className="field__label">
+            {mode === 'password' ? 'ニックネーム（またはメールアドレス）' : 'メールアドレス'}
+          </span>
           <input
-            type="email"
+            /* ニックネームも受けるので、形の決めつけ（type=email）はしない */
+            type={mode === 'password' ? 'text' : 'email'}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="username"

@@ -69,6 +69,8 @@ export function useAppUpdate() {
     /** 動いている版と、置いてある版が食い違っているか */
     available: latest !== null && __APP_COMMIT__ !== '' && latest !== __APP_COMMIT__,
     current: __APP_COMMIT__,
+    /** 画面に出す版（ver.メジャー.マイナー） */
+    version: __APP_VERSION__,
     latest,
     checking,
     check,

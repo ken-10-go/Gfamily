@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  EmailAuthProvider,
   GoogleAuthProvider,
   isSignInWithEmailLink,
   onAuthStateChanged,
@@ -10,11 +11,15 @@ import {
   signInWithEmailLink,
   signInWithPopup,
   signOut as firebaseSignOut,
+  reauthenticateWithCredential,
+  updatePassword,
+  updateProfile,
   type User,
 } from 'firebase/auth';
 
 import { AuthContext, type AuthState } from '@/features/auth/AuthContext';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { loginEmailFor, nicknameProblem } from '@/lib/nickname';
 
 /** ログインリンクを要求したメールアドレスの控え。別タブで開かれた場合は入力を促す。 */
 const EMAIL_STORAGE_KEY = 'familytree:signInEmail';
@@ -71,23 +76,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * メールとパスワードでアカウントを作る。
+   * ニックネームとパスワードでアカウントを作る。
    *
-   * Google アカウントを持っていない家族のための入り口。
+   * Google アカウントもメールアドレスも持たない家族のための入り口。
    * 招待リンクの画面からだけ呼ぶ（アプリの中に「新規登録」は置かない）。
-   * すでに同じメールで枠だけ作られている場合は、パスワードの設定として
-   * 再設定メールへ案内する（招待時に枠を作ることがあるため）。
+   * 中では `loginEmailFor` で決まった形のアドレスに直し、
+   * ニックネームは表示名として持つ（管理画面はこれで人を見分ける）。
    */
-  const registerWithPassword = useCallback(async (email: string, password: string) => {
+  const registerWithNickname = useCallback(async (nickname: string, password: string) => {
+    const problem = nicknameProblem(nickname);
+    if (problem) throw new Error(problem);
+
     try {
-      await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+      const credential = await createUserWithEmailAndPassword(
+        getFirebaseAuth(),
+        loginEmailFor(nickname),
+        password,
+      );
+      await updateProfile(credential.user, { displayName: nickname.trim() });
     } catch (error) {
       const code = (error as { code?: string } | null)?.code ?? '';
       if (code === 'auth/email-already-in-use') {
         throw new Error(
-          'このメールアドレスは登録済みです。ログインするか、パスワードを忘れた場合は再設定してください。',
+          'このニックネームは使われています。別の名前にするか、ログインしてください。',
         );
       }
+      throw new Error(translateAuthError(error));
+    }
+  }, []);
+
+  /**
+   * ニックネーム（または以前どおりのメールアドレス）でログインする。
+   * `@` が入っていればメールアドレスとして扱う。
+   */
+  const signInWithNickname = useCallback(async (nicknameOrEmail: string, password: string) => {
+    const identifier = nicknameOrEmail.includes('@')
+      ? nicknameOrEmail.trim()
+      : loginEmailFor(nicknameOrEmail);
+
+    try {
+      await signInWithEmailAndPassword(getFirebaseAuth(), identifier, password);
+    } catch (error) {
+      throw new Error(translateAuthError(error));
+    }
+  }, []);
+
+  /**
+   * 自分のパスワードを変える。
+   *
+   * しばらく前にログインしたままだと Firebase が受け付けないので、
+   * いまのパスワードで入り直してから変える。
+   */
+  const changePassword = useCallback(async (currentPassword: string, nextPassword: string) => {
+    const current = getFirebaseAuth().currentUser;
+    if (!current?.email) throw new Error('ログインし直してください');
+
+    try {
+      await reauthenticateWithCredential(
+        current,
+        EmailAuthProvider.credential(current.email, currentPassword),
+      );
+      await updatePassword(current, nextPassword);
+    } catch (error) {
       throw new Error(translateAuthError(error));
     }
   }, []);
@@ -139,7 +189,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       signInWithPassword,
-      registerWithPassword,
+      registerWithNickname,
+      signInWithNickname,
+      changePassword,
       sendPasswordReset,
       signInWithGoogle,
       sendMagicLink,
@@ -149,7 +201,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       signInWithPassword,
-      registerWithPassword,
+      registerWithNickname,
+      signInWithNickname,
+      changePassword,
       sendPasswordReset,
       signInWithGoogle,
       sendMagicLink,

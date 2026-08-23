@@ -94,10 +94,9 @@ export function AcceptInvitePage() {
  * （忘れたときは再設定メールで本人が入れ直す）。
  */
 function JoinPanel() {
-  const { signInWithGoogle, registerWithPassword, signInWithPassword, sendPasswordReset } =
-    useAuth();
+  const { signInWithGoogle, registerWithNickname, signInWithNickname } = useAuth();
   const [mode, setMode] = useState<'register' | 'login'>('register');
-  const [email, setEmail] = useState('');
+  const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,9 +120,9 @@ function JoinPanel() {
     void run(async () => {
       if (mode === 'register') {
         if (password.length < 8) throw new Error('パスワードは8文字以上にしてください');
-        await registerWithPassword(email.trim(), password);
+        await registerWithNickname(nickname, password);
       } else {
-        await signInWithPassword(email.trim(), password);
+        await signInWithNickname(nickname, password);
       }
       // 入れたら、この画面がそのまま「参加する」に切り替わる（招待の印は URL に残っている）
     });
@@ -172,13 +171,16 @@ function JoinPanel() {
 
       <form className="form" onSubmit={handleSubmit}>
         <label className="field form__wide">
-          <span className="field__label">メールアドレス</span>
+          <span className="field__label">
+            {mode === 'register' ? 'ニックネーム（ログインに使う名前）' : 'ニックネーム'}
+          </span>
           <input
-            type="email"
-            value={email}
-            autoComplete="email"
+            type="text"
+            value={nickname}
+            autoComplete="username"
             required
-            onChange={(event) => setEmail(event.target.value)}
+            placeholder="例: たろう"
+            onChange={(event) => setNickname(event.target.value)}
           />
         </label>
 
@@ -200,19 +202,9 @@ function JoinPanel() {
             {mode === 'register' ? '登録して参加へ進む' : 'ログイン'}
           </button>
           {mode === 'login' && (
-            <button
-              type="button"
-              className="link-button"
-              disabled={busy || !email.trim()}
-              onClick={() =>
-                void run(async () => {
-                  await sendPasswordReset(email.trim());
-                  setNotice('パスワードの再設定メールを送りました。');
-                })
-              }
-            >
-              パスワードを忘れた
-            </button>
+            <span className="note">
+              パスワードを忘れたときは、招待してくれた方に仮のパスワードを出してもらってください。
+            </span>
           )}
         </div>
       </form>

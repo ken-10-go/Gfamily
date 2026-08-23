@@ -24,3 +24,5 @@ interface ImportMeta {
 declare const __APP_COMMIT__: string;
 declare const __APP_REPOSITORY__: string;
 declare const __APP_BUILT_AT__: string;
+/** 画面に出す版（ver.メジャー.マイナー）。マイナーはコミットの数 */
+declare const __APP_VERSION__: string;

@@ -698,6 +698,22 @@ export async function listMemberAccounts(treeId: string): Promise<MemberAccount[
   return result.data.members;
 }
 
+/**
+ * メンバーのパスワードを仮のものに置き換え、その場で1度だけ受け取る。
+ *
+ * ニックネームで使っている人にはメールが届かないので、再設定メールを送れない。
+ * 受け取った仮のパスワードは、電話や口頭など別の手段で本人へ伝える。
+ */
+export async function resetMemberPassword(treeId: string, targetUid: string): Promise<string> {
+  const call = httpsCallable<{ treeId: string; targetUid: string }, { password: string }>(
+    getFns(),
+    'resetMemberPassword',
+  );
+
+  const result = await call({ treeId, targetUid });
+  return result.data.password;
+}
+
 /** メンバーのログインを止める／戻す。オーナーだけが呼べる。 */
 export async function setMemberDisabled(
   treeId: string,

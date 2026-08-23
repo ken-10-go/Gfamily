@@ -235,6 +235,42 @@ export const setMemberDisabled = onCall({ region: REGION }, async (request) => {
   return { ok: true };
 });
 
+/**
+ * メンバーのパスワードを、仮のものに置き換える。
+ *
+ * ニックネームで使っている人にはメールが届かないので、再設定メールを送れない。
+ * 代わりにオーナーが仮のパスワードを発行し、**電話や口頭など別の手段で**本人へ伝える。
+ * 返すのはこの1回だけで、どこにも残さない。受け取った人は設定で変えられる。
+ *
+ * オーナーだけが呼べる。自分自身には使えない（締め出しを防ぐ）。
+ */
+export const resetMemberPassword = onCall({ region: REGION }, async (request) => {
+  const uid = requireUid(request.auth);
+  const { treeId, targetUid } = (request.data ?? {}) as { treeId?: string; targetUid?: string };
+
+  if (!treeId || !targetUid) {
+    throw new HttpsError('invalid-argument', '対象が指定されていません');
+  }
+  if (targetUid === uid) {
+    throw new HttpsError('invalid-argument', '自分のパスワードは設定から変えてください');
+  }
+
+  await requireOwner(treeId, uid);
+
+  const ids = await memberIdsOf(treeId);
+  if (!ids.includes(targetUid)) {
+    throw new HttpsError('permission-denied', 'この家系図のメンバーではありません');
+  }
+
+  // 読み上げて伝えることがあるので、見間違えの多い文字（0/O・1/l）は使わない
+  const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = randomBytes(12);
+  const password = [...bytes].map((byte) => alphabet[byte % alphabet.length]).join('');
+
+  await getAuth().updateUser(targetUid, { password });
+  return { password };
+});
+
 export const revokeInvitation = onCall({ region: REGION }, async (request) => {
   const uid = requireUid(request.auth);
   const { treeId, invitationId } = (request.data ?? {}) as {

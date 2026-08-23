@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '@/features/auth/useAuth';
 import * as api from '@/lib/api';
 import type { MemberEntry } from '@/lib/api';
+import { isNicknameAccount } from '@/lib/nickname';
 import { ROLE_LABELS, type Invitation, type TreeRole } from '@/types/models';
 
 export function MembersPage() {
@@ -24,6 +25,8 @@ export function MembersPage() {
   /** 期限まで何人でも使える共通のリンクにするか */
   const [shared, setShared] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
+  /** 発行した仮のパスワード。画面を離れるまでのあいだだけ出す */
+  const [temporary, setTemporary] = useState<{ name: string; password: string } | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -59,23 +62,37 @@ export function MembersPage() {
   }, [reload]);
 
   /**
-   * パスワードの再設定メールを、本人あてに送る。
+   * パスワードを設定し直す手立て。相手の入り方で分かれる。
    *
-   * オーナーでもパスワードそのものは見えないし、決められない。
-   * 「本人に決め直してもらう」ための手立てだけを持たせる。
+   * ・メールアドレスで使っている人 … 本人あてに再設定メールを送る（誰にも中身は見えない）
+   * ・ニックネームで使っている人 … メールが届かないので、**仮のパスワードを1度だけ出す**。
+   *   オーナーが電話や口頭など別の手段で伝え、受け取った人は設定で変える。
    */
   async function handlePasswordReset(userId: string) {
     const account = accounts.get(userId);
-    if (!account?.email) return;
-    if (!window.confirm(`${account.email} 宛に、パスワードを設定し直すメールを送ります。`)) return;
+    if (!account) return;
 
+    const name = nameOf(userId);
     setError(null);
     setNotice(null);
+    setTemporary(null);
+
     try {
-      await sendPasswordReset(account.email);
-      setNotice(`${account.email} に再設定メールを送りました。`);
+      if (account.email && !isNicknameAccount(account.email)) {
+        if (!window.confirm(`${account.email} 宛に、パスワードを設定し直すメールを送ります。`)) {
+          return;
+        }
+        await sendPasswordReset(account.email);
+        setNotice(`${account.email} に再設定メールを送りました。`);
+        return;
+      }
+
+      if (!window.confirm(`${name} さんのパスワードを、仮のものに置き換えます。`)) return;
+
+      const password = await api.resetMemberPassword(treeId, userId);
+      setTemporary({ name, password });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'メールを送れませんでした');
+      setError(caught instanceof Error ? caught.message : 'パスワードを変えられませんでした');
     }
   }
 
@@ -123,6 +140,14 @@ export function MembersPage() {
 
   const isOwner = role === 'owner';
 
+  /** 画面に出す呼び名。ニックネーム → メール → ID の順に、分かるものを使う */
+  const nameOf = (userId: string) => {
+    const account = accounts.get(userId);
+    if (account?.displayName) return account.displayName;
+    if (account?.email && !isNicknameAccount(account.email)) return account.email;
+    return `${userId.slice(0, 8)}…`;
+  };
+
   return (
     <main className="page">
       <Link to={`/trees/${treeId}`} className="tree-page__back">
@@ -132,6 +157,18 @@ export function MembersPage() {
 
       {error && <p className="alert alert--error">{error}</p>}
       {notice && <p className="note">{notice}</p>}
+      {temporary && (
+        <div className="alert alert--success">
+          <p>
+            <strong>{temporary.name}</strong> さんの仮のパスワードです。
+            この場でしか出ないので、電話などで本人へ伝えてください。
+          </p>
+          <p>
+            <code>{temporary.password}</code>
+          </p>
+          <p className="note">受け取った方は、設定の「パスワードを変える」で決め直せます。</p>
+        </div>
+      )}
 
       <section>
         <h2>メンバー</h2>
@@ -176,7 +213,7 @@ export function MembersPage() {
                   )}
                 </td>
                 <td className="card-list__actions">
-                  {isOwner && accounts.get(member.userId)?.email && (
+                  {isOwner && member.userId !== user?.uid && accounts.has(member.userId) && (
                     <button
                       type="button"
                       className="button"
@@ -200,9 +237,9 @@ export function MembersPage() {
           </tbody>
         </table>
         <p className="note">
-          メールアドレスが見えるのはオーナーだけです。
-          <strong>パスワードは誰にも見えません</strong>
-          （再設定を押すと、本人あてに設定し直すメールが届きます）。
+          呼び名が見えるのはオーナーだけです。<strong>パスワードは誰にも見えません</strong>。
+          忘れた人には、メールで使っている方には再設定メールを、
+          ニックネームで使っている方には仮のパスワードを出せます。
         </p>
       </section>
 

@@ -16,7 +16,7 @@ import { ROLE_LABELS, type TreeRole } from '@/types/models';
  */
 export function SettingsPage() {
   const { treeId = '' } = useParams();
-  const { user, signOut } = useAuth();
+  const { user, signOut, changePassword } = useAuth();
   const install = useInstallPrompt();
   const app = useAppUpdate();
   const [treeName, setTreeName] = useState('');
@@ -167,15 +167,21 @@ export function SettingsPage() {
         </>
       )}
 
+      {/* ニックネームで使っている人は、仮のパスワードをもらったらここで決め直す */}
+      {user?.providerData?.some((entry) => entry.providerId === 'password') && (
+        <>
+          <p className="home__label home__section">パスワード</p>
+          <PasswordForm onSubmit={changePassword} />
+        </>
+      )}
+
       <p className="home__label home__section">アプリの更新</p>
       <ul className="menu-list">
         <li className="menu-list__row">
           <span className="menu-list__title">
             {app.available ? '新しい版があります' : 'いまが最新です'}
           </span>
-          <span className="menu-list__note">
-            この端末の版: {app.current ? app.current.slice(0, 7) : '開発中'}
-          </span>
+          <span className="menu-list__note">この端末の版: {app.version}</span>
           <button
             type="button"
             className="button menu-list__action"
@@ -201,6 +207,78 @@ export function SettingsPage() {
         ログアウト
       </button>
     </main>
+  );
+}
+
+/** 自分のパスワードを変える。仮のパスワードを受け取った人が最初に通る場所。 */
+function PasswordForm({
+  onSubmit,
+}: {
+  onSubmit: (currentPassword: string, nextPassword: string) => Promise<void>;
+}) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  return (
+    <form
+      className="form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setError(null);
+        setDone(false);
+
+        if (next.length < 8) {
+          setError('新しいパスワードは8文字以上にしてください');
+          return;
+        }
+
+        setBusy(true);
+        void onSubmit(current, next)
+          .then(() => {
+            setDone(true);
+            setCurrent('');
+            setNext('');
+          })
+          .catch((caught: unknown) =>
+            setError(caught instanceof Error ? caught.message : '変えられませんでした'),
+          )
+          .finally(() => setBusy(false));
+      }}
+    >
+      {error && <p className="alert alert--error">{error}</p>}
+      {done && <p className="note">パスワードを変えました。</p>}
+
+      <label className="field form__wide">
+        <span className="field__label">いまのパスワード</span>
+        <input
+          type="password"
+          value={current}
+          autoComplete="current-password"
+          required
+          onChange={(event) => setCurrent(event.target.value)}
+        />
+      </label>
+
+      <label className="field form__wide">
+        <span className="field__label">新しいパスワード（8文字以上）</span>
+        <input
+          type="password"
+          value={next}
+          autoComplete="new-password"
+          required
+          onChange={(event) => setNext(event.target.value)}
+        />
+      </label>
+
+      <div className="form__actions">
+        <button type="submit" className="button button--primary" disabled={busy}>
+          パスワードを変える
+        </button>
+      </div>
+    </form>
   );
 }
 
