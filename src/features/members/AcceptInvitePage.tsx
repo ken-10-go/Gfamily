@@ -110,7 +110,16 @@ function JoinPanel({ token }: { token: string }) {
     try {
       await work();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'うまくいきませんでした');
+      const message = caught instanceof Error ? caught.message : 'うまくいきませんでした';
+      /*
+       * 呼び先の関数がまだ配られていないと、CORS で弾かれて「internal」としか出ない。
+       * 画面から見て何をすればよいのか分からないので、そこだけ言葉を足す。
+       */
+      setError(
+        message === 'internal'
+          ? '登録の受付が動いていないようです（管理者へ連絡してください）'
+          : message,
+      );
     } finally {
       setBusy(false);
     }

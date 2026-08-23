@@ -355,13 +355,23 @@ export const registerWithInvitation = onCall({ region: REGION }, async (request)
   try {
     await getAuth().createUser({ email, password, displayName: nickname.trim() });
   } catch (error) {
-    if ((error as { code?: string }).code === 'auth/email-already-exists') {
+    const code = (error as { code?: string }).code ?? '';
+
+    if (code === 'auth/email-already-exists') {
       throw new HttpsError(
         'already-exists',
         'このニックネームは使われています。別の名前にするか、ログインしてください',
       );
     }
-    throw error;
+    if (code === 'auth/invalid-password' || code === 'auth/weak-password') {
+      throw new HttpsError('invalid-argument', 'パスワードが短すぎます（8文字以上）');
+    }
+
+    /*
+     * 想定外のときは、そのまま投げると画面に「internal」としか出ず、
+     * 何が起きたのか分からない。理由を持たせて返す（秘密は含まれない）。
+     */
+    throw new HttpsError('internal', `アカウントを作れませんでした（${code || String(error)}）`);
   }
 
   // 画面はこのアドレスでログインする。導き方が食い違っても入れるように返す
