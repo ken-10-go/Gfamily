@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
-import { PassphrasePanel } from '@/features/e2ee/PassphrasePanel';
 import { TreeKeyProvider } from '@/features/e2ee/TreeKeyProvider';
 import { AddRelativeForm, type RelativeKind } from '@/features/persons/AddRelativeForm';
 import { ParentsForm, type ParentsDraft } from '@/features/persons/ParentsForm';
@@ -946,11 +945,6 @@ function DialogContent({
     return (
       <PersonDialog title="表示設定" onClose={onClose}>
         <ViewSettingsPanel settings={settings.settings} onChange={settings.updateSetting} />
-
-        <section className="panel__section">
-          <h3>🔒 機微な情報の鍵</h3>
-          <PassphrasePanel />
-        </section>
       </PersonDialog>
     );
   }

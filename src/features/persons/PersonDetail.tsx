@@ -227,17 +227,8 @@ function SensitiveSection({ person }: { person: Person }) {
 
   if (!person.encryptedData) return null;
 
-  if (!key.unlocked) {
-    return (
-      <section className="panel__section">
-        <h3>🔒 機微な情報</h3>
-        <p className="note">
-          本籍地・戒名などが暗号化して保存されています。表示設定の「機微な情報の鍵」で
-          合言葉を入れると読めます。
-        </p>
-      </section>
-    );
-  }
+  // 合言葉を入れる場所を出していないあいだは、鍵の話そのものを見せない
+  if (!key.unlocked) return null;
 
   return (
     <section className="panel__section">
