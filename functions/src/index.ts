@@ -84,11 +84,13 @@ export const deleteTree = onCall({ region: REGION }, async (request) => {
  */
 export const createInvitation = onCall({ region: REGION }, async (request) => {
   const uid = requireUid(request.auth);
-  const { treeId, role, email, validDays } = (request.data ?? {}) as {
+  const { treeId, role, email, validDays, shared } = (request.data ?? {}) as {
     treeId?: string;
     role?: TreeRole;
     email?: string | null;
     validDays?: number;
+    /** 期限までなら何人でも使えるリンクにするか（家族へまとめて配るとき） */
+    shared?: boolean;
   };
 
   if (!treeId) {
@@ -119,14 +121,23 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
   const token = randomBytes(32).toString('hex');
   const expiresAt = Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
 
+  /*
+   * 宛先を決めた招待は1人で使い切り。共通のリンクは期限まで何人でも使える。
+   * 家族へまとめて配るときは、1人ずつリンクを作るより共通のほうが現実的で、
+   * 期限を短くしておけば配りっぱなしの危険も抑えられる。
+   */
+  const isShared = Boolean(shared) && !normalizedEmail;
+
   await db.collection(`trees/${treeId}/invitations`).add({
     tokenHash: hashToken(token),
     role,
     email: normalizedEmail,
+    shared: isShared,
     expiresAt,
     revokedAt: null,
     acceptedAt: null,
     acceptedBy: null,
+    acceptedCount: 0,
     createdBy: uid,
     createdAt: FieldValue.serverTimestamp(),
   });
@@ -152,6 +163,77 @@ async function ensureUserExists(email: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * メンバーの一覧に、ログインに使っているメールアドレスを添えて返す。
+ *
+ * Firestore には uid しか持っていないので、誰なのかを画面で見分けられない。
+ * 突き合わせは Admin SDK にしかできないため、ここで行う。
+ * **パスワードは扱わない**（Firebase も生のパスワードを持たない）。
+ * オーナーだけが呼べる。
+ */
+export const listMemberAccounts = onCall({ region: REGION }, async (request) => {
+  const uid = requireUid(request.auth);
+  const { treeId } = (request.data ?? {}) as { treeId?: string };
+  if (!treeId) {
+    throw new HttpsError('invalid-argument', '家系図が指定されていません');
+  }
+
+  await requireOwner(treeId, uid);
+
+  const ids = await memberIdsOf(treeId);
+  if (ids.length === 0) return { members: [] };
+
+  const found = await getAuth().getUsers(ids.map((id) => ({ uid: id })));
+  const byUid = new Map(found.users.map((user) => [user.uid, user]));
+
+  return {
+    members: ids.map((id) => {
+      const user = byUid.get(id);
+      return {
+        uid: id,
+        email: user?.email ?? null,
+        displayName: user?.displayName ?? null,
+        // どの入り方で使っているか（Google か、メールとパスワードか）
+        providers: user?.providerData.map((entry) => entry.providerId) ?? [],
+        lastSignInAt: user?.metadata.lastSignInTime ?? null,
+        disabled: user?.disabled ?? false,
+      };
+    }),
+  };
+});
+
+/**
+ * メンバーのログインを止める／戻す。
+ *
+ * 抜けてもらうだけならメンバーから外せばよいが、
+ * 「アカウントごと使えなくしたい」ときのための手立て。オーナーだけが呼べる。
+ */
+export const setMemberDisabled = onCall({ region: REGION }, async (request) => {
+  const uid = requireUid(request.auth);
+  const { treeId, targetUid, disabled } = (request.data ?? {}) as {
+    treeId?: string;
+    targetUid?: string;
+    disabled?: boolean;
+  };
+
+  if (!treeId || !targetUid) {
+    throw new HttpsError('invalid-argument', '対象が指定されていません');
+  }
+  if (targetUid === uid) {
+    throw new HttpsError('invalid-argument', '自分のアカウントは止められません');
+  }
+
+  await requireOwner(treeId, uid);
+
+  const ids = await memberIdsOf(treeId);
+  if (!ids.includes(targetUid)) {
+    throw new HttpsError('permission-denied', 'この家系図のメンバーではありません');
+  }
+
+  await getAuth().updateUser(targetUid, { disabled: Boolean(disabled) });
+  return { ok: true };
+});
 
 export const revokeInvitation = onCall({ region: REGION }, async (request) => {
   const uid = requireUid(request.auth);
@@ -221,9 +303,12 @@ export const acceptInvitation = onCall({ region: REGION }, async (request) => {
   const role = invitation.get('role') as TreeRole;
 
   // メンバー追加と受諾済みの記録は、二重受諾を防ぐためトランザクションでまとめる
+  const isShared = invitation.get('shared') === true;
+
   await db.runTransaction(async (tx) => {
     const current = await tx.get(invitation.ref);
-    if (current.get('acceptedAt') || current.get('revokedAt')) {
+    // 共通のリンクは使い切らない。期限と取り消しだけで管理する
+    if ((!isShared && current.get('acceptedAt')) || current.get('revokedAt')) {
       throw new HttpsError('not-found', '招待リンクが無効か、有効期限が切れています');
     }
 
@@ -233,8 +318,11 @@ export const acceptInvitation = onCall({ region: REGION }, async (request) => {
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.update(invitation.ref, {
-      acceptedAt: FieldValue.serverTimestamp(),
+      // 誰が最後に使ったかは記録するが、共通のリンクは閉じない
+      acceptedAt: isShared ? (current.get('acceptedAt') ?? null) : FieldValue.serverTimestamp(),
       acceptedBy: uid,
+      acceptedCount: FieldValue.increment(1),
+      lastAcceptedAt: FieldValue.serverTimestamp(),
     });
     tx.set(treeRef.collection('auditLogs').doc(), {
       actorId: uid,
@@ -261,7 +349,8 @@ async function findValidInvitation(token: string): Promise<DocumentSnapshot | nu
 
   const expiresAt = invitation.get('expiresAt') as Timestamp | undefined;
   const isExpired = !expiresAt || expiresAt.toMillis() < Date.now();
-  if (isExpired || invitation.get('revokedAt') || invitation.get('acceptedAt')) {
+  const usedUp = invitation.get('shared') !== true && invitation.get('acceptedAt');
+  if (isExpired || invitation.get('revokedAt') || usedUp) {
     return null;
   }
 

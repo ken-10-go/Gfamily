@@ -4,6 +4,8 @@ import {
   isSignInWithEmailLink,
   onAuthStateChanged,
   sendSignInLinkToEmail,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithEmailLink,
   signInWithPopup,
@@ -68,6 +70,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /**
+   * メールとパスワードでアカウントを作る。
+   *
+   * Google アカウントを持っていない家族のための入り口。
+   * 招待リンクの画面からだけ呼ぶ（アプリの中に「新規登録」は置かない）。
+   * すでに同じメールで枠だけ作られている場合は、パスワードの設定として
+   * 再設定メールへ案内する（招待時に枠を作ることがあるため）。
+   */
+  const registerWithPassword = useCallback(async (email: string, password: string) => {
+    try {
+      await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code ?? '';
+      if (code === 'auth/email-already-in-use') {
+        throw new Error(
+          'このメールアドレスは登録済みです。ログインするか、パスワードを忘れた場合は再設定してください。',
+        );
+      }
+      throw new Error(translateAuthError(error));
+    }
+  }, []);
+
+  /** パスワードの再設定メールを送る。パスワードそのものは誰にも見えない。 */
+  const sendPasswordReset = useCallback(async (email: string) => {
+    try {
+      await sendPasswordResetEmail(getFirebaseAuth(), email);
+    } catch (error) {
+      throw new Error(translateAuthError(error));
+    }
+  }, []);
+
   const signInWithGoogle = useCallback(async () => {
     const provider = new GoogleAuthProvider();
     // 常にアカウント選択を出す。家族で端末を共有していても取り違えにくくする。
@@ -102,8 +135,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, loading, signInWithPassword, signInWithGoogle, sendMagicLink, signOut }),
-    [user, loading, signInWithPassword, signInWithGoogle, sendMagicLink, signOut],
+    () => ({
+      user,
+      loading,
+      signInWithPassword,
+      registerWithPassword,
+      sendPasswordReset,
+      signInWithGoogle,
+      sendMagicLink,
+      signOut,
+    }),
+    [
+      user,
+      loading,
+      signInWithPassword,
+      registerWithPassword,
+      sendPasswordReset,
+      signInWithGoogle,
+      sendMagicLink,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

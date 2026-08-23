@@ -68,9 +68,12 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
-  it('招待ページは未ログインでもログイン導線を出す', async () => {
+  it('招待ページは未ログインでも、入り方を選べる', async () => {
+    // Google を持っていない家族もいるので、登録という道も出す
     renderAt('/invite/sometoken');
 
-    expect(await screen.findByRole('heading', { name: '招待を受け取りました' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '家系図への招待' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Google アカウントで入る' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'はじめて（登録する）' })).toBeInTheDocument();
   });
 });

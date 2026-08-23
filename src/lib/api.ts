@@ -645,19 +645,71 @@ export async function listInvitations(treeId: string): Promise<Invitation[]> {
 }
 
 /** 招待を発行し、平文トークンを返す。この値はこの1回しか取得できない。 */
+/**
+ * 招待リンクを発行する。
+ *
+ * `shared` を立てると、期限まで**何人でも使える共通のリンク**になる
+ * （家族へまとめて配るとき）。宛先を決めた招待は、これまでどおり1人で使い切り。
+ */
 export async function createInvitation(
   treeId: string,
   role: Exclude<TreeRole, 'owner'>,
   email: string | null,
   validDays = 7,
+  shared = false,
 ): Promise<string> {
   const call = httpsCallable<
-    { treeId: string; role: TreeRole; email: string | null; validDays: number },
+    {
+      treeId: string;
+      role: TreeRole;
+      email: string | null;
+      validDays: number;
+      shared: boolean;
+    },
     { token: string }
   >(getFns(), 'createInvitation');
 
-  const result = await call({ treeId, role, email, validDays });
+  const result = await call({ treeId, role, email, validDays, shared });
   return result.data.token;
+}
+
+/** ログインに使っているアカウント。パスワードは Firebase の中にしかない。 */
+export interface MemberAccount {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  /** google.com / password など。どの入り方で使っているか */
+  providers: string[];
+  lastSignInAt: string | null;
+  disabled: boolean;
+}
+
+/**
+ * メンバーのアカウントを、メールアドレス付きで引く。オーナーだけが呼べる。
+ * Firestore には uid しか無いので、突き合わせは Cloud Functions に任せる。
+ */
+export async function listMemberAccounts(treeId: string): Promise<MemberAccount[]> {
+  const call = httpsCallable<{ treeId: string }, { members: MemberAccount[] }>(
+    getFns(),
+    'listMemberAccounts',
+  );
+
+  const result = await call({ treeId });
+  return result.data.members;
+}
+
+/** メンバーのログインを止める／戻す。オーナーだけが呼べる。 */
+export async function setMemberDisabled(
+  treeId: string,
+  targetUid: string,
+  disabled: boolean,
+): Promise<void> {
+  const call = httpsCallable<
+    { treeId: string; targetUid: string; disabled: boolean },
+    { ok: boolean }
+  >(getFns(), 'setMemberDisabled');
+
+  await call({ treeId, targetUid, disabled });
 }
 
 export async function revokeInvitation(treeId: string, invitationId: string): Promise<void> {
