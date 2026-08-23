@@ -132,6 +132,15 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
 
   await db.collection(`trees/${treeId}/invitations`).add({
     tokenHash: hashToken(token),
+    /*
+     * 共通リンクだけは、そのままの文字列も残す。
+     *
+     * 家族へまとめて配るものなので「あとでもう一度リンクを知りたい」が必ず起きる。
+     * 読めるのはオーナーだけ（ルールの invitations は isOwner のみ read 可）で、
+     * もともと配って回るための値なので、控えを持つ危険より配り直せない不便を採った。
+     * 宛先つきの招待は1人で使い切りなので、これまでどおり残さない。
+     */
+    token: isShared ? token : null,
     role,
     email: normalizedEmail,
     shared: isShared,
@@ -287,6 +296,8 @@ export const revokeInvitation = onCall({ region: REGION }, async (request) => {
   await requireOwner(treeId, uid);
   await db.doc(`trees/${treeId}/invitations/${invitationId}`).update({
     revokedAt: FieldValue.serverTimestamp(),
+    // 取り消したリンクは控えごと消す（画面に出続けて、また配られないように）
+    token: FieldValue.delete(),
   });
 
   return { ok: true };

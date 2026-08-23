@@ -110,7 +110,7 @@ export function MembersPage() {
         validDays,
         shared,
       );
-      setIssuedLink(`${window.location.origin}${import.meta.env.BASE_URL}invite/${token}`);
+      setIssuedLink(inviteUrl(token));
       setInviteEmail('');
       await reload();
     } catch (caught) {
@@ -328,7 +328,10 @@ export function MembersPage() {
 
           {issuedLink && (
             <div className="alert alert--success">
-              <p>招待リンクを発行しました。この内容は今だけ表示されます。</p>
+              <p>
+                招待リンクを発行しました。共通リンクは下の一覧からいつでも見直せます
+                （宛先つきの招待はこの1回だけの表示です）。
+              </p>
               <code className="token">{issuedLink}</code>
               <button
                 type="button"
@@ -350,6 +353,7 @@ export function MembersPage() {
                   <th>権限</th>
                   <th>宛先</th>
                   <th>状態</th>
+                  <th>リンク</th>
                   <th />
                 </tr>
               </thead>
@@ -360,11 +364,32 @@ export function MembersPage() {
                     <td>{invitation.email ?? '（リンクを知っている人）'}</td>
                     <td>{invitationStatus(invitation)}</td>
                     <td>
+                      {invitation.token && isUsable(invitation) ? (
+                        <div className="invite-link">
+                          <code className="token">{inviteUrl(invitation.token)}</code>
+                          <button
+                            type="button"
+                            className="button"
+                            onClick={() =>
+                              navigator.clipboard?.writeText(inviteUrl(invitation.token ?? ''))
+                            }
+                          >
+                            コピー
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="note">
+                          {invitation.shared ? '発行時のみ表示' : '（宛先つき）'}
+                        </span>
+                      )}
+                    </td>
+                    <td>
                       {!invitation.acceptedAt && !invitation.revokedAt && (
                         <button
                           type="button"
                           className="button"
                           onClick={async () => {
+                            if (!window.confirm('この招待リンクを使えなくしますか？')) return;
                             await api.revokeInvitation(treeId, invitation.id);
                             await reload();
                           }}
@@ -384,11 +409,28 @@ export function MembersPage() {
   );
 }
 
+/** 招待トークンから、配る URL を組み立てる。 */
+function inviteUrl(token: string): string {
+  return `${window.location.origin}${import.meta.env.BASE_URL}invite/${token}`;
+}
+
+/** まだ使える招待か（取り消し済み・使い切り・期限切れでない）。 */
+function isUsable(invitation: Invitation): boolean {
+  if (invitation.revokedAt) return false;
+  if (!invitation.shared && invitation.acceptedAt) return false;
+  if (invitation.expiresAt && new Date(invitation.expiresAt) < new Date()) return false;
+  return true;
+}
+
 function invitationStatus(invitation: Invitation): string {
   if (invitation.revokedAt) return '取り消し済み';
   if (invitation.acceptedAt) return '受諾済み';
-  if (!invitation.expiresAt) return '—';
+  const used =
+    invitation.shared && invitation.acceptedCount > 0
+      ? `・${invitation.acceptedCount}人が使用`
+      : '';
+  if (!invitation.expiresAt) return `—${used}`;
   const expiresAt = new Date(invitation.expiresAt);
-  if (expiresAt < new Date()) return '期限切れ';
-  return `有効（${expiresAt.toLocaleDateString('ja-JP')}まで）`;
+  if (expiresAt < new Date()) return `期限切れ${used}`;
+  return `有効（${expiresAt.toLocaleDateString('ja-JP')}まで）${used}`;
 }

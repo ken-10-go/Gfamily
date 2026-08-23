@@ -407,6 +407,20 @@ code {
   border-radius: 4px;
 }
 
+/* 発行済みの招待の行。狭い画面ではリンクの下にボタンが回り込む。 */
+.invite-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 12rem;
+}
+
+.invite-link .token {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
 /* --- フォーム ------------------------------------------------------------- */
 
 .form {

@@ -231,6 +231,12 @@ export interface Invitation {
   id: string;
   email: string | null;
   role: TreeRole;
+  /** 期限まで何人でも使える共通リンクか */
+  shared: boolean;
+  /** 共通リンクのときだけ、そのままの文字列を控えてある（あとで配り直せるように） */
+  token: string | null;
+  /** 共通リンクを使って入った人数 */
+  acceptedCount: number;
   expiresAt: string | null;
   revokedAt: string | null;
   acceptedAt: string | null;
