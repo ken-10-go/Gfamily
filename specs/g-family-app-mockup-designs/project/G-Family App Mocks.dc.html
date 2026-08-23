@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#f3ede3;font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased}
+  .dv-turn{padding:40px 44px 60px}
+  .dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
+  .dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#3d3226;color:#fff;border-radius:4px;text-decoration:none}
+  .dv-tname{font:700 15px/1.2 'Nunito',sans-serif;color:#3d3226}
+  .dv-sub{margin:0 0 26px;font:400 13px/1.5 'Nunito',sans-serif;color:#7a6f5f;max-width:560px}
+  .dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:10px}
+  .dv-oid{font:700 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(61,50,38,.1);color:#3d3226;border-radius:5px;text-decoration:none}
+  .dv-olabel{display:flex;align-items:baseline;gap:8px;font:600 12px/1.3 'Nunito',sans-serif;color:#3d3226}
+  .dv-oline{font:400 11.5px/1.4 'Nunito',sans-serif;color:#9a8f7d;margin:2px 0 0}
+  .phone{width:375px;height:812px;border-radius:44px;overflow:hidden;box-shadow:0 30px 60px -20px rgba(61,50,38,.35),0 0 0 1px rgba(61,50,38,.06);position:relative}
+  .dv-next{margin:26px 0 0;font:12px/1.6 'Nunito',sans-serif;color:rgba(61,50,38,.55)}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">G-Family App — 家族メンバー一覧</span></div>
+  <p class="dv-sub">家系図の共同編集アプリ。温かみ・親しみやすいトーンで2方向を提案。フレームなし（デバイス依存なし）。</p>
+  <div class="dv-opts">
+
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>ぬくもりの木漏れ日</div>
+      <p class="dv-oline">クリーム×テラコッタ×セージ。有機的な曲線と手描き風の家系図イラストで、アルバムをめくるような温かさ。</p>
+      <div class="phone">
+        <div style="width:100%;height:100%;background:linear-gradient(180deg,#fbf4e8 0%,#f6ecdb 100%);display:flex;flex-direction:column;position:relative;overflow:hidden">
+          <svg style="position:absolute;top:-40px;right:-60px;opacity:.5" width="260" height="260" viewBox="0 0 260 260"><circle cx="130" cy="130" r="130" fill="#e8d9b5"/></svg>
+          <svg style="position:absolute;bottom:60px;left:-50px;opacity:.4" width="180" height="180" viewBox="0 0 180 180"><circle cx="90" cy="90" r="90" fill="#c9d6b6"/></svg>
+
+          <div style="position:relative;padding:56px 26px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font:italic 500 15px/1 'Fraunces',serif;color:#a6714f;margin-bottom:4px">おかえりなさい</div>
+              <div style="font:600 26px/1.1 'Fraunces',serif;color:#3d3226">田中家</div>
+            </div>
+            <div style="width:46px;height:46px;border-radius:50%;background:#c97b4a;display:flex;align-items:center;justify-content:center;font:700 16px 'Nunito',sans-serif;color:#fff;box-shadow:0 6px 14px -4px rgba(201,123,74,.5)">田</div>
+          </div>
+
+          <div style="position:relative;margin:14px 20px 0;background:#fff;border-radius:20px;padding:14px 20px;box-shadow:0 10px 30px -14px rgba(61,50,38,.25)">
+            <div style="font:700 11px 'Nunito',sans-serif;color:#9a8f7d;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px">家系図 · 4世代</div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+              <div style="display:flex;gap:20px">
+                <div style="width:32px;height:32px;border-radius:50%;background:#e8d9b5;border:2px solid #fff;box-shadow:0 0 0 2px #d9c398"></div>
+                <div style="width:32px;height:32px;border-radius:50%;background:#e6c9b3;border:2px solid #fff;box-shadow:0 0 0 2px #d9ab8a"></div>
+              </div>
+              <div style="width:2px;height:10px;background:#d9c398"></div>
+              <div style="display:flex;gap:20px">
+                <div style="width:36px;height:36px;border-radius:50%;background:#c97b4a;border:3px solid #fff;box-shadow:0 4px 10px -3px rgba(201,123,74,.5)"></div>
+                <div style="width:36px;height:36px;border-radius:50%;background:#a3b98a;border:3px solid #fff;box-shadow:0 4px 10px -3px rgba(163,185,138,.5)"></div>
+              </div>
+            </div>
+            <div style="text-align:center;margin-top:8px;font:600 12px 'Nunito',sans-serif;color:#c97b4a">家系図をひらく →</div>
+          </div>
+
+          <div style="position:relative;padding:16px 20px 0;font:700 12px 'Nunito',sans-serif;color:#9a8f7d;letter-spacing:.04em;text-transform:uppercase">メンバー · 6人</div>
+
+          <div style="position:relative;flex:1;min-height:0;overflow:hidden;padding:10px 20px 0;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:9px 12px;box-shadow:0 6px 16px -10px rgba(61,50,38,.2)">
+              <div style="width:38px;height:38px;border-radius:50%;background:#c97b4a;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font:700 13px 'Nunito',sans-serif">健</div>
+              <div style="flex:1">
+                <div style="font:700 13px 'Nunito',sans-serif;color:#3d3226">田中 健一</div>
+                <div style="font:400 11px 'Nunito',sans-serif;color:#9a8f7d">祖父 · 82歳</div>
+              </div>
+              <div style="width:7px;height:7px;border-radius:50%;background:#a3b98a"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:9px 12px;box-shadow:0 6px 16px -10px rgba(61,50,38,.2)">
+              <div style="width:38px;height:38px;border-radius:50%;background:#a3b98a;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font:700 13px 'Nunito',sans-serif">和</div>
+              <div style="flex:1">
+                <div style="font:700 13px 'Nunito',sans-serif;color:#3d3226">田中 和子</div>
+                <div style="font:400 11px 'Nunito',sans-serif;color:#9a8f7d">祖母 · 79歳</div>
+              </div>
+              <div style="width:7px;height:7px;border-radius:50%;background:#a3b98a"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:9px 12px;box-shadow:0 6px 16px -10px rgba(61,50,38,.2)">
+              <div style="width:38px;height:38px;border-radius:50%;background:#e6c9b3;flex:none;display:flex;align-items:center;justify-content:center;color:#8a4f2c;font:700 13px 'Nunito',sans-serif">直</div>
+              <div style="flex:1">
+                <div style="font:700 13px 'Nunito',sans-serif;color:#3d3226">田中 直樹</div>
+                <div style="font:400 11px 'Nunito',sans-serif;color:#9a8f7d">父 · 48歳</div>
+              </div>
+              <div style="width:7px;height:7px;border-radius:50%;background:#c9c0af"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:9px 12px;box-shadow:0 6px 16px -10px rgba(61,50,38,.2)">
+              <div style="width:38px;height:38px;border-radius:50%;background:#dfe6cc;flex:none;display:flex;align-items:center;justify-content:center;color:#5c6b47;font:700 13px 'Nunito',sans-serif">葵</div>
+              <div style="flex:1">
+                <div style="font:700 13px 'Nunito',sans-serif;color:#3d3226">田中 葵</div>
+                <div style="font:400 11px 'Nunito',sans-serif;color:#9a8f7d">長女 · 12歳</div>
+              </div>
+              <div style="width:7px;height:7px;border-radius:50%;background:#a3b98a"></div>
+            </div>
+          </div>
+
+          <div style="position:relative;display:flex;justify-content:space-around;align-items:center;padding:14px 10px 26px;background:#fff;border-top:1px solid rgba(61,50,38,.06)">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#c97b4a"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg><span style="font:700 10px 'Nunito',sans-serif">ホーム</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#c9bfa9"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5"/></svg><span style="font:600 10px 'Nunito',sans-serif">家族</span></div>
+            <div style="width:48px;height:48px;border-radius:50%;background:#c97b4a;display:flex;align-items:center;justify-content:center;color:#fff;margin-top:-30px;box-shadow:0 8px 16px -4px rgba(201,123,74,.6)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#c9bfa9"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg><span style="font:600 10px 'Nunito',sans-serif">予定</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#c9bfa9"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span style="font:600 10px 'Nunito',sans-serif">設定</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>ポップ・ガーデン</div>
+      <p class="dv-oline">明るいコーラル×イエロー×スカイ。丸いアバターとカードを弾ませ、子供も楽しめるカラフルなUI。</p>
+      <div class="phone">
+        <div style="width:100%;height:100%;background:#fff8ef;display:flex;flex-direction:column;position:relative;overflow:hidden">
+          <div style="background:linear-gradient(135deg,#ff8a65 0%,#ffb74d 100%);padding:56px 22px 26px;border-radius:0 0 32px 32px;position:relative;overflow:hidden">
+            <svg style="position:absolute;top:10px;right:14px;opacity:.25" width="90" height="90" viewBox="0 0 90 90"><circle cx="45" cy="45" r="45" fill="#fff"/></svg>
+            <div style="display:flex;align-items:center;justify-content:space-between;position:relative">
+              <div>
+                <div style="font:600 13px 'Quicksand',sans-serif;color:#fff;opacity:.9">こんにちは 👋</div>
+                <div style="font:700 24px 'Quicksand',sans-serif;color:#fff;margin-top:2px">田中ファミリー</div>
+              </div>
+              <div style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:20px">
+              <div style="flex:1;background:rgba(255,255,255,.22);border-radius:16px;padding:10px 12px;text-align:center">
+                <div style="font:700 20px 'Quicksand',sans-serif;color:#fff">6</div>
+                <div style="font:600 10px 'Quicksand',sans-serif;color:#fff;opacity:.85">メンバー</div>
+              </div>
+              <div style="flex:1;background:rgba(255,255,255,.22);border-radius:16px;padding:10px 12px;text-align:center">
+                <div style="font:700 20px 'Quicksand',sans-serif;color:#fff">4</div>
+                <div style="font:600 10px 'Quicksand',sans-serif;color:#fff;opacity:.85">世代</div>
+              </div>
+              <div style="flex:1;background:rgba(255,255,255,.22);border-radius:16px;padding:10px 12px;text-align:center">
+                <div style="font:700 20px 'Quicksand',sans-serif;color:#fff">3</div>
+                <div style="font:600 10px 'Quicksand',sans-serif;color:#fff;opacity:.85">今週の予定</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px 6px">
+            <div style="font:700 15px 'Quicksand',sans-serif;color:#3d3226">家族メンバー</div>
+            <div style="display:flex;align-items:center;gap:4px;color:#ff8a65;font:700 12px 'Quicksand',sans-serif">＋ 追加</div>
+          </div>
+
+          <div style="flex:1;overflow:hidden;padding:8px 20px 0;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start">
+            <div style="background:#fff;border-radius:20px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 8px 20px -12px rgba(61,50,38,.25);border:2px solid #ffe0b2">
+              <div style="width:56px;height:56px;border-radius:50%;background:#ff8a65;display:flex;align-items:center;justify-content:center;color:#fff;font:700 18px 'Quicksand',sans-serif">健</div>
+              <div style="font:700 13px 'Quicksand',sans-serif;color:#3d3226">健一</div>
+              <div style="font:600 10.5px 'Quicksand',sans-serif;color:#c9a04a;background:#fff3d6;padding:2px 8px;border-radius:8px">祖父</div>
+            </div>
+            <div style="background:#fff;border-radius:20px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 8px 20px -12px rgba(61,50,38,.25);border:2px solid #ffe0b2">
+              <div style="width:56px;height:56px;border-radius:50%;background:#4fc3c9;display:flex;align-items:center;justify-content:center;color:#fff;font:700 18px 'Quicksand',sans-serif">和</div>
+              <div style="font:700 13px 'Quicksand',sans-serif;color:#3d3226">和子</div>
+              <div style="font:600 10.5px 'Quicksand',sans-serif;color:#c9a04a;background:#fff3d6;padding:2px 8px;border-radius:8px">祖母</div>
+            </div>
+            <div style="background:#fff;border-radius:20px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 8px 20px -12px rgba(61,50,38,.25);border:2px solid #ffe0b2">
+              <div style="width:56px;height:56px;border-radius:50%;background:#7e57c2;display:flex;align-items:center;justify-content:center;color:#fff;font:700 18px 'Quicksand',sans-serif">直</div>
+              <div style="font:700 13px 'Quicksand',sans-serif;color:#3d3226">直樹</div>
+              <div style="font:600 10.5px 'Quicksand',sans-serif;color:#8e7ad1;background:#ece6fa;padding:2px 8px;border-radius:8px">父</div>
+            </div>
+            <div style="background:#fff;border-radius:20px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 8px 20px -12px rgba(61,50,38,.25);border:2px solid #ffe0b2">
+              <div style="width:56px;height:56px;border-radius:50%;background:#ffca28;display:flex;align-items:center;justify-content:center;color:#8a5a00;font:700 18px 'Quicksand',sans-serif">葵</div>
+              <div style="font:700 13px 'Quicksand',sans-serif;color:#3d3226">葵</div>
+              <div style="font:600 10.5px 'Quicksand',sans-serif;color:#8e7ad1;background:#ece6fa;padding:2px 8px;border-radius:8px">長女</div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-around;align-items:center;padding:12px 10px 26px;background:#fff;border-top:1px solid rgba(61,50,38,.06);margin-top:8px">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#c9c0af"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg><span style="font:600 10px 'Quicksand',sans-serif">ホーム</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#ff8a65"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="9" cy="7" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5"/></svg><span style="font:700 10px 'Quicksand',sans-serif">家族</span></div>
+            <div style="width:48px;height:48px;border-radius:16px;background:#ff8a65;display:flex;align-items:center;justify-content:center;color:#fff;margin-top:-28px;box-shadow:0 8px 16px -4px rgba(255,138,101,.6)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#c9c0af"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg><span style="font:600 10px 'Quicksand',sans-serif">予定</span></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:#c9c0af"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span style="font:600 10px 'Quicksand',sans-serif">設定</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">次に試せること：「<a class="dv-oid" href="#1a">1a</a>の配色で家系図カードを大きく」・「<a class="dv-oid" href="#1b">1b</a>のグリッドをリスト表示にして招待ボタンを追加」・「他の画面（家系図/カレンダー）も見せて」</p>
+</section>
+
+</x-dc>
+</body>
+</html>
