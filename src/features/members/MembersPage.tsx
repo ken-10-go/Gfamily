@@ -15,6 +15,8 @@ export function MembersPage() {
   const [role, setRole] = useState<TreeRole | null>(null);
   /** uid → ログインに使っているアカウント。オーナーのときだけ引ける */
   const [accounts, setAccounts] = useState<Map<string, api.MemberAccount>>(new Map());
+  /** uid → 呼び名。誰でも読める。オーナー以外はこれだけで人を見分ける */
+  const [nicknames, setNicknames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +34,9 @@ export function MembersPage() {
     try {
       const myRole = await api.getMyRole(treeId);
       setRole(myRole);
-      setMembers(await api.listMembers(treeId));
+      const list = await api.listMembers(treeId);
+      setMembers(list);
+      setNicknames(await api.listNicknames(list.map((member) => member.userId)));
       // 招待一覧はオーナーしか読めないので、権限がなければ取りに行かない
       setInvitations(myRole === 'owner' ? await api.listInvitations(treeId) : []);
 
@@ -140,12 +144,19 @@ export function MembersPage() {
 
   const isOwner = role === 'owner';
 
-  /** 画面に出す呼び名。ニックネーム → メール → ID の順に、分かるものを使う */
-  const nameOf = (userId: string) => {
-    const account = accounts.get(userId);
-    if (account?.displayName) return account.displayName;
-    if (account?.email && !isNicknameAccount(account.email)) return account.email;
-    return `${userId.slice(0, 8)}…`;
+  /**
+   * 画面に出す呼び名。自分で決めた名前があればそれを使う。
+   * 決めていない人は、登録時の名前（表示名）→「名前未設定」の順に落とす。
+   */
+  const nameOf = (userId: string) =>
+    nicknames.get(userId) ?? accounts.get(userId)?.displayName ?? '（名前未設定）';
+
+  /** ログインに使っている名前。オーナーの管理画面にだけ出す */
+  const accountNameOf = (userId: string) => {
+    const email = accounts.get(userId)?.email;
+    if (!email) return `${userId.slice(0, 8)}…`;
+    // ニックネームのために作ったアドレスは、@ より前だけを出す（尻尾は共通で意味がない）
+    return isNicknameAccount(email) ? email.split('@')[0] : email;
   };
 
   return (
@@ -184,13 +195,19 @@ export function MembersPage() {
             {members.map((member) => (
               <tr key={member.userId}>
                 <td>
-                  {accounts.get(member.userId)?.email ?? <code>{member.userId.slice(0, 8)}…</code>}
+                  {/* 呼び名で見分ける。ログインに使う名前はオーナーにだけ出す */}
+                  <strong>{nameOf(member.userId)}</strong>
                   {member.userId === user?.uid && <span className="badge">自分</span>}
-                  {accounts.get(member.userId)?.providers.includes('google.com') && (
-                    <span className="badge">Google</span>
-                  )}
-                  {accounts.get(member.userId)?.providers.includes('password') && (
-                    <span className="badge">パスワード</span>
+                  {isOwner && accounts.has(member.userId) && (
+                    <>
+                      <br />
+                      <span className="note">
+                        <code>{accountNameOf(member.userId)}</code>
+                        {accounts.get(member.userId)?.providers.includes('google.com')
+                          ? '（Google）'
+                          : '（パスワード）'}
+                      </span>
+                    </>
                   )}
                 </td>
                 <td>
@@ -213,15 +230,21 @@ export function MembersPage() {
                   )}
                 </td>
                 <td className="card-list__actions">
-                  {isOwner && member.userId !== user?.uid && accounts.has(member.userId) && (
-                    <button
-                      type="button"
-                      className="button"
-                      onClick={() => handlePasswordReset(member.userId)}
-                    >
-                      パスワード再設定
-                    </button>
-                  )}
+                  {/*
+                    パスワードで入っている人にだけ出す。
+                    Google の人のパスワードはこちらでは扱えない（向こうの持ち物）。
+                  */}
+                  {isOwner &&
+                    member.userId !== user?.uid &&
+                    accounts.get(member.userId)?.providers.includes('password') && (
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={() => handlePasswordReset(member.userId)}
+                      >
+                        パスワード再設定
+                      </button>
+                    )}
                   {(isOwner || member.userId === user?.uid) && (
                     <button
                       type="button"
@@ -237,7 +260,9 @@ export function MembersPage() {
           </tbody>
         </table>
         <p className="note">
-          呼び名が見えるのはオーナーだけです。<strong>パスワードは誰にも見えません</strong>。
+          一覧に出るのは、それぞれが設定に入れた呼び名です（設定 → 呼び名で変えられます）。
+          <strong>ログインに使う名前が見えるのはオーナーだけ</strong>で、
+          <strong>パスワードは誰にも見えません</strong>。
           忘れた人には、メールで使っている方には再設定メールを、
           ニックネームで使っている方には仮のパスワードを出せます。
         </p>

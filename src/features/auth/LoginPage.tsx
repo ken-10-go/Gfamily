@@ -63,7 +63,8 @@ export function LoginPage() {
 
       {!isFirebaseConfigured && (
         <p className="alert alert--error">
-          Firebase の環境変数が設定されていません。<code>.env</code> を作成してから再読み込みしてください。
+          Firebase の環境変数が設定されていません。<code>.env</code>{' '}
+          を作成してから再読み込みしてください。
         </p>
       )}
 

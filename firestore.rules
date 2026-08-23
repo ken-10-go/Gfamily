@@ -172,6 +172,22 @@ service cloud.firestore {
       }
     }
 
+    /*
+     * 呼び名（ニックネーム）。
+     *
+     * メンバーの一覧で人を見分けるために使う。誰でも読めるが、書けるのは本人だけ。
+     * ログインに使うアドレスは**ここには置かない**（オーナーだけが管理画面で見る）。
+     * 家系図をまたいで同じ呼び名を使うので、ツリーの下ではなく上に置いている。
+     */
+    match /profiles/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.auth.uid == userId
+        && (request.resource.data.keys().hasOnly(['nickname', 'updatedAt']))
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() <= 20;
+    }
+
     // --- 他家とのつながり ---------------------------------------------------
     //
     // ⚠⚠ 暫定：ここだけセキュリティを外している ⚠⚠

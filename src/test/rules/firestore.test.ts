@@ -545,6 +545,47 @@ describe('他家とのつながり', () => {
   });
 });
 
+describe('呼び名（プロフィール）', () => {
+  it('本人は自分の呼び名を書ける', async () => {
+    await assertSucceeds(
+      setDoc(doc(as(env, VIEWER), 'profiles', VIEWER), { nickname: 'たろ', updatedAt: null }),
+    );
+  });
+
+  it('他人の呼び名は書けない', async () => {
+    await assertFails(
+      setDoc(doc(as(env, VIEWER), 'profiles', EDITOR), { nickname: 'たろ', updatedAt: null }),
+    );
+  });
+
+  it('長すぎる呼び名は保存できない', async () => {
+    await assertFails(
+      setDoc(doc(as(env, VIEWER), 'profiles', VIEWER), { nickname: 'あ'.repeat(21), updatedAt: null }),
+    );
+  });
+
+  it('決めた項目以外は書けない', async () => {
+    await assertFails(
+      setDoc(doc(as(env, VIEWER), 'profiles', VIEWER), {
+        nickname: 'たろ',
+        updatedAt: null,
+        role: 'owner',
+      }),
+    );
+  });
+
+  it('ログインしていれば他の人の呼び名も読める', async () => {
+    await seed(env, async (db) => {
+      await setDoc(doc(db, 'profiles', OWNER), { nickname: 'おや', updatedAt: null });
+    });
+    await assertSucceeds(getDoc(doc(as(env, VIEWER), 'profiles', OWNER)));
+  });
+
+  it('ログインしていないと読めない', async () => {
+    await assertFails(getDoc(doc(asAnon(env), 'profiles', OWNER)));
+  });
+});
+
 describe('未定義のパス', () => {
   it('ルールに無いコレクションは読み書きできない', async () => {
     const db = as(env, OWNER);

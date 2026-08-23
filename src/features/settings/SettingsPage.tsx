@@ -6,6 +6,7 @@ import { useAppUpdate } from '@/features/app/useAppUpdate';
 import { useInstallPrompt } from '@/features/app/useInstallPrompt';
 import { useAuth } from '@/features/auth/useAuth';
 import * as api from '@/lib/api';
+import { nicknameProblem } from '@/lib/nickname';
 import { ROLE_LABELS, type TreeRole } from '@/types/models';
 
 /**
@@ -121,25 +122,33 @@ export function SettingsPage() {
           </form>
         ))}
 
+      {/*
+        管理にあたるものは、オーナーだけに出す。
+        押しても断られる行き先が並んでいると、何が自分にできるのか分からなくなる。
+      */}
       <ul className="menu-list">
         <MenuLink to={`/trees/${treeId}/people`} title="家族" note="登録されている人を一覧で見る" />
-        <MenuLink to={`/trees/${treeId}/houses`} title="家の管理" note="◯◯家のまとまりと所属" />
-        <MenuLink to={`/trees/${treeId}/members`} title="メンバー" note="招待と権限" />
-        <MenuLink
-          to={`/trees/${treeId}/bridges`}
-          title="家どうしのつながり"
-          note="他の家の家系図と合わせて見る"
-        />
-        <MenuLink
-          to={`/trees/${treeId}/import`}
-          title="家系図を取り込む"
-          note="すいすい家系図の書き出し（.ftz）から足す"
-        />
-        <MenuLink
-          to={`/trees/${treeId}/history`}
-          title="変更履歴"
-          note="誰が何を変えたか・ゴミ箱"
-        />
+        <MenuLink to={`/trees/${treeId}/members`} title="メンバー" note="この家系図を見る人たち" />
+        {isOwner && (
+          <>
+            <MenuLink to={`/trees/${treeId}/houses`} title="家の管理" note="◯◯家のまとまりと所属" />
+            <MenuLink
+              to={`/trees/${treeId}/bridges`}
+              title="家どうしのつながり"
+              note="他の家の家系図と合わせて見る"
+            />
+            <MenuLink
+              to={`/trees/${treeId}/import`}
+              title="家系図を取り込む"
+              note="すいすい家系図の書き出し（.ftz）から足す"
+            />
+            <MenuLink
+              to={`/trees/${treeId}/history`}
+              title="ゴミ箱"
+              note="消した人を戻す・完全に消す・記録の後始末"
+            />
+          </>
+        )}
       </ul>
 
       {!install.installed && (
@@ -166,6 +175,9 @@ export function SettingsPage() {
           </ul>
         </>
       )}
+
+      <p className="home__label home__section">呼び名</p>
+      <NicknameForm />
 
       {/* ニックネームで使っている人は、仮のパスワードをもらったらここで決め直す */}
       {user?.providerData?.some((entry) => entry.providerId === 'password') && (
@@ -210,14 +222,82 @@ export function SettingsPage() {
   );
 }
 
-/** 自分のパスワードを変える。仮のパスワードを受け取った人が最初に通る場所。 */
-function PasswordForm({
-  onSubmit,
-}: {
-  onSubmit: (currentPassword: string, nextPassword: string) => Promise<void>;
-}) {
-  const [current, setCurrent] = useState('');
+/**
+ * 呼び名（ニックネーム）を決める。
+ *
+ * メンバーの一覧に出るのはこの名前で、ログインに使うアドレスは出ない。
+ * いつでも変えられる。決めていないうちは一覧に「名前未設定」と出る。
+ */
+function NicknameForm() {
+  const [nickname, setNickname] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    void api
+      .getMyNickname()
+      .then((found) => setNickname(found ?? ''))
+      .catch(() => setNickname(''))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="note">読み込み中…</p>;
+
+  return (
+    <form
+      className="home__create"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setError(null);
+        setDone(false);
+
+        const problem = nicknameProblem(nickname);
+        if (problem) {
+          setError(problem);
+          return;
+        }
+
+        setBusy(true);
+        void api
+          .setMyNickname(nickname)
+          .then(() => setDone(true))
+          .catch((caught: unknown) =>
+            setError(caught instanceof Error ? caught.message : '変えられませんでした'),
+          )
+          .finally(() => setBusy(false));
+      }}
+    >
+      <label className="field field--grow">
+        <span className="field__label">
+          メンバーの一覧に出る名前{done && <span className="note"> ・保存しました</span>}
+        </span>
+        <input
+          type="text"
+          value={nickname}
+          maxLength={20}
+          placeholder="例: たろう"
+          onChange={(event) => setNickname(event.target.value)}
+        />
+      </label>
+      <button type="submit" className="button button--primary" disabled={busy}>
+        呼び名を保存
+      </button>
+      {error && <p className="alert alert--error">{error}</p>}
+    </form>
+  );
+}
+
+/**
+ * 自分のパスワードを変える。仮のパスワードを受け取った人が最初に通る場所。
+ *
+ * いまのパスワードは訊かない（仮のものを打ち直させても手間が増えるだけ）。
+ * 打ち間違いだけは避けたいので、新しいパスワードを2回入れてもらう。
+ */
+function PasswordForm({ onSubmit }: { onSubmit: (nextPassword: string) => Promise<void> }) {
   const [next, setNext] = useState('');
+  const [again, setAgain] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -234,13 +314,17 @@ function PasswordForm({
           setError('新しいパスワードは8文字以上にしてください');
           return;
         }
+        if (next !== again) {
+          setError('2つのパスワードが違います');
+          return;
+        }
 
         setBusy(true);
-        void onSubmit(current, next)
+        void onSubmit(next)
           .then(() => {
             setDone(true);
-            setCurrent('');
             setNext('');
+            setAgain('');
           })
           .catch((caught: unknown) =>
             setError(caught instanceof Error ? caught.message : '変えられませんでした'),
@@ -252,17 +336,6 @@ function PasswordForm({
       {done && <p className="note">パスワードを変えました。</p>}
 
       <label className="field form__wide">
-        <span className="field__label">いまのパスワード</span>
-        <input
-          type="password"
-          value={current}
-          autoComplete="current-password"
-          required
-          onChange={(event) => setCurrent(event.target.value)}
-        />
-      </label>
-
-      <label className="field form__wide">
         <span className="field__label">新しいパスワード（8文字以上）</span>
         <input
           type="password"
@@ -270,6 +343,17 @@ function PasswordForm({
           autoComplete="new-password"
           required
           onChange={(event) => setNext(event.target.value)}
+        />
+      </label>
+
+      <label className="field form__wide">
+        <span className="field__label">確認のため、もう一度</span>
+        <input
+          type="password"
+          value={again}
+          autoComplete="new-password"
+          required
+          onChange={(event) => setAgain(event.target.value)}
         />
       </label>
 

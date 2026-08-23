@@ -10,8 +10,11 @@ export interface AuthState {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   /** ニックネーム、またはメールアドレスでログインする */
   signInWithNickname: (nicknameOrEmail: string, password: string) => Promise<void>;
-  /** いまログインしている自分のパスワードを変える */
-  changePassword: (currentPassword: string, nextPassword: string) => Promise<void>;
+  /**
+   * いまログインしている自分のパスワードを変える。
+   * いまのパスワードは要らない（仮のパスワードを受け取った人がすぐ変えられるように）。
+   */
+  changePassword: (nextPassword: string) => Promise<void>;
   /** パスワードの再設定メールを送る。管理者が他の人に送ることもできる */
   sendPasswordReset: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;

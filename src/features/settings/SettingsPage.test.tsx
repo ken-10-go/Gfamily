@@ -41,6 +41,8 @@ describe('SettingsPage', () => {
       memberIds: [],
     });
     vi.mocked(api.updateTree).mockResolvedValue();
+    vi.mocked(api.getMyNickname).mockResolvedValue('たろう');
+    vi.mocked(api.setMyNickname).mockResolvedValue();
   });
 
   it('オーナーは家系図の名前を変えられる', async () => {
@@ -61,32 +63,81 @@ describe('SettingsPage', () => {
     expect(screen.queryByText('家系図の名前')).toBeNull();
   });
 
-  it('パスワードで使っている人には、変える欄を出す', async () => {
-    // ニックネームの人は仮のパスワードを受け取るので、まずここで決め直す
+  it('パスワードは、いまのものを訊かずに2回入れて変える', async () => {
+    // 仮のパスワードを受け取った人が、それを打ち直さずに決め直せるようにする
     renderPage('editor');
     await waitFor(() => expect(screen.getByText('パスワード')).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText('いまのパスワード'), { target: { value: 'temp1234' } });
+    expect(screen.queryByLabelText('いまのパスワード')).toBeNull();
+
     fireEvent.change(screen.getByLabelText('新しいパスワード（8文字以上）'), {
+      target: { value: 'newpass123' },
+    });
+    fireEvent.change(screen.getByLabelText('確認のため、もう一度'), {
       target: { value: 'newpass123' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'パスワードを変える' }));
 
-    await waitFor(() => expect(changePassword).toHaveBeenCalledWith('temp1234', 'newpass123'));
+    await waitFor(() => expect(changePassword).toHaveBeenCalledWith('newpass123'));
+  });
+
+  it('2回のパスワードが違えば断る', async () => {
+    renderPage('editor');
+    await waitFor(() => expect(screen.getByText('パスワード')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('新しいパスワード（8文字以上）'), {
+      target: { value: 'newpass123' },
+    });
+    fireEvent.change(screen.getByLabelText('確認のため、もう一度'), {
+      target: { value: 'newpass124' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'パスワードを変える' }));
+
+    expect(await screen.findByText('2つのパスワードが違います')).toBeTruthy();
+    expect(changePassword).not.toHaveBeenCalled();
   });
 
   it('短いパスワードは受け付けない', async () => {
     renderPage('editor');
     await waitFor(() => expect(screen.getByText('パスワード')).toBeTruthy());
 
-    fireEvent.change(screen.getByLabelText('いまのパスワード'), { target: { value: 'temp1234' } });
     fireEvent.change(screen.getByLabelText('新しいパスワード（8文字以上）'), {
       target: { value: 'short' },
     });
+    fireEvent.change(screen.getByLabelText('確認のため、もう一度'), { target: { value: 'short' } });
     fireEvent.click(screen.getByRole('button', { name: 'パスワードを変える' }));
 
     expect(await screen.findByText('新しいパスワードは8文字以上にしてください')).toBeTruthy();
     expect(changePassword).not.toHaveBeenCalled();
+  });
+
+  it('管理にあたる行き先は、オーナーにだけ出す', async () => {
+    renderPage('editor');
+    await waitFor(() => expect(screen.getByText('家族')).toBeTruthy());
+
+    // 押しても断られる行き先が並んでいると、何ができるのか分からなくなる
+    expect(screen.queryByText('家の管理')).toBeNull();
+    expect(screen.queryByText('家どうしのつながり')).toBeNull();
+    expect(screen.queryByText('ゴミ箱')).toBeNull();
+  });
+
+  it('オーナーには管理の行き先も出す', async () => {
+    renderPage('owner');
+    await waitFor(() => expect(screen.getByText('家の管理')).toBeTruthy());
+
+    expect(screen.getByText('ゴミ箱')).toBeTruthy();
+  });
+
+  it('呼び名は自分で決められる', async () => {
+    renderPage('editor');
+    await waitFor(() => expect(screen.getByDisplayValue('たろう')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText(/メンバーの一覧に出る名前/), {
+      target: { value: 'たろちゃん' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '呼び名を保存' }));
+
+    await waitFor(() => expect(api.setMyNickname).toHaveBeenCalledWith('たろちゃん'));
   });
 
   it('名前を空にしても保存しない', async () => {

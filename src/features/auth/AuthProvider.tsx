@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  EmailAuthProvider,
   GoogleAuthProvider,
   isSignInWithEmailLink,
   onAuthStateChanged,
@@ -10,7 +9,6 @@ import {
   signInWithEmailLink,
   signInWithPopup,
   signOut as firebaseSignOut,
-  reauthenticateWithCredential,
   updatePassword,
   type User,
 } from 'firebase/auth';
@@ -101,20 +99,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /**
    * 自分のパスワードを変える。
    *
-   * しばらく前にログインしたままだと Firebase が受け付けないので、
-   * いまのパスワードで入り直してから変える。
+   * いまのパスワードは訊かない。仮のパスワードを渡された人が、
+   * それを打ち直さずにすぐ変えられるようにするため。
+   * ただし Firebase は「ログインしてから時間が経っている」場合を断るので、
+   * そのときは入り直してもらう。
    */
-  const changePassword = useCallback(async (currentPassword: string, nextPassword: string) => {
+  const changePassword = useCallback(async (nextPassword: string) => {
     const current = getFirebaseAuth().currentUser;
-    if (!current?.email) throw new Error('ログインし直してください');
+    if (!current) throw new Error('ログインし直してください');
 
     try {
-      await reauthenticateWithCredential(
-        current,
-        EmailAuthProvider.credential(current.email, currentPassword),
-      );
       await updatePassword(current, nextPassword);
     } catch (error) {
+      const code = (error as { code?: string } | null)?.code ?? '';
+      if (code === 'auth/requires-recent-login') {
+        throw new Error('安全のため、一度ログインし直してから変えてください');
+      }
       throw new Error(translateAuthError(error));
     }
   }, []);

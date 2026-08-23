@@ -583,6 +583,46 @@ export async function removeUnion(treeId: string, id: string): Promise<void> {
   });
 }
 
+// --- 呼び名（ニックネーム）----------------------------------------------------
+
+/**
+ * 呼び名を保存する。書けるのは本人だけ（ルールでも同じ判定をしている）。
+ *
+ * ログインに使うアドレスとは別物。アドレスはオーナーだけが管理画面で見る。
+ * 家系図をまたいで同じ呼び名を使うので、ツリーの下ではなく上に置いている。
+ */
+export async function setMyNickname(nickname: string): Promise<void> {
+  const uid = requireUid();
+  await setDoc(doc(getDb(), 'profiles', uid), {
+    nickname: nickname.trim(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** 自分の呼び名。まだ決めていなければ null。 */
+export async function getMyNickname(): Promise<string | null> {
+  const uid = requireUid();
+  const snapshot = await getDoc(doc(getDb(), 'profiles', uid));
+  return (snapshot.data()?.nickname as string | undefined) ?? null;
+}
+
+/**
+ * 人物 → 呼び名 の対応。メンバーの一覧で使う。
+ *
+ * 誰でも読めるので、オーナーでなくても人を見分けられる。
+ * 決めていない人は入らない（呼び出し側が「名前未設定」を出す）。
+ */
+export async function listNicknames(userIds: string[]): Promise<Map<string, string>> {
+  const found = await Promise.all(
+    userIds.map(async (userId) => {
+      const snapshot = await getDoc(doc(getDb(), 'profiles', userId));
+      return [userId, (snapshot.data()?.nickname as string | undefined) ?? null] as const;
+    }),
+  );
+
+  return new Map(found.filter((entry): entry is readonly [string, string] => entry[1] !== null));
+}
+
 // --- メンバーと招待 ----------------------------------------------------------
 
 export interface MemberEntry {
