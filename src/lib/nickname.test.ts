@@ -6,6 +6,7 @@ import {
   nicknameProblem,
   normalizeNickname,
 } from '@/lib/nickname';
+import { loginEmailFor as serverLoginEmailFor } from '../../functions/src/loginEmail';
 
 describe('normalizeNickname', () => {
   it('全角と半角、大文字と小文字、前後の空白の違いを寄せる', () => {
@@ -31,6 +32,23 @@ describe('loginEmailFor', () => {
 
   it('英数字は読める形で残す（管理画面で見当が付くように）', () => {
     expect(loginEmailFor('taro')).toMatch(/^taro-/);
+  });
+
+  it('決まった組み合わせが変わらない', () => {
+    expect(loginEmailFor('taro')).toBe('taro-04ii9k9@kizuna.invalid');
+    expect(loginEmailFor('test01')).toBe('test01-09tok0q@kizuna.invalid');
+    expect(loginEmailFor('たろう')).toBe('user-1hl4vd9@kizuna.invalid');
+  });
+
+  it('Cloud Functions 側と、同じアドレスを作る', () => {
+    /*
+     * 登録は Cloud Functions が行い、ログインは画面側がこの関数で作った
+     * アドレスで行う。**片方だけ変えると、登録できたのにログインできなくなる。**
+     * 同じ実装を2つ持つことになるので、突き合わせをテストで固定する。
+     */
+    for (const nickname of ['taro', 'test01', 'たろう', 'ＴＥＳＴ 02', 'おじいちゃん']) {
+      expect(serverLoginEmailFor(nickname), nickname).toBe(loginEmailFor(nickname));
+    }
   });
 
   it('ニックネームのために作ったアドレスだと分かる', () => {

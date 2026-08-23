@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { useAuth } from '@/features/auth/useAuth';
+import { nicknameProblem } from '@/lib/nickname';
 import * as api from '@/lib/api';
 import { ROLE_LABELS, type InvitationPreview } from '@/types/models';
 
@@ -42,7 +43,7 @@ export function AcceptInvitePage() {
   if (authLoading) return <p className="page__status">読み込み中…</p>;
 
   // 招待の確認にもログインが必要。トークンは復帰先URLに残るので、ログイン後にここへ戻る。
-  if (!user) return <JoinPanel />;
+  if (!user) return <JoinPanel token={token} />;
 
   if (loading) return <p className="page__status">招待を確認中…</p>;
 
@@ -93,8 +94,8 @@ export function AcceptInvitePage() {
  * パスワードは Firebase 側に預けるだけで、管理者にも私たちにも見えない
  * （忘れたときは再設定メールで本人が入れ直す）。
  */
-function JoinPanel() {
-  const { signInWithGoogle, registerWithNickname, signInWithNickname } = useAuth();
+function JoinPanel({ token }: { token: string }) {
+  const { signInWithGoogle, signInWithEmail, signInWithNickname } = useAuth();
   const [mode, setMode] = useState<'register' | 'login'>('register');
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
@@ -120,7 +121,16 @@ function JoinPanel() {
     void run(async () => {
       if (mode === 'register') {
         if (password.length < 8) throw new Error('パスワードは8文字以上にしてください');
-        await registerWithNickname(nickname, password);
+        const problem = nicknameProblem(nickname);
+        if (problem) throw new Error(problem);
+
+        /*
+         * 登録は Cloud Functions を通す。
+         * 誰でもアカウントを作れる状態にはしていないので、
+         * 「有効な招待を持っているか」を向こうで確かめてから作ってもらう。
+         */
+        const email = await api.registerWithInvitation(token, nickname, password);
+        await signInWithEmail(email, password);
       } else {
         await signInWithNickname(nickname, password);
       }

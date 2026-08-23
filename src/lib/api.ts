@@ -673,6 +673,27 @@ export async function createInvitation(
   return result.data.token;
 }
 
+/**
+ * 招待を確かめてもらったうえで、ニックネームのアカウントを作る。
+ *
+ * 自己サインアップは止めてあるので、クライアントから直接は作れない。
+ * 招待リンクを持っている人だけが通れるよう、関門をサーバー側に置いている。
+ * 返ってくるのは、ログインに使うアドレス。
+ */
+export async function registerWithInvitation(
+  token: string,
+  nickname: string,
+  password: string,
+): Promise<string> {
+  const call = httpsCallable<
+    { token: string; nickname: string; password: string },
+    { email: string }
+  >(getFns(), 'registerWithInvitation');
+
+  const result = await call({ token, nickname, password });
+  return result.data.email;
+}
+
 /** ログインに使っているアカウント。パスワードは Firebase の中にしかない。 */
 export interface MemberAccount {
   uid: string;

@@ -6,11 +6,8 @@ export interface AuthState {
   /** 初回のセッション復元が終わるまで true。ルート保護の判断を待たせるために使う。 */
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
-  /**
-   * ニックネームとパスワードでアカウントを作る（招待された人が自分で登録する）。
-   * メールアドレスは持たない。中では決まった形のアドレスに直して使う。
-   */
-  registerWithNickname: (nickname: string, password: string) => Promise<void>;
+  /** 作ったばかりのアカウントで、そのままログインする */
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   /** ニックネーム、またはメールアドレスでログインする */
   signInWithNickname: (nicknameOrEmail: string, password: string) => Promise<void>;
   /** いまログインしている自分のパスワードを変える */

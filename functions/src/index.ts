@@ -11,6 +11,8 @@ import {
 } from 'firebase-functions/v2/firestore';
 import type { DocumentSnapshot } from 'firebase-admin/firestore';
 
+import { loginEmailFor } from './loginEmail.js';
+
 initializeApp();
 const db = getFirestore();
 
@@ -314,6 +316,58 @@ export const previewInvitation = onCall({ region: REGION }, async (request) => {
 });
 
 /** 招待を受諾してメンバーになる。成功するとツリーIDを返す。 */
+/**
+ * 招待を確かめてから、ニックネームのアカウントを作る。
+ *
+ * このプロジェクトは自己サインアップを止めてある（誰でもアカウントを作れると、
+ * 招待という関門が意味を失うため）。そのぶん、登録はここを通す。
+ * **有効な招待リンクを持っている人だけ**が登録できる、という関門をサーバー側で持つ。
+ *
+ * ログインしていない人が呼ぶので、認証は要求しない。
+ * 作るだけで、家系図には入れない（このあと本人がログインして招待を受諾する）。
+ */
+export const registerWithInvitation = onCall({ region: REGION }, async (request) => {
+  const { token, nickname, password } = (request.data ?? {}) as {
+    token?: string;
+    nickname?: string;
+    password?: string;
+  };
+
+  if (!token || !nickname || !password) {
+    throw new HttpsError('invalid-argument', '入力が足りません');
+  }
+  if (password.length < 8) {
+    throw new HttpsError('invalid-argument', 'パスワードは8文字以上にしてください');
+  }
+
+  const normalized = nickname.normalize('NFKC').trim().toLowerCase();
+  if (normalized.length < 2 || normalized.length > 20) {
+    throw new HttpsError('invalid-argument', 'ニックネームは2〜20文字にしてください');
+  }
+
+  const invitation = await findValidInvitation(token);
+  if (!invitation) {
+    throw new HttpsError('not-found', '招待リンクが無効か、有効期限が切れています');
+  }
+
+  const email = loginEmailFor(nickname);
+
+  try {
+    await getAuth().createUser({ email, password, displayName: nickname.trim() });
+  } catch (error) {
+    if ((error as { code?: string }).code === 'auth/email-already-exists') {
+      throw new HttpsError(
+        'already-exists',
+        'このニックネームは使われています。別の名前にするか、ログインしてください',
+      );
+    }
+    throw error;
+  }
+
+  // 画面はこのアドレスでログインする。導き方が食い違っても入れるように返す
+  return { email };
+});
+
 export const acceptInvitation = onCall({ region: REGION }, async (request) => {
   const uid = requireUid(request.auth);
   const { token } = (request.data ?? {}) as { token?: string };

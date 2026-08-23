@@ -5,7 +5,6 @@ import {
   isSignInWithEmailLink,
   onAuthStateChanged,
   sendSignInLinkToEmail,
-  createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithEmailLink,
@@ -13,13 +12,12 @@ import {
   signOut as firebaseSignOut,
   reauthenticateWithCredential,
   updatePassword,
-  updateProfile,
   type User,
 } from 'firebase/auth';
 
 import { AuthContext, type AuthState } from '@/features/auth/AuthContext';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
-import { loginEmailFor, nicknameProblem } from '@/lib/nickname';
+import { loginEmailFor } from '@/lib/nickname';
 
 /** ログインリンクを要求したメールアドレスの控え。別タブで開かれた場合は入力を促す。 */
 const EMAIL_STORAGE_KEY = 'familytree:signInEmail';
@@ -75,32 +73,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  /**
-   * ニックネームとパスワードでアカウントを作る。
-   *
-   * Google アカウントもメールアドレスも持たない家族のための入り口。
-   * 招待リンクの画面からだけ呼ぶ（アプリの中に「新規登録」は置かない）。
-   * 中では `loginEmailFor` で決まった形のアドレスに直し、
-   * ニックネームは表示名として持つ（管理画面はこれで人を見分ける）。
-   */
-  const registerWithNickname = useCallback(async (nickname: string, password: string) => {
-    const problem = nicknameProblem(nickname);
-    if (problem) throw new Error(problem);
-
+  /** 作ったばかりのアカウントで、そのままログインする（登録の直後に使う）。 */
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
     try {
-      const credential = await createUserWithEmailAndPassword(
-        getFirebaseAuth(),
-        loginEmailFor(nickname),
-        password,
-      );
-      await updateProfile(credential.user, { displayName: nickname.trim() });
+      await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
     } catch (error) {
-      const code = (error as { code?: string } | null)?.code ?? '';
-      if (code === 'auth/email-already-in-use') {
-        throw new Error(
-          'このニックネームは使われています。別の名前にするか、ログインしてください。',
-        );
-      }
       throw new Error(translateAuthError(error));
     }
   }, []);
@@ -189,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       signInWithPassword,
-      registerWithNickname,
+      signInWithEmail,
       signInWithNickname,
       changePassword,
       sendPasswordReset,
@@ -201,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       signInWithPassword,
-      registerWithNickname,
+      signInWithEmail,
       signInWithNickname,
       changePassword,
       sendPasswordReset,
