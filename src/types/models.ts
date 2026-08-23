@@ -237,6 +237,10 @@ export interface Invitation {
   token: string | null;
   /** 共通リンクを使って入った人数 */
   acceptedCount: number;
+  /** このリンクから入った人の uid（誰がどのリンクで入ったかを追えるように） */
+  acceptedUids: string[];
+  /** 何のために配ったかの覚え書き。リンクが増えたときに見分けるためのもの */
+  label: string | null;
   expiresAt: string | null;
   revokedAt: string | null;
   acceptedAt: string | null;

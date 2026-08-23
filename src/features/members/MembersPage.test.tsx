@@ -24,7 +24,9 @@ function invitation(overrides: Partial<Invitation> = {}): Invitation {
     role: 'viewer',
     shared: true,
     token: 'abc123',
-    acceptedCount: 2,
+    acceptedCount: 1,
+    acceptedUids: ['hanako'],
+    label: null,
     expiresAt: TOMORROW,
     revokedAt: null,
     acceptedAt: null,
@@ -38,8 +40,14 @@ function renderPage(role: TreeRole, invitations: Invitation[]) {
   vi.mocked(api.getMyRole).mockResolvedValue(role);
   vi.mocked(api.listMembers).mockResolvedValue([
     { userId: 'me', role: 'owner' },
+    { userId: 'hanako', role: 'viewer' },
   ]);
-  vi.mocked(api.listNicknames).mockResolvedValue(new Map([['me', 'たろう']]));
+  vi.mocked(api.listNicknames).mockResolvedValue(
+    new Map([
+      ['me', 'たろう'],
+      ['hanako', 'はなこ'],
+    ]),
+  );
   vi.mocked(api.listMemberAccounts).mockResolvedValue([]);
   vi.mocked(api.listInvitations).mockResolvedValue(invitations);
   vi.mocked(api.revokeInvitation).mockResolvedValue();
@@ -77,8 +85,27 @@ describe('MembersPage の招待一覧', () => {
   });
 
   it('共通リンクは使われた人数が分かる', async () => {
-    renderPage('owner', [invitation()]);
+    renderPage('owner', [invitation({ acceptedCount: 2 })]);
     expect(await screen.findByText(/2人が使用/)).toBeInTheDocument();
+  });
+
+  it('そのリンクから入った人を呼び名で出す', async () => {
+    renderPage('owner', [invitation()]);
+    const rows = await screen.findAllByRole('row');
+    const inviteRow = rows.find((row) => row.textContent?.includes('invite/abc123'));
+    expect(inviteRow?.textContent).toContain('はなこ');
+  });
+
+  it('メンバーが、どのリンクから入ったのか分かる', async () => {
+    renderPage('owner', [invitation({ label: '叔父さん一家へ' })]);
+    const rows = await screen.findAllByRole('row');
+    const memberRow = rows.find((row) => row.textContent?.startsWith('はなこ'));
+    expect(memberRow?.textContent).toContain('叔父さん一家へ');
+  });
+
+  it('覚え書きの無い共通リンクは、発行日で見分けられる', async () => {
+    renderPage('owner', [invitation({ createdAt: '2026-03-01T00:00:00.000Z' })]);
+    expect(await screen.findByText(/2026\/3\/1発行の共通リンク/)).toBeInTheDocument();
   });
 
   it('確認したうえで取り消せる', async () => {

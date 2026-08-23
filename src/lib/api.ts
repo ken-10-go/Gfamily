@@ -678,6 +678,8 @@ export async function listInvitations(treeId: string): Promise<Invitation[]> {
       shared: data.shared === true,
       token: data.token ?? null,
       acceptedCount: data.acceptedCount ?? 0,
+      acceptedUids: (data.acceptedUids ?? []) as string[],
+      label: data.label ?? null,
       expiresAt: toIso(data.expiresAt),
       revokedAt: toIso(data.revokedAt),
       acceptedAt: toIso(data.acceptedAt),
@@ -700,6 +702,7 @@ export async function createInvitation(
   email: string | null,
   validDays = 7,
   shared = false,
+  label: string | null = null,
 ): Promise<string> {
   const call = httpsCallable<
     {
@@ -708,11 +711,12 @@ export async function createInvitation(
       email: string | null;
       validDays: number;
       shared: boolean;
+      label: string | null;
     },
     { token: string }
   >(getFns(), 'createInvitation');
 
-  const result = await call({ treeId, role, email, validDays, shared });
+  const result = await call({ treeId, role, email, validDays, shared, label });
   return result.data.token;
 }
 

@@ -86,13 +86,15 @@ export const deleteTree = onCall({ region: REGION }, async (request) => {
  */
 export const createInvitation = onCall({ region: REGION }, async (request) => {
   const uid = requireUid(request.auth);
-  const { treeId, role, email, validDays, shared } = (request.data ?? {}) as {
+  const { treeId, role, email, validDays, shared, label } = (request.data ?? {}) as {
     treeId?: string;
     role?: TreeRole;
     email?: string | null;
     validDays?: number;
     /** 期限までなら何人でも使えるリンクにするか（家族へまとめて配るとき） */
     shared?: boolean;
+    /** 何のために配ったかの覚え書き（「叔父さん一家へ」など）。リンクを見分けるために使う */
+    label?: string | null;
   };
 
   if (!treeId) {
@@ -129,6 +131,7 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
    * 期限を短くしておけば配りっぱなしの危険も抑えられる。
    */
   const isShared = Boolean(shared) && !normalizedEmail;
+  const note = (label ?? '').trim().slice(0, 30) || null;
 
   await db.collection(`trees/${treeId}/invitations`).add({
     tokenHash: hashToken(token),
@@ -141,6 +144,7 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
      * 宛先つきの招待は1人で使い切りなので、これまでどおり残さない。
      */
     token: isShared ? token : null,
+    label: note,
     role,
     email: normalizedEmail,
     shared: isShared,
@@ -432,6 +436,8 @@ export const acceptInvitation = onCall({ region: REGION }, async (request) => {
       // 誰が最後に使ったかは記録するが、共通のリンクは閉じない
       acceptedAt: isShared ? (current.get('acceptedAt') ?? null) : FieldValue.serverTimestamp(),
       acceptedBy: uid,
+      // 誰がこのリンクから入ったのか（共通リンクは何人も通るので、全員を残す）
+      acceptedUids: FieldValue.arrayUnion(uid),
       acceptedCount: FieldValue.increment(1),
       lastAcceptedAt: FieldValue.serverTimestamp(),
     });

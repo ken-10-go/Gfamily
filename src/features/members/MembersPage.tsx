@@ -26,6 +26,8 @@ export function MembersPage() {
   const [issuedLink, setIssuedLink] = useState<string | null>(null);
   /** 期限まで何人でも使える共通のリンクにするか */
   const [shared, setShared] = useState(true);
+  /** 何のために配るリンクかの覚え書き。リンクが増えたときに見分けるためのもの */
+  const [inviteLabel, setInviteLabel] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   /** 発行した仮のパスワード。画面を離れるまでのあいだだけ出す */
   const [temporary, setTemporary] = useState<{ name: string; password: string } | null>(null);
@@ -109,9 +111,11 @@ export function MembersPage() {
         inviteEmail.trim() || null,
         validDays,
         shared,
+        inviteLabel.trim() || null,
       );
       setIssuedLink(inviteUrl(token));
       setInviteEmail('');
+      setInviteLabel('');
       await reload();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '招待の作成に失敗しました');
@@ -151,6 +155,21 @@ export function MembersPage() {
   const nameOf = (userId: string) =>
     nicknames.get(userId) ?? accounts.get(userId)?.displayName ?? '（名前未設定）';
 
+  /**
+   * この人がどの招待リンクから入ったか。
+   *
+   * 共通リンクは何人も通るので、「誰がどの配布から来たのか」は
+   * 招待の側に残した `acceptedUids` からしか辿れない。
+   */
+  const joinedViaOf = (userId: string) => {
+    const from = invitations.find((entry) => entry.acceptedUids.includes(userId));
+    if (!from) return '—';
+    if (from.label) return from.label;
+    if (from.email) return `${from.email} 宛の招待`;
+    const issued = from.createdAt ? new Date(from.createdAt).toLocaleDateString('ja-JP') : '';
+    return issued ? `${issued}発行の共通リンク` : '共通リンク';
+  };
+
   /** ログインに使っている名前。オーナーの管理画面にだけ出す */
   const accountNameOf = (userId: string) => {
     const email = accounts.get(userId)?.email;
@@ -187,6 +206,7 @@ export function MembersPage() {
           <thead>
             <tr>
               <th>ユーザー</th>
+              {isOwner && <th>参加のきっかけ</th>}
               <th>権限</th>
               <th />
             </tr>
@@ -210,6 +230,11 @@ export function MembersPage() {
                     </>
                   )}
                 </td>
+                {isOwner && (
+                  <td>
+                    <span className="note">{joinedViaOf(member.userId)}</span>
+                  </td>
+                )}
                 <td>
                   {isOwner && member.userId !== user?.uid ? (
                     <select
@@ -310,6 +335,17 @@ export function MembersPage() {
               </label>
             )}
 
+            <label className="field field--grow">
+              <span className="field__label">覚え書き（任意・どこへ配るか）</span>
+              <input
+                type="text"
+                maxLength={30}
+                value={inviteLabel}
+                onChange={(event) => setInviteLabel(event.target.value)}
+                placeholder="叔父さん一家へ"
+              />
+            </label>
+
             <label className="field">
               <span className="field__label">有効日数</span>
               <input
@@ -351,7 +387,8 @@ export function MembersPage() {
               <thead>
                 <tr>
                   <th>権限</th>
-                  <th>宛先</th>
+                  <th>宛先・覚え書き</th>
+                  <th>参加した人</th>
                   <th>状態</th>
                   <th>リンク</th>
                   <th />
@@ -361,7 +398,26 @@ export function MembersPage() {
                 {invitations.map((invitation) => (
                   <tr key={invitation.id}>
                     <td>{ROLE_LABELS[invitation.role]}</td>
-                    <td>{invitation.email ?? '（リンクを知っている人）'}</td>
+                    <td>
+                      {invitation.label ? (
+                        <strong>{invitation.label}</strong>
+                      ) : (
+                        (invitation.email ?? '（リンクを知っている人）')
+                      )}
+                      {invitation.label && invitation.email && (
+                        <>
+                          <br />
+                          <span className="note">{invitation.email}</span>
+                        </>
+                      )}
+                    </td>
+                    <td>
+                      {invitation.acceptedUids.length === 0 ? (
+                        <span className="note">まだ誰も</span>
+                      ) : (
+                        invitation.acceptedUids.map((uid) => nameOf(uid)).join('、')
+                      )}
+                    </td>
                     <td>{invitationStatus(invitation)}</td>
                     <td>
                       {invitation.token && isUsable(invitation) ? (
