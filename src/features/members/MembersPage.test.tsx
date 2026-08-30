@@ -96,13 +96,15 @@ describe('MembersPage の招待一覧', () => {
 
   it('メンバーが、どのリンクから入ったのか分かる', async () => {
     renderPage('owner', [invitation({ label: '叔父さん一家へ' })]);
-    expect(await screen.findByText('参加のきっかけ: 叔父さん一家へ')).toBeInTheDocument();
+    const found = await screen.findAllByText('叔父さん一家へ');
+    // メンバーの行（呼び名のすぐ下）にも出ていること
+    expect(found.some((node) => node.closest('.member-list__item'))).toBe(true);
   });
 
   it('オーナー以外には、ログイン名も参加のきっかけも出さない', async () => {
     renderPage('editor', []);
     await screen.findByText('はなこ');
-    expect(screen.queryByText(/参加のきっかけ/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/共通リンク/)).not.toBeInTheDocument();
     expect(api.listMemberAccounts).not.toHaveBeenCalled();
   });
 

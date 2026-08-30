@@ -190,8 +190,7 @@ export function MembersPage() {
       {temporary && (
         <div className="alert alert--success">
           <p>
-            <strong>{temporary.name}</strong> さんの仮のパスワードです。
-            この場でしか出ないので、電話などで本人へ伝えてください。
+            <strong>{temporary.name}</strong> さんの仮のパスワードです。 この場でしか出ません。
           </p>
           <p>
             <code>{temporary.password}</code>
@@ -202,52 +201,63 @@ export function MembersPage() {
 
       <section>
         <h2>メンバー</h2>
-        <ul className="card-list">
+        {/*
+          1人ぶんを1行にまとめる。カードで大きく取ると1画面に2〜3人しか入らず、
+          誰が居るのかを見渡せなかった。
+        */}
+        <ul className="member-list">
           {members.map((member) => (
-            <li key={member.userId} className="card-list__item">
-              <div className="card-list__header">
-                <div>
+            <li key={member.userId} className="member-list__item">
+              <div className="member-list__main">
+                <p className="member-list__name">
                   {/* 呼び名で見分ける。ログインに使う名前はオーナーにだけ出す */}
-                  <strong className="card-list__title">{nameOf(member.userId)}</strong>
+                  <strong>{nameOf(member.userId)}</strong>
                   {member.userId === user?.uid && <span className="badge">自分</span>}
-                  {isOwner && accounts.has(member.userId) && (
-                    <p className="card-list__meta">
-                      <code>{accountNameOf(member.userId)}</code>
-                      {accounts.get(member.userId)?.providers.includes('google.com')
-                        ? '（Google）'
-                        : '（パスワード）'}
-                    </p>
-                  )}
-                  {/* 記号だけの行が並ぶと欠けているように見えるので、分かるときだけ出す */}
-                  {isOwner && joinedViaOf(member.userId) !== '—' && (
-                    <p className="card-list__meta">参加のきっかけ: {joinedViaOf(member.userId)}</p>
-                  )}
-                </div>
-
-                {isOwner && member.userId !== user?.uid ? (
-                  <select
-                    value={member.role}
-                    onChange={(event) =>
-                      handleRoleChange(member.userId, event.target.value as TreeRole)
-                    }
-                    aria-label="権限"
-                  >
-                    {(Object.keys(ROLE_LABELS) as TreeRole[]).map((value) => (
-                      <option key={value} value={value}>
-                        {ROLE_LABELS[value]}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="badge">{ROLE_LABELS[member.role]}</span>
+                </p>
+                {/* 記号だけの行が並ぶと欠けているように見えるので、分かるところだけ出す */}
+                {isOwner && (accounts.has(member.userId) || joinedViaOf(member.userId) !== '—') && (
+                  <p className="member-list__meta">
+                    {accounts.has(member.userId) && (
+                      <>
+                        <code>{accountNameOf(member.userId)}</code>
+                        {accounts.get(member.userId)?.providers.includes('google.com')
+                          ? '（Google）'
+                          : '（パスワード）'}
+                      </>
+                    )}
+                    {joinedViaOf(member.userId) !== '—' &&
+                      `${accounts.has(member.userId) ? '・' : ''}${joinedViaOf(member.userId)}`}
+                  </p>
                 )}
               </div>
 
-              <div className="card-list__actions">
+              {isOwner && member.userId !== user?.uid ? (
+                <select
+                  className="member-list__role"
+                  value={member.role}
+                  onChange={(event) =>
+                    handleRoleChange(member.userId, event.target.value as TreeRole)
+                  }
+                  aria-label="権限"
+                >
+                  {(Object.keys(ROLE_LABELS) as TreeRole[]).map((value) => (
+                    <option key={value} value={value}>
+                      {ROLE_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="badge">{ROLE_LABELS[member.role]}</span>
+              )}
+
+              <div className="member-list__actions">
                 {/* この人が何を変えたのかを、そのまま見に行けるように */}
                 {isOwner && (
-                  <Link className="button" to={`/trees/${treeId}/audit?member=${member.userId}`}>
-                    変更履歴
+                  <Link
+                    className="link-button"
+                    to={`/trees/${treeId}/audit?member=${member.userId}`}
+                  >
+                    履歴
                   </Link>
                 )}
                 {/*
@@ -259,7 +269,7 @@ export function MembersPage() {
                   accounts.get(member.userId)?.providers.includes('password') && (
                     <button
                       type="button"
-                      className="button"
+                      className="link-button"
                       onClick={() => handlePasswordReset(member.userId)}
                     >
                       パスワード再設定
@@ -268,7 +278,7 @@ export function MembersPage() {
                 {(isOwner || member.userId === user?.uid) && (
                   <button
                     type="button"
-                    className="button button--danger"
+                    className="link-button link-button--danger"
                     onClick={() => handleRemove(member.userId)}
                   >
                     {member.userId === user?.uid ? '脱退' : '削除'}
@@ -278,13 +288,7 @@ export function MembersPage() {
             </li>
           ))}
         </ul>
-        <p className="note">
-          一覧に出るのは、それぞれが設定に入れた呼び名です（設定 → 呼び名で変えられます）。
-          <strong>ログインに使う名前が見えるのはオーナーだけ</strong>で、
-          <strong>パスワードは誰にも見えません</strong>。
-          忘れた人には、メールで使っている方には再設定メールを、
-          ニックネームで使っている方には仮のパスワードを出せます。
-        </p>
+        <p className="note">名前は各自が設定で決めた呼び名です。パスワードは誰にも見えません。</p>
       </section>
 
       {isOwner && (
@@ -358,10 +362,7 @@ export function MembersPage() {
 
           {issuedLink && (
             <div className="alert alert--success">
-              <p>
-                招待リンクを発行しました。共通リンクは下の一覧からいつでも見直せます
-                （宛先つきの招待はこの1回だけの表示です）。
-              </p>
+              <p>発行しました。共通リンクは下の一覧からいつでも見直せます。</p>
               <code className="token">{issuedLink}</code>
               <button
                 type="button"

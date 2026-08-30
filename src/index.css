@@ -359,6 +359,59 @@ code {
   }
 }
 
+.link-button--danger {
+  color: var(--danger);
+}
+
+/* --- メンバーの一覧 -------------------------------------------------------- */
+
+/*
+ * 1人1行。カードで大きく取ると1画面に数人しか入らず、誰が居るのかを見渡せなかった。
+ * 名前と権限を上の行に、細かい情報はその下に小さく置く。
+ */
+.member-list {
+  list-style: none;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0;
+}
+
+.member-list__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.member-list__name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.member-list__meta {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.member-list__role {
+  /* 名前の行に収める。長い権限名でも押せる幅は保つ */
+  min-width: 6.5rem;
+}
+
+/* 操作は行の下に小さく並べる。ボタンを大きく取ると1人ぶんが縦に伸びる */
+.member-list__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  font-size: 0.85rem;
+}
+
 .badge {
   display: inline-block;
   flex-shrink: 0;
