@@ -439,6 +439,20 @@ code {
   margin-bottom: 0.4rem;
 }
 
+/* 困ったときの Q&A。問いと答えの対が離れないように組む */
+.guide__qa {
+  margin: 0.5rem 0;
+}
+
+.guide__qa dt {
+  font-weight: 600;
+  margin-top: 0.9rem;
+}
+
+.guide__qa dd {
+  margin: 0.25rem 0 0 0.8rem;
+}
+
 /* --- ご意見・不具合 -------------------------------------------------------- */
 
 .feedback {
