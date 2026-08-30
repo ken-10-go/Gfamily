@@ -77,7 +77,7 @@ export function HomePage() {
     <main className="home">
       <header className="home__head">
         <div>
-          <p className="home__greeting">おかえりなさい</p>
+          <p className="home__greeting">後藤家親戚専用</p>
           <h1 className="home__title">{current?.name ?? '家系図'}</h1>
         </div>
         <span className="home__me" aria-hidden="true">

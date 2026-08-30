@@ -421,6 +421,60 @@ code {
   font-size: 0.8rem;
 }
 
+/* --- ご意見・不具合 -------------------------------------------------------- */
+
+.feedback {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.feedback__item {
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.feedback__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.4rem;
+}
+
+/* 送られた言葉はそのままの改行で見せる（箇条書きで来ることが多い） */
+.feedback__body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.feedback__reply {
+  margin: 0.4rem 0 0;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--accent);
+  color: var(--muted);
+}
+
+.badge--open {
+  background: var(--accent);
+  color: #fff;
+}
+
+.badge--doing {
+  background: var(--sage);
+  color: #fff;
+}
+
+.badge--done {
+  background: var(--surface-alt);
+  color: var(--muted);
+}
+
 /* --- フォーム ------------------------------------------------------------- */
 
 .form {

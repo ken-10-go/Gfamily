@@ -187,6 +187,16 @@ export function SettingsPage() {
         </>
       )}
 
+      {/* 困りごとの持って行き先。管理ではないので、誰にでも出す */}
+      <p className="home__label home__section">こまったとき</p>
+      <ul className="menu-list">
+        <MenuLink
+          to={`/trees/${treeId}/feedback`}
+          title="ご意見・不具合"
+          note="うまくいかないこと・こうしてほしいことを送る"
+        />
+      </ul>
+
       <p className="home__label home__section">アプリの更新</p>
       <ul className="menu-list">
         <li className="menu-list__row">

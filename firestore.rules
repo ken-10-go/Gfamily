@@ -148,6 +148,31 @@ service cloud.firestore {
         allow delete: if canEdit(treeId);
       }
 
+      /*
+       * ご意見・不具合。家族から「使いにくい」「動かない」を受け取る窓口。
+       *
+       * メンバーなら誰でも出せる（困っているのは閲覧者のことが多い）。
+       * 投稿はメンバー全員が読める。同じ報告が重なりにくく、放置にも見えないため。
+       * 状態を進められるのはオーナーだけで、**本文は誰も書き換えられない**
+       * （読み手が書き換えられると、送った人の言葉として信用できなくなる）。
+       */
+      match /feedback/{feedbackId} {
+        allow read: if isMember(treeId);
+        allow create: if isMember(treeId)
+          && actorIsSelf()
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.status == 'open'
+          && request.resource.data.body is string
+          && request.resource.data.body.size() > 0
+          && request.resource.data.body.size() <= 1000;
+        allow update: if isOwner(treeId)
+          && actorIsSelf()
+          && request.resource.data.status in ['open', 'doing', 'done']
+          && request.resource.data.body == resource.data.body
+          && request.resource.data.createdBy == resource.data.createdBy;
+        allow delete: if isOwner(treeId) || resource.data.createdBy == request.auth.uid;
+      }
+
       // 招待はオーナーだけが見られる。発行・受諾・取り消しは Cloud Functions 経由。
       // クライアントに書き込みを許すと、自分で自分をオーナーに招待できてしまう。
       match /invitations/{invitationId} {

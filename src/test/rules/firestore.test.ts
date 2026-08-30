@@ -54,6 +54,13 @@ beforeEach(async () => {
       deletedAt: null,
       updatedBy: OWNER,
     });
+    await setDoc(doc(db, 'trees', TREE, 'feedback', 'fb-1'), {
+      body: 'ここが押しにくい',
+      status: 'open',
+      reply: null,
+      createdBy: VIEWER,
+      updatedBy: VIEWER,
+    });
     await setDoc(doc(db, 'trees', TREE, 'invitations', 'inv-1'), {
       tokenHash: 'a'.repeat(64),
       role: 'viewer',
@@ -545,6 +552,84 @@ describe('他家とのつながり', () => {
   });
 });
 
+describe('ご意見・不具合', () => {
+  const post = (extra: Record<string, unknown> = {}) => ({
+    body: '家系図が開けません',
+    status: 'open',
+    reply: null,
+    createdBy: VIEWER,
+    updatedBy: VIEWER,
+    ...extra,
+  });
+
+  it('閲覧者でも出せる（困っているのは見るだけの人が多い）', async () => {
+    await assertSucceeds(addDoc(collection(as(env, VIEWER), 'trees', TREE, 'feedback'), post()));
+  });
+
+  it('メンバーは全員読める', async () => {
+    await assertSucceeds(getDocs(collection(as(env, VIEWER), 'trees', TREE, 'feedback')));
+  });
+
+  it('非メンバーは読めない', async () => {
+    await assertFails(getDocs(collection(as(env, OUTSIDER), 'trees', TREE, 'feedback')));
+  });
+
+  it('空の投稿は出せない', async () => {
+    await assertFails(
+      addDoc(collection(as(env, VIEWER), 'trees', TREE, 'feedback'), post({ body: '' })),
+    );
+  });
+
+  it('はじめから対応済みにはできない', async () => {
+    await assertFails(
+      addDoc(collection(as(env, VIEWER), 'trees', TREE, 'feedback'), post({ status: 'done' })),
+    );
+  });
+
+  it('他人になりすまして出せない', async () => {
+    await assertFails(
+      addDoc(
+        collection(as(env, VIEWER), 'trees', TREE, 'feedback'),
+        post({ createdBy: OWNER, updatedBy: OWNER }),
+      ),
+    );
+  });
+
+  it('オーナーは対応の状況を進められる', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as(env, OWNER), 'trees', TREE, 'feedback', 'fb-1'), {
+        status: 'done',
+        updatedBy: OWNER,
+      }),
+    );
+  });
+
+  it('オーナー以外は状況を変えられない（自分の投稿でも）', async () => {
+    await assertFails(
+      updateDoc(doc(as(env, VIEWER), 'trees', TREE, 'feedback', 'fb-1'), {
+        status: 'done',
+        updatedBy: VIEWER,
+      }),
+    );
+  });
+
+  it('本文はオーナーでも書き換えられない', async () => {
+    await assertFails(
+      updateDoc(doc(as(env, OWNER), 'trees', TREE, 'feedback', 'fb-1'), {
+        body: '言ってないこと',
+        updatedBy: OWNER,
+      }),
+    );
+  });
+
+  it('書いた本人は消せる', async () => {
+    await assertSucceeds(deleteDoc(doc(as(env, VIEWER), 'trees', TREE, 'feedback', 'fb-1')));
+  });
+
+  it('他人の投稿は消せない', async () => {
+    await assertFails(deleteDoc(doc(as(env, EDITOR), 'trees', TREE, 'feedback', 'fb-1')));
+  });
+});
 describe('呼び名（プロフィール）', () => {
   it('本人は自分の呼び名を書ける', async () => {
     await assertSucceeds(
@@ -560,7 +645,10 @@ describe('呼び名（プロフィール）', () => {
 
   it('長すぎる呼び名は保存できない', async () => {
     await assertFails(
-      setDoc(doc(as(env, VIEWER), 'profiles', VIEWER), { nickname: 'あ'.repeat(21), updatedAt: null }),
+      setDoc(doc(as(env, VIEWER), 'profiles', VIEWER), {
+        nickname: 'あ'.repeat(21),
+        updatedAt: null,
+      }),
     );
   });
 

@@ -254,6 +254,30 @@ export interface InvitationPreview {
   requiresEmail: string | null;
 }
 
+/** ご意見・不具合の1件。家族の誰でも出せて、状態を進めるのはオーナーだけ。 */
+export interface Feedback {
+  id: string;
+  body: string;
+  status: FeedbackStatus;
+  /** オーナーからの一言。無ければ null */
+  reply: string | null;
+  /** 投稿した人の uid */
+  createdBy: string;
+  /** 投稿時のアプリの版。再現しない不具合の手がかりにする */
+  appVersion: string | null;
+  /** 端末の目印。同じく手がかり用で、画面には出さない */
+  userAgent: string | null;
+  createdAt: string | null;
+}
+
+export type FeedbackStatus = 'open' | 'doing' | 'done';
+
+export const FEEDBACK_STATUS_LABELS: Record<FeedbackStatus, string> = {
+  open: '未対応',
+  doing: '対応中',
+  done: '対応済み',
+};
+
 export interface AuditLog {
   id: string;
   actorId: string | null;

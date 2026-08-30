@@ -23,6 +23,8 @@ import { generateSalt } from '@/lib/crypto';
 import { getDb, getFirebaseAuth, getFns } from '@/lib/firebase';
 import {
   type AuditLog,
+  type Feedback,
+  type FeedbackStatus,
   type House,
   type CardPosition,
   type Invitation,
@@ -37,6 +39,11 @@ import {
   type Union,
   type UnionStatus,
 } from '@/types/models';
+
+/** いま動いているアプリの版。ビルド時に埋め込まれる。 */
+function appVersion(): string | null {
+  return typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : null;
+}
 
 /** 現在のユーザーID。未ログインで呼ばれたら書き込みを試みる前に落とす。 */
 function requireUid(): string {
@@ -664,6 +671,71 @@ export async function removeMember(treeId: string, userId: string): Promise<void
     memberIds: Object.keys(roles),
     updatedAt: serverTimestamp(),
   });
+}
+
+// --- ご意見・不具合 --------------------------------------------------------
+//
+// 家族から「使いにくい」「動かない」を受け取る窓口。
+// メンバーなら誰でも出せて、出したものは全員が読める。
+
+/** 投稿の一覧。新しい順。 */
+export async function listFeedback(treeId: string): Promise<Feedback[]> {
+  const snapshot = await getDocs(query(sub(treeId, 'feedback'), orderBy('createdAt', 'desc')));
+
+  return snapshot.docs.map((entry) => {
+    const data = entry.data();
+    return {
+      id: entry.id,
+      body: (data.body as string) ?? '',
+      status: (data.status as FeedbackStatus) ?? 'open',
+      reply: data.reply ?? null,
+      createdBy: (data.createdBy as string) ?? '',
+      appVersion: data.appVersion ?? null,
+      userAgent: data.userAgent ?? null,
+      createdAt: toIso(data.createdAt),
+    };
+  });
+}
+
+/**
+ * ご意見・不具合を送る。
+ *
+ * 版と端末の目印を裏で添える。「手元では再現しない」不具合は、
+ * これが無いと当たりの付けようがない。画面には出さない。
+ */
+export async function createFeedback(treeId: string, body: string): Promise<string> {
+  const uid = requireUid();
+  const created = await addDoc(sub(treeId, 'feedback'), {
+    body: body.trim().slice(0, 1000),
+    status: 'open',
+    reply: null,
+    appVersion: appVersion(),
+    userAgent: navigator.userAgent.slice(0, 255),
+    createdBy: uid,
+    updatedBy: uid,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return created.id;
+}
+
+/** 対応の状況を進める。オーナーだけが行える（ルールで縛っている）。 */
+export async function updateFeedback(
+  treeId: string,
+  feedbackId: string,
+  changes: { status?: FeedbackStatus; reply?: string | null },
+): Promise<void> {
+  const uid = requireUid();
+  await updateDoc(doc(getDb(), 'trees', treeId, 'feedback', feedbackId), {
+    ...changes,
+    updatedBy: uid,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** 投稿を消す。オーナーと、書いた本人だけが消せる。 */
+export async function deleteFeedback(treeId: string, feedbackId: string): Promise<void> {
+  await deleteDoc(doc(getDb(), 'trees', treeId, 'feedback', feedbackId));
 }
 
 export async function listInvitations(treeId: string): Promise<Invitation[]> {
