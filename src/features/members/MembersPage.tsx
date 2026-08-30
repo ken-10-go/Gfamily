@@ -202,94 +202,82 @@ export function MembersPage() {
 
       <section>
         <h2>メンバー</h2>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>ユーザー</th>
-              {isOwner && <th>参加のきっかけ</th>}
-              <th>権限</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((member) => (
-              <tr key={member.userId}>
-                <td>
+        <ul className="card-list">
+          {members.map((member) => (
+            <li key={member.userId} className="card-list__item">
+              <div className="card-list__header">
+                <div>
                   {/* 呼び名で見分ける。ログインに使う名前はオーナーにだけ出す */}
-                  <strong>{nameOf(member.userId)}</strong>
+                  <strong className="card-list__title">{nameOf(member.userId)}</strong>
                   {member.userId === user?.uid && <span className="badge">自分</span>}
                   {isOwner && accounts.has(member.userId) && (
-                    <>
-                      <br />
-                      <span className="note">
-                        <code>{accountNameOf(member.userId)}</code>
-                        {accounts.get(member.userId)?.providers.includes('google.com')
-                          ? '（Google）'
-                          : '（パスワード）'}
-                      </span>
-                    </>
+                    <p className="card-list__meta">
+                      <code>{accountNameOf(member.userId)}</code>
+                      {accounts.get(member.userId)?.providers.includes('google.com')
+                        ? '（Google）'
+                        : '（パスワード）'}
+                    </p>
                   )}
-                </td>
-                {isOwner && (
-                  <td>
-                    <span className="note">{joinedViaOf(member.userId)}</span>
-                  </td>
+                  {/* 記号だけの行が並ぶと欠けているように見えるので、分かるときだけ出す */}
+                  {isOwner && joinedViaOf(member.userId) !== '—' && (
+                    <p className="card-list__meta">参加のきっかけ: {joinedViaOf(member.userId)}</p>
+                  )}
+                </div>
+
+                {isOwner && member.userId !== user?.uid ? (
+                  <select
+                    value={member.role}
+                    onChange={(event) =>
+                      handleRoleChange(member.userId, event.target.value as TreeRole)
+                    }
+                    aria-label="権限"
+                  >
+                    {(Object.keys(ROLE_LABELS) as TreeRole[]).map((value) => (
+                      <option key={value} value={value}>
+                        {ROLE_LABELS[value]}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="badge">{ROLE_LABELS[member.role]}</span>
                 )}
-                <td>
-                  {isOwner && member.userId !== user?.uid ? (
-                    <select
-                      value={member.role}
-                      onChange={(event) =>
-                        handleRoleChange(member.userId, event.target.value as TreeRole)
-                      }
-                      aria-label="権限"
-                    >
-                      {(Object.keys(ROLE_LABELS) as TreeRole[]).map((value) => (
-                        <option key={value} value={value}>
-                          {ROLE_LABELS[value]}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    ROLE_LABELS[member.role]
-                  )}
-                </td>
-                <td className="card-list__actions">
-                  {/* この人が何を変えたのかを、そのまま見に行けるように */}
-                  {isOwner && (
-                    <Link className="button" to={`/trees/${treeId}/audit?member=${member.userId}`}>
-                      変更履歴
-                    </Link>
-                  )}
-                  {/*
-                    パスワードで入っている人にだけ出す。
-                    Google の人のパスワードはこちらでは扱えない（向こうの持ち物）。
-                  */}
-                  {isOwner &&
-                    member.userId !== user?.uid &&
-                    accounts.get(member.userId)?.providers.includes('password') && (
-                      <button
-                        type="button"
-                        className="button"
-                        onClick={() => handlePasswordReset(member.userId)}
-                      >
-                        パスワード再設定
-                      </button>
-                    )}
-                  {(isOwner || member.userId === user?.uid) && (
+              </div>
+
+              <div className="card-list__actions">
+                {/* この人が何を変えたのかを、そのまま見に行けるように */}
+                {isOwner && (
+                  <Link className="button" to={`/trees/${treeId}/audit?member=${member.userId}`}>
+                    変更履歴
+                  </Link>
+                )}
+                {/*
+                  パスワードで入っている人にだけ出す。
+                  Google の人のパスワードはこちらでは扱えない（向こうの持ち物）。
+                */}
+                {isOwner &&
+                  member.userId !== user?.uid &&
+                  accounts.get(member.userId)?.providers.includes('password') && (
                     <button
                       type="button"
-                      className="button button--danger"
-                      onClick={() => handleRemove(member.userId)}
+                      className="button"
+                      onClick={() => handlePasswordReset(member.userId)}
                     >
-                      {member.userId === user?.uid ? '脱退' : '削除'}
+                      パスワード再設定
                     </button>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                {(isOwner || member.userId === user?.uid) && (
+                  <button
+                    type="button"
+                    className="button button--danger"
+                    onClick={() => handleRemove(member.userId)}
+                  >
+                    {member.userId === user?.uid ? '脱退' : '削除'}
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
         <p className="note">
           一覧に出るのは、それぞれが設定に入れた呼び名です（設定 → 呼び名で変えられます）。
           <strong>ログインに使う名前が見えるのはオーナーだけ</strong>で、
@@ -389,81 +377,67 @@ export function MembersPage() {
           {invitations.length === 0 ? (
             <p className="note">まだ招待はありません。</p>
           ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>権限</th>
-                  <th>宛先・覚え書き</th>
-                  <th>参加した人</th>
-                  <th>状態</th>
-                  <th>リンク</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {invitations.map((invitation) => (
-                  <tr key={invitation.id}>
-                    <td>{ROLE_LABELS[invitation.role]}</td>
-                    <td>
-                      {invitation.label ? (
-                        <strong>{invitation.label}</strong>
-                      ) : (
-                        (invitation.email ?? '（リンクを知っている人）')
-                      )}
-                      {invitation.label && invitation.email && (
-                        <>
-                          <br />
-                          <span className="note">{invitation.email}</span>
-                        </>
-                      )}
-                    </td>
-                    <td>
-                      {invitation.acceptedUids.length === 0 ? (
-                        <span className="note">まだ誰も</span>
-                      ) : (
-                        invitation.acceptedUids.map((uid) => nameOf(uid)).join('、')
-                      )}
-                    </td>
-                    <td>{invitationStatus(invitation)}</td>
-                    <td>
-                      {invitation.token && isUsable(invitation) ? (
-                        <div className="invite-link">
-                          <code className="token">{inviteUrl(invitation.token)}</code>
-                          <button
-                            type="button"
-                            className="button"
-                            onClick={() =>
-                              navigator.clipboard?.writeText(inviteUrl(invitation.token ?? ''))
-                            }
-                          >
-                            コピー
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="note">
-                          {invitation.shared ? '発行時のみ表示' : '（宛先つき）'}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {!invitation.acceptedAt && !invitation.revokedAt && (
-                        <button
-                          type="button"
-                          className="button"
-                          onClick={async () => {
-                            if (!window.confirm('この招待リンクを使えなくしますか？')) return;
-                            await api.revokeInvitation(treeId, invitation.id);
-                            await reload();
-                          }}
-                        >
-                          取り消す
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ul className="card-list">
+              {invitations.map((invitation) => (
+                <li key={invitation.id} className="card-list__item">
+                  <div className="card-list__header">
+                    <div>
+                      <strong className="card-list__title">
+                        {invitation.label ??
+                          invitation.email ??
+                          (invitation.shared ? '共通リンク' : '宛先つきの招待')}
+                      </strong>
+                      <p className="card-list__meta">
+                        {ROLE_LABELS[invitation.role]}
+                        {invitation.label && invitation.email && `・${invitation.email}`}
+                      </p>
+                      <p className="card-list__meta">
+                        参加した人:{' '}
+                        {invitation.acceptedUids.length === 0
+                          ? 'まだ誰も'
+                          : invitation.acceptedUids.map((uid) => nameOf(uid)).join('、')}
+                      </p>
+                    </div>
+                    <span className="badge">{invitationStatus(invitation)}</span>
+                  </div>
+
+                  {invitation.token && isUsable(invitation) ? (
+                    <div className="invite-link">
+                      <code className="token">{inviteUrl(invitation.token)}</code>
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={() =>
+                          navigator.clipboard?.writeText(inviteUrl(invitation.token ?? ''))
+                        }
+                      >
+                        コピー
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="card-list__meta">
+                      {invitation.shared ? 'リンクは発行時のみ表示' : '宛先つき（1人で使い切り）'}
+                    </p>
+                  )}
+
+                  {!invitation.acceptedAt && !invitation.revokedAt && (
+                    <div className="card-list__actions">
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={async () => {
+                          if (!window.confirm('この招待リンクを使えなくしますか？')) return;
+                          await api.revokeInvitation(treeId, invitation.id);
+                          await reload();
+                        }}
+                      >
+                        取り消す
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       )}

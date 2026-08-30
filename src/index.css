@@ -788,7 +788,9 @@ input[type='radio'] {
 
 .card-list__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
+  margin-top: 0.6rem;
 }
 
 .link-list__row {
@@ -832,26 +834,7 @@ input[type='radio'] {
   margin: 0.25rem 0 0;
   color: var(--muted);
   font-size: 0.85rem;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 0.75rem;
-  font-size: 0.875rem;
-}
-
-.table th,
-.table td {
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-
-.table th {
-  color: var(--muted);
-  font-weight: 500;
-  font-size: 0.8rem;
+  overflow-wrap: anywhere;
 }
 
 .detail-list {

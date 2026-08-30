@@ -91,16 +91,19 @@ describe('MembersPage の招待一覧', () => {
 
   it('そのリンクから入った人を呼び名で出す', async () => {
     renderPage('owner', [invitation()]);
-    const rows = await screen.findAllByRole('row');
-    const inviteRow = rows.find((row) => row.textContent?.includes('invite/abc123'));
-    expect(inviteRow?.textContent).toContain('はなこ');
+    expect(await screen.findByText(/参加した人:\s*はなこ/)).toBeInTheDocument();
   });
 
   it('メンバーが、どのリンクから入ったのか分かる', async () => {
     renderPage('owner', [invitation({ label: '叔父さん一家へ' })]);
-    const rows = await screen.findAllByRole('row');
-    const memberRow = rows.find((row) => row.textContent?.startsWith('はなこ'));
-    expect(memberRow?.textContent).toContain('叔父さん一家へ');
+    expect(await screen.findByText('参加のきっかけ: 叔父さん一家へ')).toBeInTheDocument();
+  });
+
+  it('オーナー以外には、ログイン名も参加のきっかけも出さない', async () => {
+    renderPage('editor', []);
+    await screen.findByText('はなこ');
+    expect(screen.queryByText(/参加のきっかけ/)).not.toBeInTheDocument();
+    expect(api.listMemberAccounts).not.toHaveBeenCalled();
   });
 
   it('覚え書きの無い共通リンクは、発行日で見分けられる', async () => {
