@@ -255,6 +255,12 @@ export function MembersPage() {
                   )}
                 </td>
                 <td className="card-list__actions">
+                  {/* この人が何を変えたのかを、そのまま見に行けるように */}
+                  {isOwner && (
+                    <Link className="button" to={`/trees/${treeId}/audit?member=${member.userId}`}>
+                      変更履歴
+                    </Link>
+                  )}
                   {/*
                     パスワードで入っている人にだけ出す。
                     Google の人のパスワードはこちらでは扱えない（向こうの持ち物）。

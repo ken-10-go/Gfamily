@@ -143,6 +143,11 @@ export function SettingsPage() {
               note="すいすい家系図の書き出し（.ftz）から足す"
             />
             <MenuLink
+              to={`/trees/${treeId}/audit`}
+              title="変更履歴"
+              note="誰がいつ何を変えたか（メンバーごとに見られる）"
+            />
+            <MenuLink
               to={`/trees/${treeId}/history`}
               title="ゴミ箱"
               note="消した人を戻す・完全に消す・記録の後始末"

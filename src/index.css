@@ -421,6 +421,35 @@ code {
   font-size: 0.8rem;
 }
 
+/* --- 変更履歴 -------------------------------------------------------------- */
+
+.audit__day h2 {
+  font-size: 1rem;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+}
+
+.audit {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+}
+
+/* 時刻を左に固定して並べる。目で追う列があると、件数が多くても読める */
+.audit__item {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--surface-alt);
+  line-height: 1.6;
+}
+
+.audit__time {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* --- 使い方ガイド --------------------------------------------------------- */
 
 .guide__toc {
@@ -429,10 +458,32 @@ code {
   line-height: 1.9;
 }
 
+.guide__toc a {
+  color: var(--accent);
+}
+
 .guide__section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.75rem;
   /* 目次から飛んだとき、見出しが画面の上端に貼り付かないように */
   scroll-margin-top: 1rem;
+}
+
+/*
+ * 話の切れ目を目立たせる。色だけに頼らず縦線も引くのは、
+ * 明るい屋外や端末の設定で色の差が消えても切れ目が分かるようにするため。
+ */
+.guide__section h2 {
+  margin: 2.25rem 0 0.6rem;
+  padding-left: 0.6rem;
+  border-left: 4px solid var(--accent);
+  color: var(--accent);
+  font-size: 1.3rem;
+  line-height: 1.4;
+}
+
+.guide__section p,
+.guide__section li {
+  line-height: 1.85;
 }
 
 .guide__section li {

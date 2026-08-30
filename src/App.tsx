@@ -8,6 +8,7 @@ import { RequireAuth } from '@/features/auth/RequireAuth';
 import { useAuth } from '@/features/auth/useAuth';
 import { FeedbackPage } from '@/features/feedback/FeedbackPage';
 import { GuidePage } from '@/features/guide/GuidePage';
+import { AuditPage } from '@/features/history/AuditPage';
 import { HistoryPage } from '@/features/history/HistoryPage';
 import { AcceptInvitePage } from '@/features/members/AcceptInvitePage';
 import { MembersPage } from '@/features/members/MembersPage';
@@ -89,6 +90,14 @@ export default function App() {
           element={
             <RequireAuth>
               <FeedbackPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/trees/:treeId/audit"
+          element={
+            <RequireAuth>
+              <AuditPage />
             </RequireAuth>
           }
         />

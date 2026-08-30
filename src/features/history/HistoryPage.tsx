@@ -143,7 +143,13 @@ export function HistoryPage() {
 
       <h2>変更の記録</h2>
       <p className="note">
-        誰がいつ何を変えたかを {logs} 件ぶん残しています。中身はこの画面では出しません。
+        誰がいつ何を変えたかを {logs} 件ぶん残しています。
+        {isOwner && (
+          <>
+            {' '}
+            中身は <Link to={`/trees/${treeId}/audit`}>変更履歴</Link> で見られます。
+          </>
+        )}
       </p>
 
       {isOwner ? (
