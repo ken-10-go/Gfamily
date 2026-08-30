@@ -191,6 +191,11 @@ export function SettingsPage() {
       <p className="home__label home__section">こまったとき</p>
       <ul className="menu-list">
         <MenuLink
+          to={`/trees/${treeId}/guide`}
+          title="使い方ガイド"
+          note="段・配置・家など、見ただけでは分かりにくいところ"
+        />
+        <MenuLink
           to={`/trees/${treeId}/feedback`}
           title="ご意見・不具合"
           note="うまくいかないこと・こうしてほしいことを送る"

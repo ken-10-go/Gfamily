@@ -767,7 +767,15 @@ export function TreeDetailPage() {
                   >
                     設定（メンバー・家・ゴミ箱）
                   </Link>
-                  {/* 困ったのは図を見ている最中なので、ここからも送れるようにする */}
+                  {/* 困ったのは図を見ている最中なので、ここからも読める・送れるようにする */}
+                  <Link
+                    to={`/trees/${treeId}/guide`}
+                    role="menuitem"
+                    className="person-menu__item"
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    使い方ガイド
+                  </Link>
                   <Link
                     to={`/trees/${treeId}/feedback`}
                     role="menuitem"

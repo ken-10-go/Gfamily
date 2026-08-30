@@ -7,6 +7,7 @@ import { LoginPage } from '@/features/auth/LoginPage';
 import { RequireAuth } from '@/features/auth/RequireAuth';
 import { useAuth } from '@/features/auth/useAuth';
 import { FeedbackPage } from '@/features/feedback/FeedbackPage';
+import { GuidePage } from '@/features/guide/GuidePage';
 import { HistoryPage } from '@/features/history/HistoryPage';
 import { AcceptInvitePage } from '@/features/members/AcceptInvitePage';
 import { MembersPage } from '@/features/members/MembersPage';
@@ -72,6 +73,14 @@ export default function App() {
           element={
             <RequireAuth>
               <MembersPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/trees/:treeId/guide"
+          element={
+            <RequireAuth>
+              <GuidePage />
             </RequireAuth>
           }
         />

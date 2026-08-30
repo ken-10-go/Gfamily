@@ -421,6 +421,24 @@ code {
   font-size: 0.8rem;
 }
 
+/* --- 使い方ガイド --------------------------------------------------------- */
+
+.guide__toc {
+  margin: 0.75rem 0 1.25rem;
+  padding-left: 1.1rem;
+  line-height: 1.9;
+}
+
+.guide__section {
+  margin-bottom: 1.5rem;
+  /* 目次から飛んだとき、見出しが画面の上端に貼り付かないように */
+  scroll-margin-top: 1rem;
+}
+
+.guide__section li {
+  margin-bottom: 0.4rem;
+}
+
 /* --- ご意見・不具合 -------------------------------------------------------- */
 
 .feedback {

@@ -49,6 +49,14 @@ describe('FeedbackPage', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
+  it('送る前に、使い方ガイドへ寄れる', async () => {
+    renderPage('viewer', []);
+    expect(await screen.findByRole('link', { name: '使い方ガイド' })).toHaveAttribute(
+      'href',
+      '/trees/t1/guide',
+    );
+  });
+
   it('空のままでは送れない', async () => {
     renderPage('viewer', []);
     expect(await screen.findByRole('button', { name: '送る' })).toBeDisabled();

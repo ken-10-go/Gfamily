@@ -147,6 +147,12 @@ export function FeedbackPage() {
 
       {error && <p className="alert alert--error">{error}</p>}
 
+      {/* 送る前に読めるようにする。知っていれば困らなかった、が多いため */}
+      <p className="note">
+        段の動かし方や家のまとめ方など、分かりにくいところは
+        <Link to={`/trees/${treeId}/guide`}>使い方ガイド</Link> にまとめてあります。
+      </p>
+
       <form className="form" onSubmit={handleSubmit}>
         <label className="field field--grow">
           <span className="field__label">気づいたことを書いてください</span>
