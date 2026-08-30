@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { useAuth } from '@/features/auth/useAuth';
+import { avatarColor } from '@/features/home/avatar';
 import * as api from '@/lib/api';
 import type { MemberEntry } from '@/lib/api';
 import { isNicknameAccount } from '@/lib/nickname';
@@ -206,87 +207,99 @@ export function MembersPage() {
           誰が居るのかを見渡せなかった。
         */}
         <ul className="member-list">
-          {members.map((member) => (
-            <li key={member.userId} className="member-list__item">
-              <div className="member-list__main">
-                <p className="member-list__name">
-                  {/* 呼び名で見分ける。ログインに使う名前はオーナーにだけ出す */}
-                  <strong>{nameOf(member.userId)}</strong>
-                  {member.userId === user?.uid && <span className="badge">自分</span>}
-                </p>
-                {/* 記号だけの行が並ぶと欠けているように見えるので、分かるところだけ出す */}
-                {isOwner && (accounts.has(member.userId) || joinedViaOf(member.userId) !== '—') && (
-                  <p className="member-list__meta">
-                    {accounts.has(member.userId) && (
-                      <>
-                        <code>{accountNameOf(member.userId)}</code>
-                        {accounts.get(member.userId)?.providers.includes('google.com')
-                          ? '（Google）'
-                          : '（パスワード）'}
-                      </>
-                    )}
-                    {joinedViaOf(member.userId) !== '—' &&
-                      `${accounts.has(member.userId) ? '・' : ''}${joinedViaOf(member.userId)}`}
-                  </p>
-                )}
-              </div>
-
-              {isOwner && member.userId !== user?.uid ? (
-                <select
-                  className="member-list__role"
-                  value={member.role}
-                  onChange={(event) =>
-                    handleRoleChange(member.userId, event.target.value as TreeRole)
-                  }
-                  aria-label="権限"
+          {members.map((member) => {
+            const isSelf = member.userId === user?.uid;
+            const account = accounts.get(member.userId);
+            const via = joinedViaOf(member.userId);
+            const name = nameOf(member.userId);
+            return (
+              <li key={member.userId} className="member-list__item">
+                <span
+                  className="avatar member-list__avatar"
+                  aria-hidden="true"
+                  style={{ background: avatarColor(member.userId) }}
                 >
-                  {(Object.keys(ROLE_LABELS) as TreeRole[]).map((value) => (
-                    <option key={value} value={value}>
-                      {ROLE_LABELS[value]}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="badge">{ROLE_LABELS[member.role]}</span>
-              )}
+                  {name.trim().slice(0, 1)}
+                </span>
 
-              <div className="member-list__actions">
-                {/* この人が何を変えたのかを、そのまま見に行けるように */}
-                {isOwner && (
-                  <Link
-                    className="link-button"
-                    to={`/trees/${treeId}/audit?member=${member.userId}`}
+                <div className="member-list__main">
+                  <p className="member-list__name">
+                    <strong>{name}</strong>
+                    {isSelf && <span className="badge">自分</span>}
+                  </p>
+                  {/* オーナーにだけ、見分けるための細かい情報を1行にまとめて添える */}
+                  {isOwner && (account || via !== '—') && (
+                    <p className="member-list__meta">
+                      {account && (
+                        <>
+                          {accountNameOf(member.userId)}
+                          {account.providers.includes('google.com')
+                            ? '（Google）'
+                            : '（パスワード）'}
+                        </>
+                      )}
+                      {via !== '—' && `${account ? ' · ' : ''}${via}`}
+                    </p>
+                  )}
+                </div>
+
+                {isOwner && !isSelf ? (
+                  <select
+                    className="member-list__role"
+                    value={member.role}
+                    onChange={(event) =>
+                      handleRoleChange(member.userId, event.target.value as TreeRole)
+                    }
+                    aria-label="権限"
                   >
-                    履歴
-                  </Link>
+                    {(Object.keys(ROLE_LABELS) as TreeRole[]).map((value) => (
+                      <option key={value} value={value}>
+                        {ROLE_LABELS[value]}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="badge">{ROLE_LABELS[member.role]}</span>
                 )}
-                {/*
-                  パスワードで入っている人にだけ出す。
-                  Google の人のパスワードはこちらでは扱えない（向こうの持ち物）。
-                */}
-                {isOwner &&
-                  member.userId !== user?.uid &&
-                  accounts.get(member.userId)?.providers.includes('password') && (
+
+                <div className="member-list__actions">
+                  {/* この人が何を変えたのかを、そのまま見に行けるように */}
+                  {isOwner && (
+                    <Link
+                      className="chip"
+                      title="変更履歴"
+                      to={`/trees/${treeId}/audit?member=${member.userId}`}
+                    >
+                      履歴
+                    </Link>
+                  )}
+                  {/*
+                    パスワードで入っている人にだけ出す。
+                    Google の人のパスワードはこちらでは扱えない（向こうの持ち物）。
+                  */}
+                  {isOwner && !isSelf && account?.providers.includes('password') && (
                     <button
                       type="button"
-                      className="link-button"
+                      className="chip"
                       onClick={() => handlePasswordReset(member.userId)}
                     >
-                      パスワード再設定
+                      再設定
                     </button>
                   )}
-                {(isOwner || member.userId === user?.uid) && (
-                  <button
-                    type="button"
-                    className="link-button link-button--danger"
-                    onClick={() => handleRemove(member.userId)}
-                  >
-                    {member.userId === user?.uid ? '脱退' : '削除'}
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
+                  {(isOwner || isSelf) && (
+                    <button
+                      type="button"
+                      className="chip chip--danger"
+                      aria-label={isSelf ? '脱退' : '削除'}
+                      onClick={() => handleRemove(member.userId)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
         <p className="note">名前は各自が設定で決めた呼び名です。パスワードは誰にも見えません。</p>
       </section>
@@ -378,54 +391,44 @@ export function MembersPage() {
           {invitations.length === 0 ? (
             <p className="note">まだ招待はありません。</p>
           ) : (
-            <ul className="card-list">
+            <ul className="member-list">
               {invitations.map((invitation) => (
-                <li key={invitation.id} className="card-list__item">
-                  <div className="card-list__header">
-                    <div>
-                      <strong className="card-list__title">
+                <li key={invitation.id} className="member-list__item member-list__item--wrap">
+                  <div className="member-list__main">
+                    <p className="member-list__name">
+                      <strong>
                         {invitation.label ??
                           invitation.email ??
                           (invitation.shared ? '共通リンク' : '宛先つきの招待')}
                       </strong>
-                      <p className="card-list__meta">
-                        {ROLE_LABELS[invitation.role]}
-                        {invitation.label && invitation.email && `・${invitation.email}`}
-                      </p>
-                      <p className="card-list__meta">
-                        参加した人:{' '}
-                        {invitation.acceptedUids.length === 0
-                          ? 'まだ誰も'
-                          : invitation.acceptedUids.map((uid) => nameOf(uid)).join('、')}
-                      </p>
-                    </div>
-                    <span className="badge">{invitationStatus(invitation)}</span>
+                      <span className="badge">{invitationStatus(invitation)}</span>
+                    </p>
+                    <p className="member-list__meta">
+                      {ROLE_LABELS[invitation.role]}
+                      {invitation.label && invitation.email && ` · ${invitation.email}`}
+                      {' · '}
+                      {invitation.acceptedUids.length === 0
+                        ? 'まだ誰も使っていません'
+                        : invitation.acceptedUids.map((uid) => nameOf(uid)).join('、')}
+                    </p>
                   </div>
 
-                  {invitation.token && isUsable(invitation) ? (
-                    <div className="invite-link">
-                      <code className="token">{inviteUrl(invitation.token)}</code>
+                  <div className="member-list__actions">
+                    {invitation.token && isUsable(invitation) && (
                       <button
                         type="button"
-                        className="button"
+                        className="chip"
                         onClick={() =>
                           navigator.clipboard?.writeText(inviteUrl(invitation.token ?? ''))
                         }
                       >
-                        コピー
+                        リンクをコピー
                       </button>
-                    </div>
-                  ) : (
-                    <p className="card-list__meta">
-                      {invitation.shared ? 'リンクは発行時のみ表示' : '宛先つき（1人で使い切り）'}
-                    </p>
-                  )}
-
-                  {!invitation.acceptedAt && !invitation.revokedAt && (
-                    <div className="card-list__actions">
+                    )}
+                    {!invitation.acceptedAt && !invitation.revokedAt && (
                       <button
                         type="button"
-                        className="button"
+                        className="chip chip--danger"
                         onClick={async () => {
                           if (!window.confirm('この招待リンクを使えなくしますか？')) return;
                           await api.revokeInvitation(treeId, invitation.id);
@@ -434,7 +437,12 @@ export function MembersPage() {
                       >
                         取り消す
                       </button>
-                    </div>
+                    )}
+                  </div>
+
+                  {/* リンクそのものは長いので、行の下に折り返して置く */}
+                  {invitation.token && isUsable(invitation) && (
+                    <code className="token member-list__link">{inviteUrl(invitation.token)}</code>
                   )}
                 </li>
               ))}

@@ -367,111 +367,108 @@ code {
 
 /*
  * 1人1行。カードで大きく取ると1画面に数人しか入らず、誰が居るのかを見渡せなかった。
- * 名前と権限を上の行に、細かい情報はその下に小さく置く。
+ * 丸アバター・名前・権限・操作を横1列に収め、細かい情報だけ名前の下に小さく置く。
  */
 .member-list {
   list-style: none;
-  margin: 0.75rem 0 0.5rem;
+  margin: 0.5rem 0;
   padding: 0;
 }
 
 .member-list__item {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
   align-items: center;
-  gap: 0.2rem 0.6rem;
-  padding: 0.6rem 0;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
   border-bottom: 1px solid var(--border);
+}
+
+.member-list__avatar {
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.8rem;
+}
+
+.member-list__main {
+  flex: 1;
+  min-width: 0;
 }
 
 .member-list__name {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   margin: 0;
+  line-height: 1.3;
 }
 
+/* はみ出す長いアドレスは切る。全部を読ませる場所ではない */
 .member-list__meta {
-  margin: 0.15rem 0 0;
+  margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
-  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .member-list__role {
-  /* 名前の行に収める。長い権限名でも押せる幅は保つ */
-  min-width: 6.5rem;
-}
-
-/* 操作は行の下に小さく並べる。ボタンを大きく取ると1人ぶんが縦に伸びる */
-.member-list__actions {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.9rem;
-  font-size: 0.85rem;
-}
-
-.badge {
-  display: inline-block;
-  flex-shrink: 0;
-  padding: 0.1rem 0.45rem;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  font-size: 0.78rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-/* 権限のバッジは、ヘッダーに余裕のある幅でだけ出す */
-.badge--wide {
-  display: none;
-}
-
-@media (min-width: 30rem) {
-  .badge--wide {
-    display: revert;
-  }
-}
-
-.alert {
-  padding: 0.7rem 0.9rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  font-size: 0.875rem;
-}
-
-.alert--error {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.alert--success {
-  border-color: var(--accent);
-}
-
-.token {
-  display: block;
-  overflow-wrap: anywhere;
-  margin: 0.5rem 0;
-  padding: 0.5rem;
-  background: var(--surface);
-  border-radius: 4px;
-}
-
-/* 発行済みの招待の行。狭い画面ではリンクの下にボタンが回り込む。 */
-.invite-link {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  min-width: 12rem;
-}
-
-.invite-link .token {
-  margin: 0;
+  flex: none;
+  min-height: 2rem;
+  padding: 0.15rem 1.4rem 0.15rem 0.5rem;
   font-size: 0.8rem;
+}
+
+/* 招待の行は、リンクを下に回り込ませる */
+.member-list__item--wrap {
+  flex-wrap: wrap;
+}
+
+.member-list__link {
+  flex-basis: 100%;
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.member-list__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/*
+ * 行に置く小さなボタン。--tap（44px）より小さいので、
+ * 押し間違えても取り返しがつくもの（履歴・再設定・削除の確認あり）にだけ使う。
+ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+@media (hover: hover) {
+  .chip:hover {
+    background: var(--surface);
+  }
 }
 
 /* --- 変更履歴 -------------------------------------------------------------- */

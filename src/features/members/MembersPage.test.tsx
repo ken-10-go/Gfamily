@@ -91,7 +91,9 @@ describe('MembersPage の招待一覧', () => {
 
   it('そのリンクから入った人を呼び名で出す', async () => {
     renderPage('owner', [invitation()]);
-    expect(await screen.findByText(/参加した人:\s*はなこ/)).toBeInTheDocument();
+    const rows = await screen.findAllByRole('listitem');
+    const inviteRow = rows.find((row) => row.textContent?.includes('invite/abc123'));
+    expect(inviteRow?.textContent).toContain('はなこ');
   });
 
   it('メンバーが、どのリンクから入ったのか分かる', async () => {
