@@ -135,7 +135,7 @@ export function SettingsPage() {
             <MenuLink
               to={`/trees/${treeId}/bridges`}
               title="家どうしのつながり"
-              note="他の家の家系図と合わせて見る"
+              note="いまは止めています（承認の仕組みを入れ直すまで）"
             />
             <MenuLink
               to={`/trees/${treeId}/import`}

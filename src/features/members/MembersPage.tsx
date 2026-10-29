@@ -29,6 +29,8 @@ export function MembersPage() {
   const [shared, setShared] = useState(true);
   /** 何のために配るリンクかの覚え書き。リンクが増えたときに見分けるためのもの */
   const [inviteLabel, setInviteLabel] = useState('');
+  /** 共通リンクを使える人数。リンクが転送されても、ここで止まる */
+  const [maxUses, setMaxUses] = useState(20);
   const [notice, setNotice] = useState<string | null>(null);
   /** 発行した仮のパスワード。画面を離れるまでのあいだだけ出す */
   const [temporary, setTemporary] = useState<{ name: string; password: string } | null>(null);
@@ -113,6 +115,7 @@ export function MembersPage() {
         validDays,
         shared,
         inviteLabel.trim() || null,
+        shared ? maxUses : null,
       );
       setIssuedLink(inviteUrl(token));
       setInviteEmail('');
@@ -357,6 +360,19 @@ export function MembersPage() {
               />
             </label>
 
+            {shared && (
+              <label className="field">
+                <span className="field__label">何人まで</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={maxUses}
+                  onChange={(event) => setMaxUses(Number(event.target.value))}
+                />
+              </label>
+            )}
+
             <label className="field">
               <span className="field__label">有効日数</span>
               <input
@@ -470,10 +486,14 @@ function isUsable(invitation: Invitation): boolean {
 function invitationStatus(invitation: Invitation): string {
   if (invitation.revokedAt) return '取り消し済み';
   if (invitation.acceptedAt) return '受諾済み';
-  const used =
-    invitation.shared && invitation.acceptedCount > 0
-      ? `・${invitation.acceptedCount}人が使用`
-      : '';
+  // 共通リンクは「あと何人使えるか」が分かるようにする。上限で自動的に止まるため
+  const used = !invitation.shared
+    ? ''
+    : invitation.maxUses
+      ? `・${invitation.acceptedCount}/${invitation.maxUses}人`
+      : invitation.acceptedCount > 0
+        ? `・${invitation.acceptedCount}人が使用`
+        : '';
   if (!invitation.expiresAt) return `—${used}`;
   const expiresAt = new Date(invitation.expiresAt);
   if (expiresAt < new Date()) return `期限切れ${used}`;

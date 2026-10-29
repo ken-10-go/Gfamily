@@ -750,6 +750,7 @@ export async function listInvitations(treeId: string): Promise<Invitation[]> {
       shared: data.shared === true,
       token: data.token ?? null,
       acceptedCount: data.acceptedCount ?? 0,
+      maxUses: data.maxUses ?? null,
       acceptedUids: (data.acceptedUids ?? []) as string[],
       label: data.label ?? null,
       expiresAt: toIso(data.expiresAt),
@@ -775,6 +776,7 @@ export async function createInvitation(
   validDays = 7,
   shared = false,
   label: string | null = null,
+  maxUses: number | null = null,
 ): Promise<string> {
   const call = httpsCallable<
     {
@@ -784,11 +786,12 @@ export async function createInvitation(
       validDays: number;
       shared: boolean;
       label: string | null;
+      maxUses: number | null;
     },
     { token: string }
   >(getFns(), 'createInvitation');
 
-  const result = await call({ treeId, role, email, validDays, shared, label });
+  const result = await call({ treeId, role, email, validDays, shared, label, maxUses });
   return result.data.token;
 }
 
@@ -931,7 +934,24 @@ function toBridge(snapshot: QueryDocumentSnapshot<DocumentData>): Bridge {
  * このツリーが関わるつながりを集める。
  * 申請した側・された側の2方向を別々に引く（Firestore の or 検索は使わない）。
  */
+/**
+ * 他家とのつながり（合同表示）を使えるかどうか。
+ *
+ * ⚠ いまは **止めてある**。この仕組みは「相手の家系図を読んでよい」という
+ * 認可そのもので、クライアントから配れる作りのままでは
+ * ログインできる人が自分で自分に許可を出せてしまった。
+ * 再開するときは firestore.rules の treeBridges のコメントの手順を踏むこと。
+ */
+export const BRIDGES_ENABLED = false;
+
+function bridgesOff(): never {
+  throw new Error('他家とのつながりは、いま止めています');
+}
+
 export async function listBridges(treeId: string): Promise<Bridge[]> {
+  // 止めているあいだは問い合わせない（ルールで閉じているので必ず断られる）
+  if (!BRIDGES_ENABLED) return [];
+
   const bridges = collection(getDb(), 'treeBridges');
   const [asRequester, asTarget] = await Promise.all([
     getDocs(query(bridges, where('requesterTreeId', '==', treeId))),
@@ -970,6 +990,7 @@ async function grantSelfAccess(otherTreeId: string): Promise<void> {
 export async function previewTree(
   otherTreeId: string,
 ): Promise<{ name: string; persons: Person[] }> {
+  if (!BRIDGES_ENABLED) bridgesOff();
   await grantSelfAccess(otherTreeId);
 
   const [tree, persons] = await Promise.all([
@@ -1000,6 +1021,7 @@ export async function connectTree(
   otherPersonId: string,
   bridgeType: Bridge['bridgeType'],
 ): Promise<void> {
+  if (!BRIDGES_ENABLED) bridgesOff();
   const uid = requireUid();
   if (treeId === otherTreeId) throw new Error('同じ家系図どうしはつなげません');
 
@@ -1047,6 +1069,7 @@ export async function connectTree(
 
 /** つながりを解除する。配った閲覧の許可もまとめて消す。 */
 export async function revokeBridge(bridgeId: string): Promise<void> {
+  if (!BRIDGES_ENABLED) bridgesOff();
   const ref = doc(getDb(), 'treeBridges', bridgeId);
   const snapshot = await getDoc(ref);
   if (!snapshot.exists()) return;

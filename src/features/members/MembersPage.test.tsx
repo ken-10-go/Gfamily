@@ -26,6 +26,7 @@ function invitation(overrides: Partial<Invitation> = {}): Invitation {
     token: 'abc123',
     acceptedCount: 1,
     acceptedUids: ['hanako'],
+    maxUses: null,
     label: null,
     expiresAt: TOMORROW,
     revokedAt: null,
@@ -113,6 +114,19 @@ describe('MembersPage の招待一覧', () => {
   it('覚え書きの無い共通リンクは、発行日で見分けられる', async () => {
     renderPage('owner', [invitation({ createdAt: '2026-03-01T00:00:00.000Z' })]);
     expect(await screen.findByText(/2026\/3\/1発行の共通リンク/)).toBeInTheDocument();
+  });
+
+  it('共通リンクは、何人まで使えるかが分かる', async () => {
+    renderPage('owner', [invitation({ maxUses: 20, acceptedCount: 3 })]);
+    expect(await screen.findByText(/3\/20人/)).toBeInTheDocument();
+  });
+
+  it('発行するとき、使える人数をサーバーへ渡す', async () => {
+    renderPage('owner', []);
+    fireEvent.click(await screen.findByRole('button', { name: '招待リンクを発行' }));
+    await waitFor(() =>
+      expect(api.createInvitation).toHaveBeenCalledWith('t1', 'viewer', null, 7, true, null, 20),
+    );
   });
 
   it('確認したうえで取り消せる', async () => {

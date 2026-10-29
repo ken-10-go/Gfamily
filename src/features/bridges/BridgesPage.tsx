@@ -14,8 +14,9 @@ const TYPE_LABELS: Record<Bridge['bridgeType'], string> = {
 /**
  * 他家とのつながり（ブリッジ）の管理。
  *
- * ⚠ 暫定の作り。相手の家系図IDを知っていれば、相手の承認なしにその場でつながる。
- * 管理すべき家族単位を決めたら、双方のオーナーの承認を挟む形へ戻すこと。
+ * ⚠ いまは止めてある（`api.BRIDGES_ENABLED`）。相手の承認なしにつながる作りで、
+ * 「相手の家系図を読んでよい」という認可を自分で自分に配れてしまっていた。
+ * 画面は残し、止めていることと再開の条件だけを出す。
  * 戻し先は `functions/src/index.ts` の acceptBridgeConnection。
  */
 export function BridgesPage() {
@@ -121,6 +122,27 @@ export function BridgesPage() {
         {lifespanLabel(person) ? `（${lifespanLabel(person)}）` : ''}
       </option>
     ));
+
+  if (!api.BRIDGES_ENABLED) {
+    return (
+      <main className="page">
+        <p>
+          <Link to={`/trees/${treeId}`}>← {treeName || '家系図'}へ戻る</Link>
+        </p>
+        <h1>家どうしのつながり</h1>
+        <p className="alert alert--error">この機能はいま止めています。</p>
+        <p className="note">
+          他の家の家系図とつなぐ仕組みは、
+          <strong>相手の承認なしにつながる作り</strong>のままでした。
+          それでは「見てよい」という許可を自分で自分に出せてしまうので、
+          承認の仕組みを入れ直すまでのあいだ閉じています。
+        </p>
+        <p className="note">
+          いま他の家の家系図が見えることはありません。この家系図の中身は変わっていません。
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="page">

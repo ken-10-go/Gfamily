@@ -461,73 +461,29 @@ async function seedGrant(treeId: string, uid: string) {
 const otherPerson = (db: ReturnType<typeof as>, personId: string) =>
   doc(db, 'trees', OTHER_TREE, 'persons', personId);
 
-describe('他家とのつながり', () => {
+describe('他家とのつながり（いまは止めてある）', () => {
   beforeEach(seedOtherTree);
 
-  it('つながりが無ければ、他家は故人も生存者も読めない', async () => {
+  it('他家は、故人も生存者も読めない', async () => {
     const db = as(env, OWNER);
     await assertFails(getDoc(otherPerson(db, OTHER_DECEASED)));
     await assertFails(getDoc(otherPerson(db, OTHER_LIVING)));
   });
 
-  it('申請しただけ（未承認）では、まだ読めない', async () => {
-    // 承認前は認可の文書が配られないので、pending の申請があっても見えない
-    await seed(env, async (db) => {
-      await setDoc(doc(db, 'treeBridges', 'bridge-1'), {
-        requesterTreeId: TREE,
-        requesterPersonId: PERSON,
-        requesterUid: OWNER,
-        targetTreeId: null,
-        status: 'pending',
-      });
-    });
+  it('認可の文書があっても読めない（ルールがもう見ていない）', async () => {
+    await seedGrant(OTHER_TREE, OWNER);
 
     await assertFails(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
-  });
-
-  it('【暫定】つながると、他家は存命の人も含めて読める', async () => {
-    // 本来は故人だけ。締め直すときは OTHER_LIVING が読めないことを確かめる形に戻す
-    await seedGrant(OTHER_TREE, OWNER);
-
-    await assertSucceeds(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
-    await assertSucceeds(getDoc(otherPerson(as(env, OWNER), OTHER_LIVING)));
-  });
-
-  it('承認後も、他家のデータは書き換えられない', async () => {
-    await seedGrant(OTHER_TREE, OWNER);
-
-    await assertFails(
-      updateDoc(otherPerson(as(env, OWNER), OTHER_DECEASED), {
-        givenName: '書換',
-        updatedBy: OWNER,
-      }),
-    );
-  });
-
-  it('関係（誰と誰がつながっているか）は読める。線が途切れると図にならないため', async () => {
-    await seedGrant(OTHER_TREE, OWNER);
-
-    await assertSucceeds(getDoc(doc(as(env, OWNER), 'trees', OTHER_TREE, 'unions', 'union-1')));
-  });
-
-  it('解除（認可の削除）で、ただちに読めなくなる', async () => {
-    await seedGrant(OTHER_TREE, OWNER);
-    await assertSucceeds(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
-
-    await seed(env, async (db) => {
-      await deleteDoc(doc(db, 'treeBridges', `${OTHER_TREE}_${OWNER}`));
-    });
-
-    await assertFails(getDoc(otherPerson(as(env, OWNER), OTHER_DECEASED)));
+    await assertFails(getDoc(doc(as(env, OWNER), 'trees', OTHER_TREE, 'unions', 'union-1')));
+    await assertFails(getDoc(doc(as(env, OWNER), 'trees', OTHER_TREE)));
   });
 
   /*
-   * ⚠ 暫定。本来は「クライアントからは作れない」ことを確かめるテストだった。
-   * 管理すべき家族の単位を決めたら、この2件を assertFails に戻し、
-   * firestore.rules の treeBridges を allow write: if false に戻すこと。
+   * ここが今回ふさいだ穴。
+   * クライアントから認可を書けると、自分で自分に「読んでよい」を配れてしまう。
    */
-  it('【暫定】つながりをクライアントから作れる（自分に許可を配れてしまう）', async () => {
-    await assertSucceeds(
+  it('認可をクライアントから作れない', async () => {
+    await assertFails(
       setDoc(doc(as(env, OWNER), 'treeBridges', `${OTHER_TREE}_${OWNER}`), {
         grantForTreeId: OTHER_TREE,
         grantedUid: OWNER,
@@ -535,20 +491,27 @@ describe('他家とのつながり', () => {
     );
   });
 
-  it('【暫定】自分に許可を配れば、無関係な家系図も読める', async () => {
+  it('自分に許可を配ろうとしても、無関係な家系図は読めない', async () => {
     const db = as(env, OUTSIDER);
-    await setDoc(doc(db, 'treeBridges', `${OTHER_TREE}_${OUTSIDER}`), {
-      grantForTreeId: OTHER_TREE,
-      grantedUid: OUTSIDER,
-    });
-
-    await assertSucceeds(getDoc(otherPerson(db, OTHER_LIVING)));
+    await assertFails(
+      setDoc(doc(db, 'treeBridges', `${OTHER_TREE}_${OUTSIDER}`), {
+        grantForTreeId: OTHER_TREE,
+        grantedUid: OUTSIDER,
+      }),
+    );
+    await assertFails(getDoc(otherPerson(db, OTHER_LIVING)));
   });
 
-  it('他人に配られた認可は読めない', async () => {
+  it('配られた認可そのものも読めない', async () => {
     await seedGrant(OTHER_TREE, OWNER);
 
+    await assertFails(getDoc(doc(as(env, OWNER), 'treeBridges', `${OTHER_TREE}_${OWNER}`)));
     await assertFails(getDoc(doc(as(env, OUTSIDER), 'treeBridges', `${OTHER_TREE}_${OWNER}`)));
+  });
+
+  it('自分の家系図は、これまでどおり読める（巻き添えになっていない）', async () => {
+    await assertSucceeds(getDoc(doc(as(env, VIEWER), 'trees', TREE, 'persons', PERSON)));
+    await assertSucceeds(getDoc(doc(as(env, VIEWER), 'trees', TREE)));
   });
 });
 

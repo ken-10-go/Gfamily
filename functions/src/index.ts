@@ -86,7 +86,7 @@ export const deleteTree = onCall({ region: REGION }, async (request) => {
  */
 export const createInvitation = onCall({ region: REGION }, async (request) => {
   const uid = requireUid(request.auth);
-  const { treeId, role, email, validDays, shared, label } = (request.data ?? {}) as {
+  const { treeId, role, email, validDays, shared, label, maxUses } = (request.data ?? {}) as {
     treeId?: string;
     role?: TreeRole;
     email?: string | null;
@@ -95,6 +95,8 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
     shared?: boolean;
     /** 何のために配ったかの覚え書き（「叔父さん一家へ」など）。リンクを見分けるために使う */
     label?: string | null;
+    /** 共通リンクを使える人数の上限。リンクが回っても、ここで被害が止まる */
+    maxUses?: number | null;
   };
 
   if (!treeId) {
@@ -133,6 +135,18 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
   const isShared = Boolean(shared) && !normalizedEmail;
   const note = (label ?? '').trim().slice(0, 30) || null;
 
+  /*
+   * 共通リンクの使用上限。
+   *
+   * リンクは家族のあいだで転送されるものなので、配り終えたあとに回り続けても
+   * 「あと何人まで」で自動的に止まるようにしておく。
+   * 既定の20人は、家族でまとめて配る用途では十分に余裕がある。
+   */
+  const limit = Number.isInteger(maxUses) && (maxUses as number) > 0 ? (maxUses as number) : null;
+  if (limit !== null && limit > 100) {
+    throw new HttpsError('invalid-argument', '使用上限は100人までで指定してください');
+  }
+
   await db.collection(`trees/${treeId}/invitations`).add({
     tokenHash: hashToken(token),
     /*
@@ -145,6 +159,7 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
      */
     token: isShared ? token : null,
     label: note,
+    maxUses: isShared ? (limit ?? 20) : null,
     role,
     email: normalizedEmail,
     shared: isShared,
@@ -422,8 +437,11 @@ export const acceptInvitation = onCall({ region: REGION }, async (request) => {
 
   await db.runTransaction(async (tx) => {
     const current = await tx.get(invitation.ref);
-    // 共通のリンクは使い切らない。期限と取り消しだけで管理する
-    if ((!isShared && current.get('acceptedAt')) || current.get('revokedAt')) {
+    // 共通のリンクは人数の上限まで。宛先つきは1人で使い切り
+    const limit = current.get('maxUses') as number | undefined;
+    const reached =
+      isShared && typeof limit === 'number' && (current.get('acceptedCount') ?? 0) >= limit;
+    if ((!isShared && current.get('acceptedAt')) || current.get('revokedAt') || reached) {
       throw new HttpsError('not-found', '招待リンクが無効か、有効期限が切れています');
     }
 
@@ -466,7 +484,14 @@ async function findValidInvitation(token: string): Promise<DocumentSnapshot | nu
 
   const expiresAt = invitation.get('expiresAt') as Timestamp | undefined;
   const isExpired = !expiresAt || expiresAt.toMillis() < Date.now();
-  const usedUp = invitation.get('shared') !== true && invitation.get('acceptedAt');
+  // 宛先つきは1人で使い切り。共通リンクは決めた人数まで
+  const maxUses = invitation.get('maxUses') as number | undefined;
+  const overUsed =
+    invitation.get('shared') === true &&
+    typeof maxUses === 'number' &&
+    (invitation.get('acceptedCount') ?? 0) >= maxUses;
+  const usedUp =
+    overUsed || (invitation.get('shared') !== true && invitation.get('acceptedAt'));
   if (isExpired || invitation.get('revokedAt') || usedUp) {
     return null;
   }

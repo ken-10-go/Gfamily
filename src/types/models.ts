@@ -237,6 +237,8 @@ export interface Invitation {
   token: string | null;
   /** 共通リンクを使って入った人数 */
   acceptedCount: number;
+  /** 共通リンクを使える人数の上限。無制限のときは null */
+  maxUses: number | null;
   /** このリンクから入った人の uid（誰がどのリンクで入ったかを追えるように） */
   acceptedUids: string[];
   /** 何のために配ったかの覚え書き。リンクが増えたときに見分けるためのもの */
