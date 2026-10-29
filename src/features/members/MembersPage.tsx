@@ -30,7 +30,7 @@ export function MembersPage() {
   /** 何のために配るリンクかの覚え書き。リンクが増えたときに見分けるためのもの */
   const [inviteLabel, setInviteLabel] = useState('');
   /** 共通リンクを使える人数。リンクが転送されても、ここで止まる */
-  const [maxUses, setMaxUses] = useState(20);
+  const [maxUses, setMaxUses] = useState(10);
   const [notice, setNotice] = useState<string | null>(null);
   /** 発行した仮のパスワード。画面を離れるまでのあいだだけ出す */
   const [temporary, setTemporary] = useState<{ name: string; password: string } | null>(null);

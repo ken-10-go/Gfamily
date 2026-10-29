@@ -125,7 +125,7 @@ describe('MembersPage の招待一覧', () => {
     renderPage('owner', []);
     fireEvent.click(await screen.findByRole('button', { name: '招待リンクを発行' }));
     await waitFor(() =>
-      expect(api.createInvitation).toHaveBeenCalledWith('t1', 'viewer', null, 7, true, null, 20),
+      expect(api.createInvitation).toHaveBeenCalledWith('t1', 'viewer', null, 7, true, null, 10),
     );
   });
 

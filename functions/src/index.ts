@@ -140,7 +140,7 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
    *
    * リンクは家族のあいだで転送されるものなので、配り終えたあとに回り続けても
    * 「あと何人まで」で自動的に止まるようにしておく。
-   * 既定の20人は、家族でまとめて配る用途では十分に余裕がある。
+   * 既定は10人。足りなければ発行のときに増やせる（100人まで）。
    */
   const limit = Number.isInteger(maxUses) && (maxUses as number) > 0 ? (maxUses as number) : null;
   if (limit !== null && limit > 100) {
@@ -159,7 +159,7 @@ export const createInvitation = onCall({ region: REGION }, async (request) => {
      */
     token: isShared ? token : null,
     label: note,
-    maxUses: isShared ? (limit ?? 20) : null,
+    maxUses: isShared ? (limit ?? 10) : null,
     role,
     email: normalizedEmail,
     shared: isShared,
